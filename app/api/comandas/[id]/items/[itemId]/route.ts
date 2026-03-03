@@ -1,0 +1,123 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { z } from 'zod'
+
+const updateItemSchema = z.object({
+  estado: z.enum(['PENDIENTE', 'EN_PREPARACION', 'LISTO', 'ENTREGADO']),
+})
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: { id: string; itemId: string } }
+) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    const body = await request.json()
+    const { estado } = updateItemSchema.parse(body)
+
+    const item = await prisma.comandaItem.findUnique({
+      where: { id: params.itemId },
+      include: {
+        comanda: true,
+        producto: true,
+      },
+    })
+
+    if (!item || item.comandaId !== params.id) {
+      return NextResponse.json(
+        { success: false, error: 'Item no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const updateData: any = { estado }
+
+    if (estado === 'EN_PREPARACION' && !item.fechaPreparacion) {
+      updateData.fechaPreparacion = new Date()
+    }
+
+    if (estado === 'LISTO' && !item.fechaListo) {
+      updateData.fechaListo = new Date()
+    }
+
+    const updated = await prisma.comandaItem.update({
+      where: { id: params.itemId },
+      data: updateData,
+      include: {
+        producto: {
+          include: {
+            categoria: true,
+          },
+        },
+        modificadores: {
+          include: {
+            modificador: true,
+          },
+        },
+      },
+    })
+
+    // Actualizar estado de comanda si todos los items están listos
+    if (estado === 'LISTO') {
+      const itemsPendientes = await prisma.comandaItem.count({
+        where: {
+          comandaId: params.id,
+          estado: {
+            notIn: ['LISTO', 'ENTREGADO'],
+          },
+        },
+      })
+
+      if (itemsPendientes === 0) {
+        await prisma.comanda.update({
+          where: { id: params.id },
+          data: { estado: 'LISTO' },
+        })
+      }
+    }
+
+    // Registrar en historial
+    await prisma.comandaHistorial.create({
+      data: {
+        comandaId: params.id,
+        accion: 'ITEM_ACTUALIZADO',
+        descripcion: `${item.producto.nombre}: ${estado}`,
+        usuarioId: user.id,
+      },
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: updated,
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Datos inválidos', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error en PATCH /api/comandas/[id]/items/[itemId]:', error)
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+
+
+
+
+
+
+

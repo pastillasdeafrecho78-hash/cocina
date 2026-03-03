@@ -1,0 +1,210 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getUserFromToken, getTokenFromRequest, isAdmin } from '@/lib/auth'
+import { z } from 'zod'
+
+const modificadorSchema = z.object({
+  modificadorId: z.string().min(1, 'El ID del extra es requerido'),
+})
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    const categoria = await prisma.categoria.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!categoria) {
+      return NextResponse.json(
+        { success: false, error: 'Categoría no encontrada' },
+        { status: 404 }
+      )
+    }
+
+    const modificadores = await prisma.modificadorCategoria.findMany({
+      where: { categoriaId: params.id },
+      include: { modificador: true },
+      orderBy: { modificador: { nombre: 'asc' } },
+    })
+
+    return NextResponse.json({ success: true, data: modificadores })
+  } catch (error) {
+    console.error('Error en GET /api/categorias/[id]/modificadores:', error)
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    if (!isAdmin(user.rol)) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos para asignar extras a categorías' },
+        { status: 403 }
+      )
+    }
+
+    const categoria = await prisma.categoria.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!categoria) {
+      return NextResponse.json(
+        { success: false, error: 'Categoría no encontrada' },
+        { status: 404 }
+      )
+    }
+
+    const body = await request.json()
+    const data = modificadorSchema.parse(body)
+
+    const modificador = await prisma.modificador.findUnique({
+      where: { id: data.modificadorId },
+    })
+
+    if (!modificador) {
+      return NextResponse.json(
+        { success: false, error: 'Extra no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const relacion = await prisma.modificadorCategoria.upsert({
+      where: {
+        categoriaId_modificadorId: {
+          categoriaId: params.id,
+          modificadorId: data.modificadorId,
+        },
+      },
+      create: {
+        categoriaId: params.id,
+        modificadorId: data.modificadorId,
+      },
+      update: {},
+      include: { modificador: true },
+    })
+
+    await prisma.auditoria.create({
+      data: {
+        usuarioId: user.id,
+        accion: 'ASIGNAR_EXTRA_CATEGORIA',
+        entidad: 'Categoria',
+        entidadId: params.id,
+        detalles: { modificadorId: data.modificadorId, modificadorNombre: modificador.nombre },
+      },
+    })
+
+    return NextResponse.json({ success: true, data: relacion }, { status: 201 })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Datos inválidos', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error en POST /api/categorias/[id]/modificadores:', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    if (!isAdmin(user.rol)) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos para quitar extras de categorías' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const data = modificadorSchema.parse(body)
+
+    const relacion = await prisma.modificadorCategoria.findUnique({
+      where: {
+        categoriaId_modificadorId: {
+          categoriaId: params.id,
+          modificadorId: data.modificadorId,
+        },
+      },
+    })
+
+    if (!relacion) {
+      return NextResponse.json(
+        { success: false, error: 'El extra no está asignado a esta categoría' },
+        { status: 404 }
+      )
+    }
+
+    await prisma.modificadorCategoria.delete({
+      where: {
+        categoriaId_modificadorId: {
+          categoriaId: params.id,
+          modificadorId: data.modificadorId,
+        },
+      },
+    })
+
+    await prisma.auditoria.create({
+      data: {
+        usuarioId: user.id,
+        accion: 'QUITAR_EXTRA_CATEGORIA',
+        entidad: 'Categoria',
+        entidadId: params.id,
+        detalles: { modificadorId: data.modificadorId },
+      },
+    })
+
+    return NextResponse.json({ success: true, message: 'Extra quitado de la categoría' })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Datos inválidos', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error en DELETE /api/categorias/[id]/modificadores:', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}

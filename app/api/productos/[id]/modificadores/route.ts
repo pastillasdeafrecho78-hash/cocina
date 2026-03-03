@@ -1,0 +1,211 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getUserFromToken, getTokenFromRequest, isAdmin } from '@/lib/auth'
+import { z } from 'zod'
+
+const asignarModificadorSchema = z.object({
+  modificadorId: z.string().min(1, 'El ID del extra es requerido'),
+})
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    const producto = await prisma.producto.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!producto) {
+      return NextResponse.json(
+        { success: false, error: 'Producto no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const modificadores = await prisma.modificadorProducto.findMany({
+      where: { productoId: params.id },
+      include: { modificador: true },
+      orderBy: { modificador: { nombre: 'asc' } },
+    })
+
+    return NextResponse.json({ success: true, data: modificadores })
+  } catch (error) {
+    console.error('Error en GET /api/productos/[id]/modificadores:', error)
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    if (!isAdmin(user.rol)) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos para asignar extras' },
+        { status: 403 }
+      )
+    }
+
+    const producto = await prisma.producto.findUnique({
+      where: { id: params.id },
+    })
+
+    if (!producto) {
+      return NextResponse.json(
+        { success: false, error: 'Producto no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    const body = await request.json()
+    const data = asignarModificadorSchema.parse(body)
+
+    const modificador = await prisma.modificador.findUnique({
+      where: { id: data.modificadorId },
+    })
+
+    if (!modificador) {
+      return NextResponse.json(
+        { success: false, error: 'Extra no encontrado' },
+        { status: 404 }
+      )
+    }
+
+    // upsert para evitar duplicados
+    const relacion = await prisma.modificadorProducto.upsert({
+      where: {
+        productoId_modificadorId: {
+          productoId: params.id,
+          modificadorId: data.modificadorId,
+        },
+      },
+      create: {
+        productoId: params.id,
+        modificadorId: data.modificadorId,
+      },
+      update: {},
+      include: { modificador: true },
+    })
+
+    await prisma.auditoria.create({
+      data: {
+        usuarioId: user.id,
+        accion: 'ASIGNAR_EXTRA_PRODUCTO',
+        entidad: 'Producto',
+        entidadId: params.id,
+        detalles: { modificadorId: data.modificadorId, modificadorNombre: modificador.nombre },
+      },
+    })
+
+    return NextResponse.json({ success: true, data: relacion }, { status: 201 })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Datos inválidos', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error en POST /api/productos/[id]/modificadores:', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'No autenticado' },
+        { status: 401 }
+      )
+    }
+
+    if (!isAdmin(user.rol)) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos para quitar extras' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const data = asignarModificadorSchema.parse(body)
+
+    const relacion = await prisma.modificadorProducto.findUnique({
+      where: {
+        productoId_modificadorId: {
+          productoId: params.id,
+          modificadorId: data.modificadorId,
+        },
+      },
+    })
+
+    if (!relacion) {
+      return NextResponse.json(
+        { success: false, error: 'El extra no está asignado a este producto' },
+        { status: 404 }
+      )
+    }
+
+    await prisma.modificadorProducto.delete({
+      where: {
+        productoId_modificadorId: {
+          productoId: params.id,
+          modificadorId: data.modificadorId,
+        },
+      },
+    })
+
+    await prisma.auditoria.create({
+      data: {
+        usuarioId: user.id,
+        accion: 'QUITAR_EXTRA_PRODUCTO',
+        entidad: 'Producto',
+        entidadId: params.id,
+        detalles: { modificadorId: data.modificadorId },
+      },
+    })
+
+    return NextResponse.json({ success: true, message: 'Extra quitado del producto' })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Datos inválidos', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error en DELETE /api/productos/[id]/modificadores:', error)
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
