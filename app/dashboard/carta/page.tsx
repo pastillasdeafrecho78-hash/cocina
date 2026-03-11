@@ -45,6 +45,14 @@ interface ModificadorProducto {
   modificador: Modificador
 }
 
+interface ProductoTamano {
+  id: string
+  productoId: string
+  nombre: string
+  precio: number
+  orden: number
+}
+
 interface Producto {
   id: string
   nombre: string
@@ -55,6 +63,7 @@ interface Producto {
   activo: boolean
   categoria: Categoria
   modificadores: ModificadorProducto[]
+  tamanos?: ProductoTamano[]
 }
 
 const TIPO_MODIFICADOR_LABEL: Record<string, string> = {
@@ -122,6 +131,11 @@ export default function CartaPage() {
   const [productoConExtrasAbierto, setProductoConExtrasAbierto] = useState<string | null>(null)
   const [extraSeleccionadoParaAgregar, setExtraSeleccionadoParaAgregar] = useState<Record<string, string>>({})
   const [asignandoExtra, setAsignandoExtra] = useState<string | null>(null)
+
+  // Tamaños por producto
+  const [nuevoTamanoNombre, setNuevoTamanoNombre] = useState('')
+  const [nuevoTamanoPrecio, setNuevoTamanoPrecio] = useState('')
+  const [agregandoTamano, setAgregandoTamano] = useState<string | null>(null)
 
   // Estados para input de categoría con autocompletado en formulario de producto
   const [busquedaCategoria, setBusquedaCategoria] = useState('')
@@ -649,44 +663,97 @@ export default function CartaPage() {
     }
   }
 
-  // Extras activos que aún NO están asignados al producto
+  // Extras activos que aún NO están asignados al producto (sin TAMANO: se usan tamaños por producto)
   const extrasDisponiblesParaProducto = (producto: Producto) => {
     const asignados = new Set(producto.modificadores.map((m) => m.modificadorId))
-    return modificadores.filter((m) => m.activo && !asignados.has(m.id))
+    return modificadores.filter((m) => m.activo && m.tipo !== 'TAMANO' && !asignados.has(m.id))
+  }
+
+  const handleAgregarTamano = async (productoId: string) => {
+    if (!nuevoTamanoNombre.trim()) {
+      toast.error('Ingresa el nombre del tamaño')
+      return
+    }
+    const precio = parseFloat(nuevoTamanoPrecio)
+    if (isNaN(precio) || precio < 0) {
+      toast.error('El precio debe ser un número válido')
+      return
+    }
+    setAgregandoTamano(productoId)
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/productos/${productoId}/tamanos`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nuevoTamanoNombre.trim(), precio, orden: 0 }),
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Tamaño agregado')
+        setNuevoTamanoNombre('')
+        setNuevoTamanoPrecio('')
+        fetchProductos()
+      } else {
+        toast.error(data.error || 'Error al agregar tamaño')
+      }
+    } catch {
+      toast.error('Error al agregar tamaño')
+    } finally {
+      setAgregandoTamano(null)
+    }
+  }
+
+  const handleEliminarTamano = async (productoId: string, tamanoId: string) => {
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/productos/${productoId}/tamanos/${tamanoId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Tamaño eliminado')
+        fetchProductos()
+      } else {
+        toast.error(data.error || 'Error al eliminar')
+      }
+    } catch {
+      toast.error('Error al eliminar tamaño')
+    }
   }
 
   if (loading) {
     return (
-      <div className="p-8 text-black">
-        <div className="text-center">Cargando...</div>
+      <div className="app-loading-shell">
+        <div className="app-card text-center">Cargando...</div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 text-black">
+    <div className="app-page min-h-screen pb-20 sm:pb-8">
       <BackButton className="mb-4" />
-      <div className="mb-6 flex justify-between items-center flex-wrap gap-2">
+      <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Gestión de Carta</h1>
-          <p className="text-gray-600 mt-2">Gestiona los productos del menú</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Carta</h1>
+          <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Gestiona los productos del menú</p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <button
             onClick={() => setMostrarCategorias(!mostrarCategorias)}
-            className="bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700"
+            className="w-full min-h-[44px] rounded-2xl bg-gray-600 px-4 py-3 text-white hover:bg-gray-700 sm:min-h-0 sm:w-auto sm:py-2"
           >
             {mostrarCategorias ? 'Ocultar Categorías' : 'Gestionar Categorías'}
           </button>
           <button
             onClick={() => setMostrarExtras(!mostrarExtras)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+            className="w-full min-h-[44px] rounded-2xl bg-indigo-600 px-4 py-3 text-white hover:bg-indigo-700 sm:min-h-0 sm:w-auto sm:py-2"
           >
             {mostrarExtras ? 'Ocultar Extras' : 'Gestionar Extras'}
           </button>
           <button
             onClick={() => setMostrarFormulario(!mostrarFormulario)}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            className="app-btn-primary w-full min-h-[44px] rounded-2xl px-4 py-3 sm:min-h-0 sm:w-auto sm:py-2"
           >
             {mostrarFormulario ? 'Cancelar' : '+ Crear Producto'}
           </button>
@@ -695,7 +762,7 @@ export default function CartaPage() {
 
       {/* ── SECCIÓN CATEGORÍAS ─────────────────────────────────────────────── */}
       {mostrarCategorias && (
-        <div className="mb-6 bg-white rounded-lg shadow-md p-6">
+        <div className="app-card mb-6 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Gestión de Categorías</h2>
 
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
@@ -880,7 +947,7 @@ export default function CartaPage() {
 
       {/* ── SECCIÓN EXTRAS/MODIFICADORES ───────────────────────────────────── */}
       {mostrarExtras && (
-        <div className="mb-6 bg-white rounded-lg shadow-md p-6">
+        <div className="app-card mb-6 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Gestión de Extras</h2>
           <p className="text-sm text-gray-500 mb-4">
             Crea los extras disponibles (queso extra, término de cocción, tamaño, etc.) y luego asígnalos a cada producto desde las tarjetas de abajo.
@@ -1023,7 +1090,7 @@ export default function CartaPage() {
 
       {/* ── FORMULARIO CREAR PRODUCTO ──────────────────────────────────────── */}
       {mostrarFormulario && (
-        <div className="mb-6 bg-white rounded-lg shadow-md p-6">
+        <div className="app-card mb-6 p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Nuevo Producto</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1145,8 +1212,11 @@ export default function CartaPage() {
       )}
 
       {/* ── LISTA DE PRODUCTOS ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-lg shadow-md p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Productos de la Carta</h2>
+      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-1">Productos de la Carta</h2>
+        <p className="text-xs sm:text-sm text-gray-500 mb-4">
+          Haz clic en <strong>Tamaños y extras</strong> en cada producto para agregar tamaños con precios (ej: Chico $80, Grande $120).
+        </p>
         {productos.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {productos.map((producto) => {
@@ -1173,6 +1243,16 @@ export default function CartaPage() {
                       <p className="text-sm text-gray-600 mb-2">{producto.descripcion}</p>
                     )}
 
+                    {/* Badges de tamaños (por producto) */}
+                    {(producto.tamanos?.length ?? 0) > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {producto.tamanos!.map((t) => (
+                          <span key={t.id} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800">
+                            {t.nombre} ${t.precio.toFixed(2)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {/* Badges de extras asignados */}
                     {producto.modificadores.length > 0 && (
                       <div className="flex flex-wrap gap-1 mb-2">
@@ -1189,26 +1269,32 @@ export default function CartaPage() {
                     )}
 
                     {/* Acciones */}
-                    <div className="flex justify-between items-center mt-3">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mt-3">
                       <span className="text-lg font-bold text-primary-600">
                         ${producto.precio.toFixed(2)}
                       </span>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <button
                           onClick={() => setProductoConExtrasAbierto(panelAbierto ? null : producto.id)}
-                          className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors border ${
+                          className={`flex items-center justify-center gap-1 px-4 py-3 sm:py-1.5 rounded text-sm font-medium transition-colors border min-h-[44px] sm:min-h-0 ${
                             panelAbierto
                               ? 'bg-indigo-100 text-indigo-800 border-indigo-300'
                               : 'bg-white text-indigo-700 border-indigo-300 hover:bg-indigo-50'
                           }`}
-                          title="Gestionar extras de este producto"
+                          title="Gestionar tamaños y extras"
                         >
                           <PlusIcon className="w-3.5 h-3.5" />
-                          Extras ({producto.modificadores.length})
+                          Tamaños y extras
+                          {(producto.tamanos?.length ?? 0) > 0 && (
+                            <span className="text-blue-600">({producto.tamanos!.length} tamaño{(producto.tamanos!.length ?? 0) !== 1 ? 's' : ''})</span>
+                          )}
+                          {producto.modificadores.length > 0 && (
+                            <span className="text-gray-500">· {producto.modificadores.length} extra{producto.modificadores.length !== 1 ? 's' : ''}</span>
+                          )}
                         </button>
                         <button
                           onClick={() => handleToggleProductoActivo(producto)}
-                          className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium transition-colors ${
+                          className={`flex items-center justify-center gap-1 px-4 py-3 sm:py-1.5 rounded text-sm font-medium transition-colors min-h-[44px] sm:min-h-0 ${
                             producto.activo
                               ? 'bg-green-100 text-green-800 hover:bg-green-200'
                               : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
@@ -1225,28 +1311,86 @@ export default function CartaPage() {
                     </div>
                   </div>
 
-                  {/* Panel de extras del producto */}
+                  {/* Panel de extras y tamaños del producto */}
                   {panelAbierto && (
-                    <div className="border-t border-indigo-100 bg-indigo-50 p-4">
-                      <h4 className="text-sm font-semibold text-indigo-900 mb-3">Extras de "{producto.nombre}"</h4>
+                    <div className="border-t border-indigo-100 bg-indigo-50 p-4 space-y-4 pb-6 sm:pb-4">
+                      {/* Tamaños por producto */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-indigo-900 mb-2">
+                          Tamaños (cada uno con su precio)
+                        </h4>
+                        <p className="text-xs text-indigo-700 mb-2">
+                          Ej: Chico $80, Mediano $100, Grande $120. Solo para este producto.
+                        </p>
+                        {(producto.tamanos?.length ?? 0) > 0 && (
+                          <div className="space-y-1 mb-2">
+                            {producto.tamanos!.map((t) => (
+                              <div key={t.id} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-blue-100">
+                                <span className="text-sm text-gray-800">{t.nombre}</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-sm font-medium text-blue-700">${t.precio.toFixed(2)}</span>
+                                  <button
+                                    onClick={() => handleEliminarTamano(producto.id, t.id)}
+                                    className="p-2 -m-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 sm:p-1 flex items-center justify-center"
+                                    title="Eliminar tamaño"
+                                  >
+                                    <XMarkIcon className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            value={productoConExtrasAbierto === producto.id ? nuevoTamanoNombre : ''}
+                            onChange={(e) => setNuevoTamanoNombre(e.target.value)}
+                            placeholder="Ej: Chico, Grande"
+                            className="flex-1 px-3 py-3 sm:py-1.5 text-base sm:text-sm border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black min-h-[44px] sm:min-h-0"
+                          />
+                          <div className="flex gap-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={productoConExtrasAbierto === producto.id ? nuevoTamanoPrecio : ''}
+                              onChange={(e) => setNuevoTamanoPrecio(e.target.value)}
+                              placeholder="Precio"
+                              className="w-full sm:w-24 px-3 py-3 sm:py-1.5 text-base sm:text-sm border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-black min-h-[44px] sm:min-h-0"
+                            />
+                            <button
+                              onClick={() => handleAgregarTamano(producto.id)}
+                              disabled={!nuevoTamanoNombre.trim() || agregandoTamano === producto.id}
+                              className="px-4 py-3 sm:py-1.5 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] sm:min-h-0 whitespace-nowrap flex-1 sm:flex-none"
+                            >
+                              {agregandoTamano === producto.id ? '…' : 'Agregar'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <hr className="border-indigo-200" />
+
+                      <h4 className="text-sm font-semibold text-indigo-900 mb-2">Extras (ingredientes, cocción, etc.)</h4>
 
                       {/* Extras ya asignados */}
                       {producto.modificadores.length > 0 ? (
                         <div className="space-y-1 mb-3">
                           {producto.modificadores.map((mp) => (
-                            <div key={mp.id} className="flex items-center justify-between bg-white rounded-md px-3 py-1.5 border border-indigo-100">
-                              <div className="flex items-center gap-2">
-                                <span className={`px-1.5 py-0.5 text-xs rounded-full ${TIPO_MODIFICADOR_COLOR[mp.modificador.tipo]}`}>
+                            <div key={mp.id} className="flex items-center justify-between bg-white rounded-md px-3 py-2 border border-indigo-100">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className={`px-1.5 py-0.5 text-xs rounded-full shrink-0 ${TIPO_MODIFICADOR_COLOR[mp.modificador.tipo]}`}>
                                   {TIPO_MODIFICADOR_LABEL[mp.modificador.tipo]}
                                 </span>
-                                <span className="text-sm text-gray-800">{mp.modificador.nombre}</span>
+                                <span className="text-sm text-gray-800 truncate">{mp.modificador.nombre}</span>
                                 {mp.modificador.precioExtra > 0 && (
-                                  <span className="text-xs text-gray-500">+${mp.modificador.precioExtra.toFixed(2)}</span>
+                                  <span className="text-xs text-gray-500 shrink-0">+${mp.modificador.precioExtra.toFixed(2)}</span>
                                 )}
                               </div>
                               <button
                                 onClick={() => handleQuitarExtra(producto.id, mp.modificadorId)}
-                                className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                                className="p-2 -m-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 sm:p-1 flex items-center justify-center shrink-0"
                                 title="Quitar extra"
                               >
                                 <XMarkIcon className="w-4 h-4" />
@@ -1260,11 +1404,11 @@ export default function CartaPage() {
 
                       {/* Agregar nuevo extra */}
                       {extrasDisponibles.length > 0 ? (
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <select
                             value={extraSeleccionadoParaAgregar[producto.id] || ''}
                             onChange={(e) => setExtraSeleccionadoParaAgregar({ ...extraSeleccionadoParaAgregar, [producto.id]: e.target.value })}
-                            className="flex-1 px-2 py-1.5 text-sm border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-black bg-white"
+                            className="flex-1 px-3 py-3 sm:py-1.5 text-base sm:text-sm border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-black bg-white min-h-[44px] sm:min-h-0"
                           >
                             <option value="">Selecciona un extra...</option>
                             {extrasDisponibles.map((mod) => (
@@ -1276,9 +1420,9 @@ export default function CartaPage() {
                           <button
                             onClick={() => handleAsignarExtra(producto.id)}
                             disabled={!extraSeleccionadoParaAgregar[producto.id] || asignandoExtra === producto.id}
-                            className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                            className="w-full sm:w-auto px-4 py-3 sm:py-1.5 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap min-h-[44px] sm:min-h-0"
                           >
-                            {asignandoExtra === producto.id ? 'Agregando...' : 'Agregar'}
+                            {asignandoExtra === producto.id ? 'Agregando...' : 'Agregar extra'}
                           </button>
                         </div>
                       ) : (

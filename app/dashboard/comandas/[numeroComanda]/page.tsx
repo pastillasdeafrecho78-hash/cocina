@@ -29,6 +29,7 @@ interface Comanda {
         nombre: string
       }
     }
+    tamano?: { nombre: string } | null
     precioUnitario: number
     subtotal: number
     notas?: string
@@ -46,6 +47,7 @@ export default function ComandaDetallePage() {
   const [metodoPago, setMetodoPago] = useState<'efectivo' | 'stripe' | null>(null)
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null)
   const [cobrandoEfectivo, setCobrandoEfectivo] = useState(false)
+  const [montoRecibido, setMontoRecibido] = useState('')
 
   useEffect(() => {
     fetchComanda()
@@ -77,6 +79,12 @@ export default function ComandaDetallePage() {
 
   const handleCobrarEfectivo = async () => {
     if (!comanda) return
+    const totalCobro = comanda.total * (1 + (comanda.propina || 0) / 100) - (comanda.descuento || 0)
+    const recibido = parseFloat(montoRecibido.replace(/,/g, '.'))
+    if (isNaN(recibido) || recibido < totalCobro) {
+      toast.error('El monto recibido debe ser mayor o igual al total a cobrar')
+      return
+    }
     setCobrandoEfectivo(true)
     try {
       const token = localStorage.getItem('token')
@@ -146,8 +154,8 @@ export default function ComandaDetallePage() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="text-center">Cargando...</div>
+      <div className="app-loading-shell">
+        <div className="app-card text-center">Cargando...</div>
       </div>
     )
   }
@@ -158,9 +166,11 @@ export default function ComandaDetallePage() {
 
   const totalConPropina = comanda.total * (1 + (comanda.propina || 0) / 100)
   const totalFinal = totalConPropina - (comanda.descuento || 0)
+  const montoRecibidoNum = parseFloat(montoRecibido.replace(/,/g, '.')) || 0
+  const cambio = montoRecibidoNum >= totalFinal ? montoRecibidoNum - totalFinal : 0
 
   return (
-    <div className="p-8 text-black">
+    <div className="app-page">
       <div className="mb-6">
         <BackButton className="mb-4" />
         <h1 className="text-3xl font-bold text-gray-900">
@@ -174,7 +184,7 @@ export default function ComandaDetallePage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <div className="app-card mb-6 p-6">
         <h2 className="text-xl font-bold mb-4">Items</h2>
         <div className="space-y-3">
           {comanda.items.map((item) => (
@@ -182,6 +192,9 @@ export default function ComandaDetallePage() {
               <div className="flex-1">
                 <div className="font-semibold">
                   {item.cantidad}x {item.producto.nombre}
+                  {item.tamano && (
+                    <span className="font-normal text-gray-600"> — {item.tamano.nombre}</span>
+                  )}
                 </div>
                 <div className="text-sm text-gray-600">
                   {item.producto.categoria.nombre}
@@ -228,14 +241,21 @@ export default function ComandaDetallePage() {
       </div>
 
       {comanda.estado !== 'PAGADO' && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="app-card mb-6 p-6">
           <h2 className="text-xl font-bold mb-4">Métodos de pago</h2>
-          {metodoPago === null && (
+          {!comanda.items.every(
+            (i) => i.estado === 'LISTO' || i.estado === 'ENTREGADO'
+          ) ? (
+            <p className="text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+              No se puede cobrar hasta que todos los productos estén marcados
+              como listos en cocina.
+            </p>
+          ) : metodoPago === null ? (
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={() => setMetodoPago('efectivo')}
-                className="flex items-center gap-2 px-5 py-3 border-2 border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 text-gray-800 font-medium"
+                className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-green-500 hover:bg-green-50"
               >
                 <span className="text-2xl">💵</span>
                 Efectivo
@@ -243,40 +263,52 @@ export default function ComandaDetallePage() {
               <button
                 type="button"
                 onClick={handleSeleccionarStripe}
-                className="flex items-center gap-2 px-5 py-3 border-2 border-gray-300 rounded-lg hover:border-indigo-500 hover:bg-indigo-50 text-gray-800 font-medium"
+                className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-indigo-500 hover:bg-indigo-50"
               >
                 <span className="text-2xl">💳</span>
                 Tarjeta / Apple Pay / Google Pay
               </button>
             </div>
-          )}
-
-          {metodoPago === 'efectivo' && (
-            <div className="space-y-3">
+          ) : metodoPago === 'efectivo' ? (
+            <div className="space-y-4">
               <p className="text-gray-600">
-                Cobro en efectivo por <strong>${totalFinal.toFixed(2)}</strong>
+                Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
               </p>
-              <div className="flex gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Monto recibido</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={montoRecibido}
+                  onChange={(e) => setMontoRecibido(e.target.value)}
+                  placeholder="0.00"
+                  className="app-input max-w-xs text-lg focus:border-green-500 focus:ring-green-500/20"
+                />
+              </div>
+              {montoRecibidoNum >= totalFinal && montoRecibidoNum > 0 && (
+                <p className="rounded-2xl bg-green-50 px-4 py-2 text-lg font-semibold text-green-700">
+                  Cambio a devolver: <strong>${cambio.toFixed(2)}</strong>
+                </p>
+              )}
+              <div className="flex gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={handleCobrarEfectivo}
-                  disabled={cobrandoEfectivo}
-                  className="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 disabled:opacity-50"
+                  disabled={cobrandoEfectivo || montoRecibidoNum < totalFinal}
+                  className="rounded-2xl bg-green-600 px-6 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cobrandoEfectivo ? 'Registrando…' : 'Cobrar en efectivo'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMetodoPago(null)}
-                  className="bg-gray-200 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-300"
+                  onClick={() => { setMetodoPago(null); setMontoRecibido('') }}
+                  className="app-btn-secondary rounded-2xl px-6 py-2"
                 >
                   Cambiar método
                 </button>
               </div>
             </div>
-          )}
-
-          {metodoPago === 'stripe' && stripeClientSecret && (
+          ) : metodoPago === 'stripe' && stripeClientSecret ? (
             <div className="max-w-md">
               <StripePaymentForm
                 clientSecret={stripeClientSecret}
@@ -286,18 +318,24 @@ export default function ComandaDetallePage() {
                 onCancel={handleStripeCancel}
               />
             </div>
-          )}
-
-          {metodoPago === 'stripe' && !stripeClientSecret && (
+          ) : metodoPago === 'stripe' ? (
             <div className="text-gray-500">Preparando formulario de pago…</div>
-          )}
+          ) : null}
         </div>
       )}
 
-      <div className="flex gap-4">
+      <div className="flex gap-4 flex-wrap">
+        {comanda.estado !== 'PAGADO' && comanda.estado !== 'CANCELADO' && (
+          <button
+            onClick={() => router.push(`/dashboard/comandas/nueva?comandaId=${comanda.id}`)}
+            className="app-btn-primary rounded-2xl px-6 py-2"
+          >
+            + Agregar más pedidos
+          </button>
+        )}
         <button
           onClick={() => router.push('/dashboard/mesas')}
-          className="bg-gray-200 text-gray-800 px-6 py-2 rounded-md hover:bg-gray-300"
+          className="app-btn-secondary rounded-2xl px-6 py-2"
         >
           Volver a Mesas
         </button>

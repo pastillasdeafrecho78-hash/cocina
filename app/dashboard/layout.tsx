@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import BrandLogo from '@/components/BrandLogo'
+import ThemeToggle from '@/components/ThemeToggle'
+import { tienePermiso } from '@/lib/permisos'
 
 function clearSession() {
   localStorage.removeItem('token')
@@ -74,14 +78,67 @@ export default function DashboardLayout({
 
   if (checking || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-500">Verificando sesión...</div>
+      <div className="app-loading-shell">
+        <div className="app-card text-center">
+          <p className="app-kicker">Acceso</p>
+          <div className="mt-2 text-lg font-medium text-stone-700">Verificando sesión...</div>
+        </div>
       </div>
     )
   }
 
+  const navItems = [
+    { href: '/dashboard', label: 'Inicio', modulo: null },
+    { href: '/dashboard/mesas', label: 'Mesas', modulo: 'mesas' },
+    { href: '/dashboard/comandas', label: 'Comandas', modulo: 'comandas' },
+    { href: '/dashboard/cocina', label: 'Cocina', modulo: 'cocina' },
+    { href: '/dashboard/barra', label: 'Barra', modulo: 'barra' },
+    { href: '/dashboard/reportes', label: 'Reportes', modulo: 'reportes' },
+    { href: '/dashboard/caja', label: 'Caja', modulo: 'caja' },
+  ].filter((item) => !item.modulo || tienePermiso(user, item.modulo))
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="app-shell">
+      <header className="app-header-shell sticky top-0 z-20">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex items-center gap-5 xl:min-w-[640px]">
+            <div className="shrink-0">
+              <BrandLogo
+                size="lg"
+                priority
+                className="h-[92px] w-[420px] max-w-[42vw]"
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="app-kicker">Operación y servicio inteligente</p>
+              <p className="text-lg font-semibold text-stone-900">
+                {user.nombre} {user.apellido}
+              </p>
+              <p className="text-sm text-stone-500">{user.rol?.nombre || 'Sin rol'}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <ThemeToggle />
+            {navItems.map((item) => (
+              <Link key={item.href} href={item.href} className="app-chip hover:border-amber-300 hover:bg-amber-50">
+                {item.label}
+              </Link>
+            ))}
+            <button
+              type="button"
+              onClick={() => {
+                clearSession()
+                router.push('/login')
+              }}
+              className="app-btn-danger"
+            >
+              Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </header>
+
       <main>{children}</main>
     </div>
   )

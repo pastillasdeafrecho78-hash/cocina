@@ -27,8 +27,7 @@ export default function BackButton({
   return (
     <button
       onClick={handleClick}
-      className={`font-medium hover:opacity-80 ${className}`}
-      style={{ color: 'rgba(69, 69, 69, 1)' }}
+      className={`app-btn-secondary px-3.5 py-2 ${className}`}
       type="button"
     >
       {label}

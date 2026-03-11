@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useMemo, useState } from 'react'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
+import { useTheme } from '@/components/ThemeProvider'
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -84,7 +85,7 @@ function CheckoutForm({
         }}
       />
       {error && (
-        <div className="text-sm text-red-600 bg-red-50 p-2 rounded">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
           {error}
         </div>
       )}
@@ -92,14 +93,14 @@ function CheckoutForm({
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+          className="app-btn-secondary rounded-2xl px-4 py-2"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={!stripe || !elements || loading}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+          className="app-btn-primary rounded-2xl px-4 py-2 disabled:opacity-50"
         >
           {loading ? 'Procesando…' : `Pagar $${total.toFixed(2)}`}
         </button>
@@ -121,23 +122,32 @@ export default function StripePaymentForm({
   onSuccess: () => void
   onCancel: () => void
 }) {
+  const { resolvedTheme } = useTheme()
+
   if (!stripePromise) {
     return (
-      <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded">
+      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-600">
         Stripe no está configurado. Añade NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY en .env.local
       </div>
     )
   }
 
-  const options = {
-    clientSecret,
-    appearance: {
-      theme: 'stripe' as const,
-      variables: {
-        colorPrimary: '#4f46e5',
+  const options = useMemo(
+    () => ({
+      clientSecret,
+      appearance: {
+        theme: resolvedTheme === 'dark' ? ('night' as const) : ('stripe' as const),
+        variables: {
+          colorPrimary: resolvedTheme === 'dark' ? '#f59e0b' : '#4f46e5',
+          colorBackground: resolvedTheme === 'dark' ? '#242121' : '#ffffff',
+          colorText: resolvedTheme === 'dark' ? '#f5f5f4' : '#292524',
+          colorDanger: '#ef4444',
+          borderRadius: '16px',
+        },
       },
-    },
-  }
+    }),
+    [clientSecret, resolvedTheme]
+  )
 
   return (
     <Elements stripe={stripePromise} options={options}>

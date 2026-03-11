@@ -26,6 +26,13 @@ interface ModificadorCategoria {
   modificador: Modificador
 }
 
+interface ProductoTamano {
+  id: string
+  nombre: string
+  precio: number
+  orden: number
+}
+
 interface Producto {
   id: string
   nombre: string
@@ -36,6 +43,7 @@ interface Producto {
     tipo: string
   }
   modificadores: ModificadorProducto[]
+  tamanos?: ProductoTamano[]
 }
 
 interface Categoria {
@@ -52,23 +60,24 @@ interface Mesa {
 }
 
 interface ItemCarrito {
-  // Clave única: productoId + JSON de modificadores seleccionados (para permitir mismo producto con distintos extras)
   key: string
   productoId: string
   producto: Producto
+  tamanoId?: string
+  tamanoDetalle?: ProductoTamano
   cantidad: number
   modificadoresIds: string[]
   modificadoresDetalle: Modificador[]
   notas?: string
 }
 
-// Junta extras del producto + extras de su categoría (sin duplicados, solo activos)
+// Extras del producto + categoría (sin TAMANO: tamaños son por producto)
 function getExtrasDisponibles(producto: Producto, categoria: Categoria): Modificador[] {
   const vistos = new Set<string>()
   const extras: Modificador[] = []
 
   const agregar = (mod: Modificador) => {
-    if (mod.activo && !vistos.has(mod.id)) {
+    if (mod.activo && mod.tipo !== 'TAMANO' && !vistos.has(mod.id)) {
       vistos.add(mod.id)
       extras.push(mod)
     }
@@ -98,6 +107,7 @@ export default function NuevaComandaPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const mesaIdParam = searchParams.get('mesaId')
+  const comandaIdParam = searchParams.get('comandaId')
 
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
@@ -109,10 +119,11 @@ export default function NuevaComandaPage() {
   const [guardando, setGuardando] = useState(false)
   const [busqueda, setBusqueda] = useState('')
 
-  // Modal de extras
+  // Modal de extras (y tamaños si el producto los tiene)
   const [modalExtras, setModalExtras] = useState<{
     producto: Producto
     categoria: Categoria
+    tamanoSeleccionadoId: string | null
     extrasSeleccionados: string[]
     notas: string
   } | null>(null)
@@ -121,6 +132,15 @@ export default function NuevaComandaPage() {
     const fetchData = async () => {
       try {
         const token = localStorage.getItem('token')
+        if (comandaIdParam) {
+          const comandaRes = await fetch(`/api/comandas/${comandaIdParam}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+          const comandaData = await comandaRes.json()
+          if (comandaData.success && comandaData.data?.mesaId) {
+            setMesaId(comandaData.data.mesaId)
+          }
+        }
         const [mesasRes, categoriasRes] = await Promise.all([
           fetch('/api/mesas', { headers: { Authorization: `Bearer ${token}` } }),
           fetch('/api/categorias', { headers: { Authorization: `Bearer ${token}` } }),
@@ -136,16 +156,23 @@ export default function NuevaComandaPage() {
       }
     }
     fetchData()
-  }, [])
+  }, [comandaIdParam])
 
-  // Abrir modal de extras al hacer clic en un producto
+  // Abrir modal al hacer clic en un producto
   const handleClickProducto = (producto: Producto, categoria: Categoria) => {
+    const tieneTamanos = (producto.tamanos?.length ?? 0) > 0
     const extrasDisponibles = getExtrasDisponibles(producto, categoria)
 
-    if (extrasDisponibles.length === 0) {
-      agregarAlCarrito(producto, categoria, [], '')
+    if (!tieneTamanos && extrasDisponibles.length === 0) {
+      agregarAlCarrito(producto, categoria, null, [], '')
     } else {
-      setModalExtras({ producto, categoria, extrasSeleccionados: [], notas: '' })
+      setModalExtras({
+        producto,
+        categoria,
+        tamanoSeleccionadoId: tieneTamanos ? null : '',
+        extrasSeleccionados: [],
+        notas: '',
+      })
     }
   }
 
@@ -160,11 +187,22 @@ export default function NuevaComandaPage() {
     })
   }
 
+  const setTamanoEnModal = (tamanoId: string | null) => {
+    if (!modalExtras) return
+    setModalExtras({ ...modalExtras, tamanoSeleccionadoId: tamanoId })
+  }
+
   const confirmarDesdeModal = () => {
     if (!modalExtras) return
+    const tieneTamanos = (modalExtras.producto.tamanos?.length ?? 0) > 0
+    if (tieneTamanos && !modalExtras.tamanoSeleccionadoId) {
+      toast.error('Selecciona un tamaño')
+      return
+    }
     agregarAlCarrito(
       modalExtras.producto,
       modalExtras.categoria,
+      modalExtras.tamanoSeleccionadoId || null,
       modalExtras.extrasSeleccionados,
       modalExtras.notas
     )
@@ -174,20 +212,33 @@ export default function NuevaComandaPage() {
   const agregarAlCarrito = (
     producto: Producto,
     categoria: Categoria,
+    tamanoId: string | null,
     modificadoresIds: string[],
     notas: string
   ) => {
-    // Si no tiene extras, reusar el item existente del mismo producto (suma cantidad)
-    if (modificadoresIds.length === 0) {
-      const existente = carrito.find(
-        (item) => item.productoId === producto.id && item.modificadoresIds.length === 0
-      )
-      if (existente) {
-        setCarrito(carrito.map((item) =>
-          item.key === existente.key ? { ...item, cantidad: item.cantidad + 1 } : item
-        ))
-        return
-      }
+    const tamanoDetalle = tamanoId
+      ? producto.tamanos?.find((t) => t.id === tamanoId)
+      : undefined
+
+    // Reusar item si mismo producto, mismo tamaño, mismos extras (suma cantidad)
+    const idsExtrasOrd = [...modificadoresIds].sort()
+    const mismaCombo = (item: ItemCarrito) => {
+      if (item.productoId !== producto.id || (item.tamanoId ?? null) !== (tamanoId ?? null)) return false
+      const itemOrd = [...item.modificadoresIds].sort()
+      return itemOrd.length === idsExtrasOrd.length && itemOrd.every((id, i) => id === idsExtrasOrd[i])
+    }
+    const existente = carrito.find(mismaCombo)
+    if (existente && modificadoresIds.length === 0 && !tamanoId) {
+      setCarrito(carrito.map((item) =>
+        item.key === existente.key ? { ...item, cantidad: item.cantidad + 1 } : item
+      ))
+      return
+    }
+    if (existente) {
+      setCarrito(carrito.map((item) =>
+        item.key === existente.key ? { ...item, cantidad: item.cantidad + 1 } : item
+      ))
+      return
     }
 
     const allExtras = getExtrasDisponibles(producto, categoria)
@@ -195,11 +246,21 @@ export default function NuevaComandaPage() {
       .map((id) => allExtras.find((e) => e.id === id))
       .filter(Boolean) as Modificador[]
 
-    const key = `${producto.id}_${modificadoresIds.slice().sort().join('_')}_${Date.now()}`
+    const key = `${producto.id}_${tamanoId ?? ''}_${modificadoresIds.slice().sort().join('_')}_${Date.now()}`
 
     setCarrito([
       ...carrito,
-      { key, productoId: producto.id, producto, cantidad: 1, modificadoresIds, modificadoresDetalle: detalle, notas },
+      {
+        key,
+        productoId: producto.id,
+        producto,
+        tamanoId: tamanoId || undefined,
+        tamanoDetalle,
+        cantidad: 1,
+        modificadoresIds,
+        modificadoresDetalle: detalle,
+        notas,
+      },
     ])
   }
 
@@ -212,8 +273,9 @@ export default function NuevaComandaPage() {
   }
 
   const precioItem = (item: ItemCarrito) => {
+    const precioBase = item.tamanoDetalle ? item.tamanoDetalle.precio : item.producto.precio
     const precioExtras = item.modificadoresDetalle.reduce((s, m) => s + (m.precioExtra || 0), 0)
-    return (item.producto.precio + precioExtras) * item.cantidad
+    return (precioBase + precioExtras) * item.cantidad
   }
 
   const calcularTotal = () => carrito.reduce((sum, item) => sum + precioItem(item), 0)
@@ -237,48 +299,73 @@ export default function NuevaComandaPage() {
       toast.error('Agrega al menos un producto')
       return
     }
-    if (tipoPedido === 'EN_MESA' && !mesaId) {
+    if (!comandaIdParam && tipoPedido === 'EN_MESA' && !mesaId) {
       toast.error('Selecciona una mesa')
       return
     }
     setGuardando(true)
     try {
       const token = localStorage.getItem('token')
-      const response = await fetch('/api/comandas', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          mesaId: mesaId || undefined,
-          tipoPedido,
-          items: carrito.map((item) => ({
-            productoId: item.productoId,
-            cantidad: item.cantidad,
-            modificadores: item.modificadoresIds,
-            notas: item.notas,
-          })),
-          observaciones,
-        }),
-      })
-      const data = await response.json()
-      if (data.success) {
-        toast.success('Comanda creada exitosamente')
-        router.push(`/dashboard/comandas/${data.data.numeroComanda}`)
+      const itemsPayload = carrito.map((item) => ({
+        productoId: item.productoId,
+        tamanoId: item.tamanoId,
+        cantidad: item.cantidad,
+        modificadores: item.modificadoresIds,
+        notas: item.notas,
+      }))
+      if (comandaIdParam) {
+        const response = await fetch(`/api/comandas/${comandaIdParam}/items`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: itemsPayload }),
+        })
+        const data = await response.json()
+        if (data.success) {
+          toast.success('Pedidos agregados')
+          router.push(`/dashboard/comandas/${data.data.numeroComanda}`)
+        } else {
+          toast.error(data.error || 'Error al agregar pedidos')
+        }
       } else {
-        toast.error(data.error || 'Error al crear comanda')
+        const response = await fetch('/api/comandas', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mesaId: mesaId || undefined,
+            tipoPedido,
+            items: itemsPayload,
+            observaciones,
+          }),
+        })
+        const data = await response.json()
+        if (data.success) {
+          toast.success('Comanda creada exitosamente')
+          router.push(`/dashboard/comandas/${data.data.numeroComanda}`)
+        } else {
+          toast.error(data.error || 'Error al crear comanda')
+        }
       }
     } catch {
-      toast.error('Error al crear comanda')
+      toast.error(comandaIdParam ? 'Error al agregar pedidos' : 'Error al crear comanda')
     } finally {
       setGuardando(false)
     }
   }
 
   if (loading) {
-    return <div className="p-8 text-center">Cargando...</div>
+    return (
+      <div className="app-loading-shell">
+        <div className="app-card text-center">Cargando...</div>
+      </div>
+    )
   }
 
   const renderBotonProducto = (producto: Producto, categoria: Categoria) => {
     const extras = getExtrasDisponibles(producto, categoria)
+    const tieneTamanos = (producto.tamanos?.length ?? 0) > 0
+    const precioMin = tieneTamanos && producto.tamanos!.length
+      ? Math.min(...producto.tamanos!.map((t) => t.precio))
+      : producto.precio
     return (
       <button
         key={producto.id}
@@ -286,9 +373,16 @@ export default function NuevaComandaPage() {
         className="p-3 border border-gray-300 rounded-md hover:bg-indigo-50 hover:border-indigo-300 text-left transition-colors group"
       >
         <div className="font-semibold text-gray-900 group-hover:text-indigo-900">{producto.nombre}</div>
-        <div className="text-sm text-gray-600 mt-0.5">${producto.precio.toFixed(2)}</div>
+        <div className="text-sm text-gray-600 mt-0.5">
+          {tieneTamanos ? `Desde $${precioMin.toFixed(2)}` : `$${producto.precio.toFixed(2)}`}
+        </div>
+        {tieneTamanos && (
+          <div className="text-xs text-blue-600 mt-1">
+            {producto.tamanos!.length} tamaño{producto.tamanos!.length !== 1 ? 's' : ''}
+          </div>
+        )}
         {extras.length > 0 && (
-          <div className="text-xs text-indigo-500 mt-1">
+          <div className="text-xs text-indigo-500 mt-0.5">
             {extras.length} extra{extras.length !== 1 ? 's' : ''} disponible{extras.length !== 1 ? 's' : ''}
           </div>
         )}
@@ -296,16 +390,25 @@ export default function NuevaComandaPage() {
     )
   }
 
+  const esAgregarPedidos = !!comandaIdParam
+
   return (
-    <div className="p-8 text-black">
-      <BackButton className="mb-4" />
+    <div className="app-page">
+      <BackButton className="mb-4" fallbackHref={esAgregarPedidos ? '/dashboard/mesas' : '/dashboard/comandas'} />
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Nueva Comanda</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {esAgregarPedidos ? 'Agregar más pedidos' : 'Nueva Comanda'}
+        </h1>
+        {esAgregarPedidos && (
+          <p className="text-gray-600 mt-1">Se agregarán los productos a la comanda actual</p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* ── PANEL IZQUIERDO ───────────────────────────────────────────── */}
         <div className="lg:col-span-2">
+          {!esAgregarPedidos && (
+            <>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Pedido</label>
             <select
@@ -335,6 +438,8 @@ export default function NuevaComandaPage() {
               </select>
             </div>
           )}
+            </>
+          )}
 
           {/* Búsqueda */}
           <div className="mb-4">
@@ -362,7 +467,7 @@ export default function NuevaComandaPage() {
           <div className="space-y-6">
             {productosFiltrados !== null ? (
               productosFiltrados.length > 0 ? (
-                <div className="bg-white rounded-lg shadow p-4">
+                <div className="app-card p-4">
                   <h2 className="text-xl font-bold mb-4">Resultados ({productosFiltrados.length})</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {productosFiltrados.map(({ producto, categoria }) =>
@@ -371,14 +476,14 @@ export default function NuevaComandaPage() {
                   </div>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg shadow p-8 text-center">
+                <div className="app-card p-8 text-center">
                   <p className="text-gray-500 text-lg">No se encontraron productos que coincidan con "{busqueda}"</p>
                   <button onClick={() => setBusqueda('')} className="mt-4 text-primary-600 hover:text-primary-800 underline">Limpiar búsqueda</button>
                 </div>
               )
             ) : (
               categorias.map((categoria) => (
-                <div key={categoria.id} className="bg-white rounded-lg shadow p-4">
+                <div key={categoria.id} className="app-card p-4">
                   <h2 className="text-xl font-bold mb-1">{categoria.nombre}</h2>
                   {categoria.modificadores.length > 0 && (
                     <p className="text-xs text-indigo-500 mb-3">
@@ -396,7 +501,7 @@ export default function NuevaComandaPage() {
 
         {/* ── PANEL DERECHO - CARRITO ───────────────────────────────────── */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow p-6 sticky top-4">
+          <div className="app-card sticky top-4 p-6">
             <h2 className="text-xl font-bold mb-4">Pedido</h2>
 
             {carrito.length === 0 ? (
@@ -407,8 +512,15 @@ export default function NuevaComandaPage() {
                   <div key={item.key} className="border-b pb-3">
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm truncate">{item.producto.nombre}</div>
-                        <div className="text-xs text-gray-500">${item.producto.precio.toFixed(2)} c/u</div>
+                        <div className="font-semibold text-sm truncate">
+                          {item.producto.nombre}
+                          {item.tamanoDetalle && (
+                            <span className="font-normal text-gray-600"> — {item.tamanoDetalle.nombre}</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          ${(item.tamanoDetalle ? item.tamanoDetalle.precio : item.producto.precio).toFixed(2)} c/u
+                        </div>
                         {item.modificadoresDetalle.length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1">
                             {item.modificadoresDetalle.map((mod) => (
@@ -469,19 +581,25 @@ export default function NuevaComandaPage() {
               disabled={guardando || carrito.length === 0}
               className="w-full bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
             >
-              {guardando ? 'Guardando...' : 'Crear Comanda'}
+              {guardando ? 'Guardando...' : esAgregarPedidos ? 'Agregar pedidos' : 'Crear Comanda'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── MODAL DE EXTRAS ────────────────────────────────────────────── */}
+      {/* ── MODAL DE EXTRAS Y TAMAÑOS ───────────────────────────────────── */}
       {modalExtras && (() => {
-        const extrasDisponibles = getExtrasDisponibles(modalExtras.producto, modalExtras.categoria)
+        const { producto, tamanoSeleccionadoId } = modalExtras
+        const tieneTamanos = (producto.tamanos?.length ?? 0) > 0
+        const tamanoSeleccionado = tamanoSeleccionadoId
+          ? producto.tamanos?.find((t) => t.id === tamanoSeleccionadoId)
+          : null
+        const extrasDisponibles = getExtrasDisponibles(producto, modalExtras.categoria)
         const precioExtras = modalExtras.extrasSeleccionados
           .map((id) => extrasDisponibles.find((e) => e.id === id)?.precioExtra || 0)
           .reduce((a, b) => a + b, 0)
-        const precioTotal = modalExtras.producto.precio + precioExtras
+        const precioBase = tamanoSeleccionado ? tamanoSeleccionado.precio : producto.precio
+        const precioTotal = precioBase + precioExtras
 
         // Agrupar extras por tipo
         const porTipo: Record<string, Modificador[]> = {}
@@ -492,9 +610,9 @@ export default function NuevaComandaPage() {
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-[28px] border border-gray-200 bg-white shadow-2xl">
               {/* Header */}
-              <div className="flex items-start justify-between p-5 border-b">
+              <div className="flex items-start justify-between border-b p-5">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900">{modalExtras.producto.nombre}</h2>
                   <p className="text-sm text-gray-500 mt-0.5">{modalExtras.categoria.nombre}</p>
@@ -504,9 +622,40 @@ export default function NuevaComandaPage() {
                 </button>
               </div>
 
-              {/* Extras */}
-              <div className="overflow-y-auto flex-1 p-5">
+              {/* Contenido */}
+              <div className="flex-1 overflow-y-auto p-5">
                 <p className="text-sm font-medium text-gray-700 mb-3">Personaliza tu pedido</p>
+
+                {/* Selector de tamaño (obligatorio si el producto tiene) */}
+                {tieneTamanos && (
+                  <div className="mb-4">
+                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                      Tamaño <span className="text-red-500">*</span>
+                    </h3>
+                    <div className="space-y-2">
+                      {producto.tamanos!.map((t) => {
+                        const sel = tamanoSeleccionadoId === t.id
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setTamanoEnModal(sel ? null : t.id)}
+                            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border transition-colors text-left ${
+                              sel
+                                ? 'bg-blue-50 border-blue-400 text-blue-900'
+                                : 'bg-white border-gray-200 text-gray-800 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span className="text-sm font-medium">{t.nombre}</span>
+                            <span className="text-sm text-gray-600">${t.precio.toFixed(2)}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Extras */}
                 <div className="space-y-4">
                   {Object.entries(porTipo).map(([tipo, extras]) => (
                     <div key={tipo}>
@@ -561,7 +710,7 @@ export default function NuevaComandaPage() {
               </div>
 
               {/* Footer */}
-              <div className="p-5 border-t bg-gray-50 rounded-b-xl">
+              <div className="rounded-b-[28px] border-t bg-gray-50 p-5">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm text-gray-600">
                     Precio unitario:
@@ -572,13 +721,14 @@ export default function NuevaComandaPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setModalExtras(null)}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 text-sm font-medium"
+                    className="app-btn-secondary flex-1 rounded-2xl px-4 py-2 text-sm font-medium"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={confirmarDesdeModal}
-                    className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                    disabled={tieneTamanos && !tamanoSeleccionadoId}
+                    className="app-btn-primary flex-1 rounded-2xl px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Agregar al pedido
                   </button>

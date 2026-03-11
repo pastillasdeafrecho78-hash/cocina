@@ -232,7 +232,7 @@ export default function MapeoPage() {
   }, [vertices])
 
   return (
-    <div className="p-4 md:p-8 text-black bg-gray-50 min-h-screen">
+    <div className="app-page min-h-screen bg-gray-50">
       <BackButton className="mb-4" />
 
       <div className="max-w-4xl mx-auto">
@@ -245,7 +245,7 @@ export default function MapeoPage() {
         </p>
 
         {/* Instrucciones */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+        <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4">
           <h3 className="font-semibold text-blue-900 mb-2">📋 Instrucciones:</h3>
           <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
             <li>Pulsa &quot;Solicitar Sensores&quot; y acepta. Usamos solo aceleración XYZ (sin GPS).</li>
@@ -258,7 +258,7 @@ export default function MapeoPage() {
         </div>
 
         {/* Estado del tracking */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="app-card mb-6 p-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <div className="text-sm text-gray-600">Estado</div>
@@ -355,7 +355,7 @@ export default function MapeoPage() {
 
         {/* Visualización del polígono */}
         {vertices.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="app-card mb-6 p-4">
             <h3 className="font-semibold text-gray-900 mb-4">
               Polígono ({vertices.length} puntos)
             </h3>
@@ -460,7 +460,7 @@ export default function MapeoPage() {
 
         {/* Advertencias */}
         {warnings.length > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+          <div className="mb-6 rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
             <h3 className="font-semibold text-yellow-900 mb-2">⚠️ Advertencias:</h3>
             <ul className="list-disc list-inside space-y-1 text-sm text-yellow-800">
               {warnings.map((warning, index) => (
@@ -472,7 +472,7 @@ export default function MapeoPage() {
 
         {/* Formulario para guardar */}
         {vertices.length >= 3 && edges.length >= vertices.length && (
-          <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="app-card mb-6 p-4">
             <h3 className="font-semibold text-gray-900 mb-4">Guardar Planta</h3>
             <div className="space-y-4">
               <div>
@@ -507,7 +507,7 @@ export default function MapeoPage() {
         )}
 
         {/* Estado de permisos — solo sensores (aceleración), sin geolocalización */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+        <div className="app-card mb-6 p-4">
           <h3 className="font-semibold text-gray-900 mb-3">Permisos (solo sensores, sin GPS)</h3>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -549,7 +549,7 @@ export default function MapeoPage() {
         </div>
 
         {/* Nota sobre mapeo con aceleración */}
-        <div className="bg-gray-100 rounded-lg p-4 text-sm text-gray-600">
+        <div className="rounded-2xl bg-gray-100 p-4 text-sm text-gray-600">
           <p className="font-semibold mb-1">ℹ️ Mapeo con aceleración XYZ (sin GPS):</p>
           <ul className="list-disc list-inside space-y-1">
             <li>El mapeo usa solo el acelerómetro y la orientación. No se usa geolocalización.</li>

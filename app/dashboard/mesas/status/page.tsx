@@ -231,85 +231,89 @@ export default function MesasStatusPage() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="text-center">Cargando mesas...</div>
+      <div className="app-page">
+        <div className="app-card text-center text-stone-600">Cargando mesas...</div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 text-black">
-      <BackButton className="mb-4" />
-      <div className="mb-6 flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Estado de Mesas</h1>
-          <p className="text-gray-600 mt-2">Tiempo de espera desde que se generó la comanda</p>
-        </div>
-        <div className="flex gap-2">
+    <div className="app-page">
+      <div className="mx-auto max-w-7xl space-y-6">
+      <div className="app-card">
+        <BackButton className="mb-4" />
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="app-kicker">Mesas</p>
+            <h1 className="mt-2 text-3xl font-semibold text-stone-900">Estado de Mesas</h1>
+            <p className="mt-2 text-stone-600">Tiempo de espera desde que se generó la comanda.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setMostrarConfigTiempos(!mostrarConfigTiempos)}
-            className="bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700"
+            className="app-btn-secondary"
           >
             {mostrarConfigTiempos ? 'Ocultar tiempos' : '⏱️ Tiempos de color'}
           </button>
           <button
             onClick={() => setMostrarFormulario(!mostrarFormulario)}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
+            className="app-btn-primary"
           >
             {mostrarFormulario ? 'Cancelar' : '+ Agregar Mesa'}
           </button>
+          </div>
         </div>
       </div>
 
       {mostrarConfigTiempos && (
-        <div className="mb-6 bg-white rounded-lg shadow-md p-6 border border-amber-100">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Tiempos de color de las mesas</h2>
-          <p className="text-sm text-gray-600 mb-4">
+        <div className="app-card border-amber-100">
+          <h2 className="text-xl font-semibold text-stone-900 mb-2">Tiempos de color de las mesas</h2>
+          <p className="text-sm text-stone-600 mb-4">
             Los colores verde → amarillo → rojo cambian de forma progresiva según el tiempo desde que se creó la comanda.
             Para el primer uso puedes configurarlo en <strong>Configuración</strong>; aquí puedes cambiarlo cuando quieras.
           </p>
           <form onSubmit={guardarTiemposColor} className="flex flex-wrap items-end gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tiempo para amarillo (min)</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Tiempo para amarillo (min)</label>
               <input
                 type="number"
                 min={1}
                 value={editTiempoAmarillo}
                 onChange={(e) => setEditTiempoAmarillo(e.target.value)}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 text-black"
+                className="app-input w-24"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tiempo para rojo (min)</label>
+              <label className="block text-sm font-medium text-stone-700 mb-1">Tiempo para rojo (min)</label>
               <input
                 type="number"
                 min={1}
                 value={editTiempoRojo}
                 onChange={(e) => setEditTiempoRojo(e.target.value)}
-                className="w-24 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-amber-500 text-black"
+                className="app-input w-24"
               />
             </div>
             <button
               type="submit"
               disabled={guardandoTiempos}
-              className="bg-amber-600 text-white px-4 py-2 rounded-md hover:bg-amber-700 disabled:opacity-50"
+              className="app-btn-primary"
             >
               {guardandoTiempos ? 'Guardando...' : 'Guardar tiempos'}
             </button>
           </form>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-stone-500 mt-2">
             Verde: 0–{tiempoAmarilloMinutos} min · Amarillo→Rojo: {tiempoAmarilloMinutos}–{tiempoRojoMinutos} min · Rojo: +{tiempoRojoMinutos} min
           </p>
         </div>
       )}
 
       {mostrarFormulario && (
-        <div className="mb-6 bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Nueva Mesa</h2>
+        <div className="app-card">
+          <h2 className="text-xl font-semibold text-stone-900 mb-4">Nueva Mesa</h2>
           <form onSubmit={handleAgregarMesa} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-stone-700 mb-1">
                   Número de Mesa *
                 </label>
                 <input
@@ -318,12 +322,12 @@ export default function MesasStatusPage() {
                   required
                   value={formData.numero}
                   onChange={(e) => setFormData({ ...formData, numero: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black"
+                  className="app-input"
                   placeholder="Ej: 1"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-stone-700 mb-1">
                   Capacidad *
                 </label>
                 <input
@@ -332,31 +336,31 @@ export default function MesasStatusPage() {
                   required
                   value={formData.capacidad}
                   onChange={(e) => setFormData({ ...formData, capacidad: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black"
+                  className="app-input"
                   placeholder="Ej: 4"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-stone-700 mb-1">
                   Piso (opcional)
                 </label>
                 <input
                   type="text"
                   value={formData.piso}
                   onChange={(e) => setFormData({ ...formData, piso: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black"
+                  className="app-input"
                   placeholder="Ej: 1, 2, Terraza"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-stone-700 mb-1">
                   Ubicación (opcional)
                 </label>
                 <input
                   type="text"
                   value={formData.ubicacion}
                   onChange={(e) => setFormData({ ...formData, ubicacion: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black"
+                  className="app-input"
                   placeholder="Ej: Interior, Barra"
                 />
               </div>
@@ -365,7 +369,7 @@ export default function MesasStatusPage() {
               <button
                 type="submit"
                 disabled={guardando}
-                className="bg-primary-600 text-white px-6 py-2 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="app-btn-primary"
               >
                 {guardando ? 'Guardando...' : 'Agregar Mesa'}
               </button>
@@ -393,7 +397,7 @@ export default function MesasStatusPage() {
               const tituloPiso = pisoKey === '__sin_piso__' ? 'Sin piso' : `Piso ${pisoKey}`
               return (
                 <div key={pisoKey}>
-                  <h2 className="text-lg font-semibold text-gray-800 mb-3 pb-2 border-b border-gray-200">
+                  <h2 className="mb-3 border-b border-stone-200 pb-2 text-lg font-semibold text-stone-800">
                     {tituloPiso}
                   </h2>
                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
@@ -431,9 +435,9 @@ export default function MesasStatusPage() {
           })()}
         </div>
       ) : (
-        <div className="text-center py-12 bg-white rounded-lg shadow-md">
-          <p className="text-gray-500 text-lg mb-2">No hay mesas configuradas</p>
-          <p className="text-gray-400 text-sm">
+        <div className="app-card text-center">
+          <p className="mb-2 text-lg text-stone-500">No hay mesas configuradas</p>
+          <p className="text-sm text-stone-400">
             Haz clic en &quot;Agregar Mesa&quot; para comenzar
           </p>
         </div>
@@ -449,13 +453,13 @@ export default function MesasStatusPage() {
           aria-labelledby="confirmar-borrar-title"
         >
           <div
-            className="bg-white rounded-xl shadow-xl max-w-sm w-full p-6"
+            className="app-card max-w-sm w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="confirmar-borrar-title" className="text-lg font-bold text-gray-900 mb-2">
+            <h2 id="confirmar-borrar-title" className="mb-2 text-lg font-bold text-stone-900">
               ¿Estás seguro?
             </h2>
-            <p className="text-gray-600 mb-6">
+            <p className="mb-6 text-stone-600">
               Se borrará la <strong>M{mesaAConfirmarBorrado.numero}</strong>. Esta acción no se puede deshacer.
             </p>
             <div className="flex gap-3 justify-end">
@@ -478,6 +482,7 @@ export default function MesasStatusPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

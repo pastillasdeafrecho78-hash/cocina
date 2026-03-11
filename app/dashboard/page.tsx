@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { tienePermiso } from '@/lib/permisos'
 import {
   TableCellsIcon,
   DocumentTextIcon,
@@ -47,14 +48,8 @@ export default function DashboardPage() {
     if (userStr) {
       const userData = JSON.parse(userStr)
       setUser(userData)
-
-      // ADMIN, CAJERO y GERENTE ven el panel; MESERO, COCINERO, BARTENDER van a mesas
-      if (['ADMIN', 'CAJERO', 'GERENTE'].includes(userData.rol)) {
-        verificarConfiguracion()
-        if (userData.rol === 'ADMIN') cargarEstadisticas()
-      } else {
-        router.push('/dashboard/mesas')
-      }
+      if (tienePermiso(userData, 'configuracion')) verificarConfiguracion()
+      cargarEstadisticas()
     }
     setLoading(false)
   }, [router])
@@ -114,19 +109,18 @@ export default function DashboardPage() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center text-black">
-        <div className="text-center">
-          <div className="text-gray-600">Cargando...</div>
+      <div className="app-loading-shell">
+        <div className="app-card text-center">
+          <div className="text-stone-600">Cargando dashboard...</div>
         </div>
       </div>
     )
   }
 
-  const esAdmin = user.rol === 'ADMIN'
-
-  const cards = [
+  const allCards = [
     {
       title: 'Mesas',
+      modulo: 'mesas' as const,
       icon: TableCellsIcon,
       href: '/dashboard/mesas',
       estadistica: `${estadisticas.mesasOcupadas}/${estadisticas.mesasTotal}`,
@@ -136,6 +130,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Comandas',
+      modulo: 'comandas' as const,
       icon: DocumentTextIcon,
       href: '/dashboard/comandas',
       estadistica: estadisticas.comandasActivas.toString(),
@@ -144,6 +139,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Carta',
+      modulo: 'carta' as const,
       icon: RectangleStackIcon,
       href: '/dashboard/carta',
       estadistica: '',
@@ -152,6 +148,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Cocina',
+      modulo: 'cocina' as const,
       icon: FireIcon,
       href: '/dashboard/cocina',
       estadistica: estadisticas.itemsCocina.toString(),
@@ -161,6 +158,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Barra',
+      modulo: 'barra' as const,
       icon: BeakerIcon,
       href: '/dashboard/barra',
       estadistica: estadisticas.itemsBarra.toString(),
@@ -170,6 +168,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Reportes',
+      modulo: 'reportes' as const,
       icon: ChartBarIcon,
       href: '/dashboard/reportes',
       estadistica: '',
@@ -178,6 +177,7 @@ export default function DashboardPage() {
     },
     {
       title: 'Caja',
+      modulo: 'caja' as const,
       icon: BanknotesIcon,
       href: '/dashboard/caja',
       estadistica: '',
@@ -186,123 +186,140 @@ export default function DashboardPage() {
     },
     {
       title: 'Configuración',
+      modulo: 'configuracion' as const,
       icon: Cog6ToothIcon,
       href: '/dashboard/configuracion',
       estadistica: estadoConfig?.configuracionCompleta ? '✓' : '!',
       descripcion: estadoConfig?.configuracionCompleta ? 'Completa' : 'Pendiente',
       color: estadoConfig?.configuracionCompleta ? 'green' : 'yellow',
     },
-    ...(esAdmin
-      ? [
-          {
-            title: 'Roles y Permisos',
-            icon: ShieldCheckIcon,
-            href: '/dashboard/admin/roles',
-            estadistica: '',
-            descripcion: 'Gestionar roles',
-            color: 'blue' as const,
-          },
-        ]
-      : []),
+    {
+      title: 'Roles y Permisos',
+      modulo: 'usuarios_roles' as const,
+      icon: ShieldCheckIcon,
+      href: '/dashboard/admin/roles',
+      estadistica: '',
+      descripcion: 'Gestionar roles',
+      color: 'blue' as const,
+    },
   ]
 
+  const cards = allCards.filter((c) => tienePermiso(user, c.modulo))
+
   return (
-    <div className="p-8 text-black">
-      {/* Perfil de Usuario en la parte principal */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            {/* Avatar */}
-            <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-semibold text-xl shadow-md">
-              {user.nombre.charAt(0)}{user.apellido.charAt(0)}
+    <div className="app-page">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="app-brand-panel p-6">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="flex flex-col">
+                <span className="app-kicker">Centro de operación</span>
+                <span className="mt-1 text-3xl font-semibold text-stone-900">
+                  {user.nombre} {user.apellido}
+                </span>
+                <span className="text-sm capitalize text-stone-500">
+                  {user.rol?.nombre?.toLowerCase() ?? 'sin rol'}
+                </span>
+                <span className="mt-2 max-w-2xl text-sm text-stone-600">
+                  Gestiona servicio, tiempos y flujo operativo con una interfaz inspirada en
+                  el ritmo de sala, cocina y barra.
+                </span>
+              </div>
             </div>
-            {/* Información del usuario */}
-            <div className="flex flex-col">
-              <span className="text-xl font-semibold text-gray-900">
-                {user.nombre} {user.apellido}
-              </span>
-              <span className="text-sm text-gray-500 capitalize">
-                {user.rol.toLowerCase()}
-              </span>
+
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="app-card-muted min-w-[120px] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Mesas</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                  {estadisticas.mesasOcupadas}/{estadisticas.mesasTotal}
+                </p>
+              </div>
+              <div className="app-card-muted min-w-[120px] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Comandas</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                  {estadisticas.comandasActivas}
+                </p>
+              </div>
+              <div className="app-card-muted min-w-[120px] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Cocina</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                  {estadisticas.itemsCocina}
+                </p>
+              </div>
+              <div className="app-card-muted min-w-[120px] p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Barra</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                  {estadisticas.itemsBarra}
+                </p>
+              </div>
             </div>
           </div>
-        </div>
-        {/* Texto de cerrar sesión */}
-        <button
-          onClick={handleLogout}
-          className="text-red-600 hover:text-red-800 cursor-pointer font-medium"
-        >
-          Cerrar Sesión
-        </button>
-      </div>
+          <button onClick={handleLogout} className="mt-5 app-btn-danger">
+            Cerrar sesión
+          </button>
+        </section>
 
-      {/* Alerta de configuración incompleta */}
-      {estadoConfig && !estadoConfig.configuracionCompleta && (
-        <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+        {estadoConfig && !estadoConfig.configuracionCompleta && (
+          <div className="rounded-[28px] border border-yellow-200 bg-yellow-50/90 p-5 shadow-sm dark:border-amber-400/40 dark:bg-amber-950/55">
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5 flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-600 dark:text-amber-300" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-            </div>
-            <div className="ml-3 flex-1">
-              <h3 className="text-sm font-medium text-yellow-800">
-                Configuración incompleta
-              </h3>
-              <div className="mt-2 text-sm text-yellow-700">
-                <p>Complete la configuración para habilitar facturación y pagos:</p>
-                <ul className="list-disc list-inside mt-1">
-                  {!estadoConfig.tieneDatosFiscales && <li>Datos fiscales</li>}
-                  {!estadoConfig.tienePAC && <li>Configuración PAC (Facturación)</li>}
-                  {!estadoConfig.tieneConekta && <li>Configuración de pagos (Conekta)</li>}
-                  {!estadoConfig.tieneCSD && <li>Certificado de Sello Digital (CSD)</li>}
-                </ul>
               </div>
-              <div className="mt-3">
-                <Link
-                  href="/dashboard/configuracion"
-                  className="text-sm font-medium text-yellow-800 hover:text-yellow-900 underline"
-                >
-                  Ir a configuración →
-                </Link>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-yellow-950 dark:text-amber-50">Configuración incompleta</h3>
+                <div className="mt-2 text-sm text-yellow-900 dark:text-amber-100">
+                  <p>Completa la configuración para habilitar facturación y pagos:</p>
+                  <ul className="mt-1 list-disc list-inside">
+                    {!estadoConfig.tieneDatosFiscales && <li>Datos fiscales</li>}
+                    {!estadoConfig.tienePAC && <li>Configuración PAC (Facturación)</li>}
+                    {!estadoConfig.tieneConekta && <li>Configuración de pagos (Conekta)</li>}
+                    {!estadoConfig.tieneCSD && <li>Certificado de Sello Digital (CSD)</li>}
+                  </ul>
+                </div>
+                <div className="mt-3">
+                  <Link href="/dashboard/configuracion" className="text-sm font-medium text-yellow-950 underline dark:text-amber-50">
+                    Ir a configuración →
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {cards.map((card) => {
+            const Icon = card.icon
+            const colorClasses = {
+              green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+              yellow: 'border-yellow-200 bg-yellow-50 text-yellow-800',
+              red: 'border-rose-200 bg-rose-50 text-rose-700',
+              blue: 'border-sky-200 bg-sky-50 text-sky-700',
+            }
+
+            return (
+              <Link
+                key={card.href}
+                href={card.href}
+                className="app-card group p-6 hover:-translate-y-1 hover:border-amber-300 hover:shadow-warm"
+              >
+                <div className="mb-5 flex items-center justify-between">
+                  <div className="app-icon-shell h-14 w-14 transition group-hover:bg-amber-100 group-hover:text-amber-800">
+                    <Icon className="h-7 w-7" />
+                  </div>
+                  {card.estadistica && (
+                    <span className={`app-badge ${colorClasses[card.color as keyof typeof colorClasses]}`}>
+                      {card.estadistica}
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-xl font-semibold text-stone-900">{card.title}</h3>
+                <p className="mt-1 text-sm text-stone-600">{card.descripcion}</p>
+              </Link>
+            )
+          })}
         </div>
-      )}
-
-      {/* Grid de Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {cards.map((card) => {
-          const Icon = card.icon
-          const colorClasses = {
-            green: 'bg-green-100 text-green-800 border-green-300',
-            yellow: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-            red: 'bg-red-100 text-red-800 border-red-300',
-            blue: 'bg-blue-100 text-blue-800 border-blue-300',
-          }
-
-          return (
-            <Link
-              key={card.href}
-              href={card.href}
-              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow border-2 border-transparent hover:border-blue-300"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <Icon className="w-8 h-8 text-gray-600" />
-                {card.estadistica && (
-                  <span className={`px-3 py-1 rounded-full text-sm font-semibold border ${colorClasses[card.color as keyof typeof colorClasses]}`}>
-                    {card.estadistica}
-                  </span>
-                )}
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-1">
-                {card.title}
-              </h3>
-              <p className="text-sm text-gray-600">{card.descripcion}</p>
-            </Link>
-          )
-        })}
       </div>
     </div>
   )

@@ -588,9 +588,9 @@ export default function PlantaMesasPage() {
   }
 
   return (
-    <div className="relative h-screen w-full overflow-hidden text-black bg-gray-50">
+    <div className="app-shell relative h-screen w-full overflow-hidden text-black">
       {/* Canvas de la planta — pantalla completa */}
-      <div className="absolute inset-0 bg-white overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden bg-white">
         <div
           ref={canvasRef}
           className="relative bg-gray-100 w-full h-full"
@@ -793,7 +793,7 @@ export default function PlantaMesasPage() {
       {/* Header — transparente, solo botones visibles sobre el mapa */}
       <header className="absolute top-0 left-0 right-0 z-10 flex flex-wrap gap-2 items-center justify-between p-2 md:p-3 pointer-events-none">
         <div className="flex items-center gap-2 flex-wrap pointer-events-auto">
-          <BackButton className="rounded-lg bg-white/90 shadow-sm px-2.5 py-1.5 text-sm font-medium text-gray-800 hover:bg-white" />
+          <BackButton className="rounded-lg px-2.5 py-1.5 text-sm font-medium" />
           <button
             onClick={() => setModoEdicion(!modoEdicion)}
             className={`px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm transition-colors ${
@@ -825,7 +825,7 @@ export default function PlantaMesasPage() {
             </>
           )}
           {modoEdicion && mesaSeleccionada && (
-            <div className="flex gap-2 items-center rounded-lg bg-white/90 shadow-sm px-2 py-1.5">
+            <div className="flex items-center gap-2 rounded-2xl bg-white/90 px-2 py-1.5 shadow-sm">
               <button
                 onClick={() => activarSensoresParaMesa(mesaSeleccionada)}
                 className="px-2 py-1 bg-purple-600 text-white rounded text-sm font-semibold hover:bg-purple-700"
@@ -858,7 +858,7 @@ export default function PlantaMesasPage() {
           )}
         </div>
         <div className="flex items-center gap-2 flex-wrap pointer-events-auto">
-          <span className="rounded-lg bg-white/90 shadow-sm px-2.5 py-1.5 text-sm text-gray-700 min-w-[44px] text-center">
+          <span className="rounded-2xl bg-white/90 px-2.5 py-1.5 text-center text-sm text-gray-700 shadow-sm min-w-[44px]">
             {Math.round(escala * 100)}%
           </span>
           <button
@@ -877,7 +877,7 @@ export default function PlantaMesasPage() {
       </header>
 
       {/* Leyenda — overlay sobre el canvas */}
-      <div className="absolute bottom-3 left-3 bg-white/95 rounded-lg shadow-lg p-3 border border-gray-200 pointer-events-none">
+      <div className="pointer-events-none absolute bottom-3 left-3 rounded-2xl border border-gray-200 bg-white/95 p-3 shadow-lg">
         <div className="flex flex-wrap gap-3">
           <div className="flex items-center gap-1.5">
             <div className="w-3 h-3 rounded" style={{ backgroundColor: estadoColors.LIBRE }} />
