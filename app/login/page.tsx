@@ -86,7 +86,7 @@ export default function LoginPage() {
             <BrandLogo
               size="xl"
               priority
-              className="h-[300px] w-full max-w-[1200px]"
+              className="-mt-3 h-[220px] w-full max-w-[1200px]"
             />
             <p className="app-kicker mt-5">Suite operativa para restaurantes</p>
             <h1 className="mt-3 text-5xl font-semibold leading-tight text-stone-900">
