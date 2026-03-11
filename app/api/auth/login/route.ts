@@ -125,7 +125,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.error('Error en login:', error)
+    const err = error instanceof Error ? error : new Error(String(error))
+    console.error('Error en login:', err.message, err.cause ?? err.stack)
     return NextResponse.json(
       { success: false, error: 'Error interno del servidor' },
       { status: 500 }

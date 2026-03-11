@@ -4,41 +4,28 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }
 
-function getPrismaDatabaseUrl() {
-  const rawUrl = process.env.DATABASE_URL
+function getPrismaDatabaseUrl(): string | undefined {
+  const raw = process.env.DATABASE_URL
+  if (!raw || typeof raw !== 'string') return undefined
 
-  if (!rawUrl) {
-    return undefined
+  // Asegurar SSL para Supabase/Postgres en serverless (evitar parsing que puede romper URLs con caracteres especiales)
+  if (raw.includes('sslmode=') || raw.includes('sslaccept=')) return raw
+
+  const sep = raw.includes('?') ? '&' : '?'
+  let url = raw + sep + 'sslmode=require'
+
+  // Pooler Supabase (puerto 6543) requiere pgbouncer=true para Prisma
+  if (url.includes(':6543/') && !url.includes('pgbouncer=')) {
+    url += (url.includes('?') ? '&' : '?') + 'pgbouncer=true'
   }
 
-  try {
-    const url = new URL(rawUrl)
-    const isPostgres = url.protocol === 'postgres:' || url.protocol === 'postgresql:'
-
-    if (isPostgres && !url.searchParams.has('sslmode') && !url.searchParams.has('sslaccept')) {
-      url.searchParams.set('sslmode', 'require')
-    }
-
-    return url.toString()
-  } catch {
-    return rawUrl
-  }
+  return url
 }
 
 const prismaClientOptions = (() => {
-  const databaseUrl = getPrismaDatabaseUrl()
-
-  if (!databaseUrl) {
-    return undefined
-  }
-
-  return {
-    datasources: {
-      db: {
-        url: databaseUrl,
-      },
-    },
-  }
+  const url = getPrismaDatabaseUrl()
+  if (!url) return undefined
+  return { datasources: { db: { url } } }
 })()
 
 export const prisma = globalForPrisma.prisma ?? new PrismaClient(prismaClientOptions)
