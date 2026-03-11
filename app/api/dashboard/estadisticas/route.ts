@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
 import { tienePermiso } from '@/lib/permisos'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/dashboard/estadisticas
  * Respuesta ligera: solo conteos. Evita cargar comandas/items completos.

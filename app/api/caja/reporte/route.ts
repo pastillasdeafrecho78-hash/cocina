@@ -3,6 +3,8 @@ import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
 import { tienePermiso } from '@/lib/permisos'
 import { calcularReportePeriodo, obtenerInicioPeriodoActual } from '@/lib/caja-helpers'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getUserFromToken(getTokenFromRequest(request))

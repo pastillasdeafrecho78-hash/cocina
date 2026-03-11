@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+
+export const dynamic = 'force-dynamic'
 import { tienePermiso } from '@/lib/permisos'
 import { buildLegacyAnaliticaData, normalizeReportFilters } from '@/lib/reportes/server'
 
