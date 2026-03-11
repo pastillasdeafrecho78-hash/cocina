@@ -126,6 +126,18 @@ export default function CocinaPage() {
     return true
   })
 
+  const grupos = filteredItems.reduce<Record<string, Item[]>>((acc, item) => {
+    const key = item.comanda.numeroComanda
+    if (!acc[key]) acc[key] = []
+    acc[key].push(item)
+    return acc
+  }, {})
+  const gruposOrdenados = Object.entries(grupos).sort(([, a], [, b]) => {
+    const minA = Math.min(...a.map((i) => new Date(i.createdAt).getTime()))
+    const minB = Math.min(...b.map((i) => new Date(i.createdAt).getTime()))
+    return minA - minB
+  })
+
   const ESTADO_LABELS: Record<string, string> = {
     PENDIENTE: 'Por preparar',
     EN_PREPARACION: 'Preparando',
@@ -189,87 +201,92 @@ export default function CocinaPage() {
         </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredItems.map((item) => (
-          <div
-            key={item.id}
-            className={`
-              app-card p-6
-              ${item.estado === 'PENDIENTE' ? 'border-l-4 border-l-rose-500' : ''}
-              ${item.estado === 'EN_PREPARACION' ? 'border-l-4 border-l-amber-500' : ''}
-              ${item.estado === 'LISTO' ? 'border-l-4 border-l-emerald-500' : ''}
-            `}
-          >
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-xl font-semibold text-stone-900">
-                  {item.comanda.mesa
-                    ? `Mesa ${item.comanda.mesa.numero}`
-                    : item.comanda.cliente?.nombre || 'Para llevar'}
-                </h3>
-                <p className="text-sm text-stone-500">
-                  {item.comanda.numeroComanda}
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-stone-500">
-                  {getTiempoEspera(item.createdAt)}
-                </div>
-              </div>
-            </div>
+        {gruposOrdenados.map(([numeroComanda, itemsGrupo]) => {
+          const primer = itemsGrupo[0]
+          const titulo = primer.comanda.mesa
+            ? `Mesa ${primer.comanda.mesa.numero}`
+            : primer.comanda.cliente?.nombre || 'Para llevar'
+          const tiempoMasAntiguo = itemsGrupo.reduce(
+            (min, i) => (new Date(i.createdAt).getTime() < min ? new Date(i.createdAt).getTime() : min),
+            Number.MAX_SAFE_INTEGER
+          )
+          const tienePendiente = itemsGrupo.some((i) => i.estado === 'PENDIENTE')
+          const tienePreparacion = itemsGrupo.some((i) => i.estado === 'EN_PREPARACION')
+          const bordeClase = tienePendiente
+            ? 'border-l-4 border-l-rose-500'
+            : tienePreparacion
+              ? 'border-l-4 border-l-amber-500'
+              : 'border-l-4 border-l-emerald-500'
 
-            <div className="mb-4">
-              <div className="text-lg font-semibold">
-                {item.cantidad}x {item.producto.nombre}
-                {item.tamano && (
-                  <span className="font-normal text-stone-600"> — {item.tamano.nombre}</span>
-                )}
-              </div>
-              <div className="text-sm text-stone-600">
-                {item.producto.categoria.nombre}
-              </div>
-              {item.notas && (
-                <div className="mt-1 text-sm text-rose-600">
-                  📝 {item.notas}
+          return (
+            <div key={numeroComanda} className={`app-card p-6 ${bordeClase}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-xl font-semibold text-stone-900">{titulo}</h3>
+                  <p className="text-sm text-stone-500">{numeroComanda}</p>
                 </div>
-              )}
-              {item.modificadores.length > 0 && (
-                <div className="mt-1 text-sm text-stone-500">
-                  {item.modificadores.map((m) => m.modificador.nombre).join(', ')}
+                <div className="text-right">
+                  <div className="text-sm text-stone-500">
+                    {getTiempoEspera(new Date(tiempoMasAntiguo).toISOString())}
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
 
-            <div className="flex gap-2">
-              {item.estado === 'PENDIENTE' && (
-                <button
-                  onClick={() => abrirConfirmacion(item.id, 'EN_PREPARACION', 'Preparando')}
-                  className="app-btn-secondary flex-1 border-amber-300 bg-amber-50 text-amber-900"
-                >
-                  Preparando
-                </button>
-              )}
-              {item.estado === 'EN_PREPARACION' && (
-                <button
-                  onClick={() => abrirConfirmacion(item.id, 'LISTO', 'Listo para entregar')}
-                  className="app-btn-primary flex-1 bg-emerald-700 hover:bg-emerald-800"
-                >
-                  Listo para entregar
-                </button>
-              )}
-              {item.estado === 'LISTO' && (
-                <button
-                  onClick={() => abrirConfirmacion(item.id, 'ENTREGADO', 'Entregado')}
-                  className="app-btn-primary flex-1 bg-sky-600 hover:bg-sky-700"
-                >
-                  Entregado
-                </button>
-              )}
+              <div className="space-y-4">
+                {itemsGrupo.map((item) => (
+                  <div key={item.id} className="border-b border-stone-100 pb-4 last:border-0 last:pb-0">
+                    <div className="mb-2">
+                      <div className="text-base font-semibold">
+                        {item.cantidad}x {item.producto.nombre}
+                        {item.tamano && (
+                          <span className="font-normal text-stone-600"> — {item.tamano.nombre}</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-stone-600">{item.producto.categoria.nombre}</div>
+                      {item.notas && (
+                        <div className="mt-1 text-sm text-rose-600">📝 {item.notas}</div>
+                      )}
+                      {item.modificadores.length > 0 && (
+                        <div className="mt-1 text-sm text-stone-500">
+                          {item.modificadores.map((m) => m.modificador.nombre).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      {item.estado === 'PENDIENTE' && (
+                        <button
+                          onClick={() => abrirConfirmacion(item.id, 'EN_PREPARACION', 'Preparando')}
+                          className="app-btn-secondary flex-1 border-amber-300 bg-amber-50 text-amber-900 text-sm py-1.5"
+                        >
+                          Preparando
+                        </button>
+                      )}
+                      {item.estado === 'EN_PREPARACION' && (
+                        <button
+                          onClick={() => abrirConfirmacion(item.id, 'LISTO', 'Listo para entregar')}
+                          className="app-btn-primary flex-1 bg-emerald-700 hover:bg-emerald-800 text-sm py-1.5"
+                        >
+                          Listo para entregar
+                        </button>
+                      )}
+                      {item.estado === 'LISTO' && (
+                        <button
+                          onClick={() => abrirConfirmacion(item.id, 'ENTREGADO', 'Entregado')}
+                          className="app-btn-primary flex-1 bg-sky-600 hover:bg-sky-700 text-sm py-1.5"
+                        >
+                          Entregado
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      {filteredItems.length === 0 && (
+      {gruposOrdenados.length === 0 && (
         <div className="app-card text-center text-stone-500">
           No hay items pendientes
         </div>
