@@ -185,7 +185,13 @@ export default function CocinaPage() {
     acc[key].push(item)
     return acc
   }, {})
-  const gruposOrdenados = Object.entries(grupos).sort(([, a], [, b]) => {
+  const gruposOrdenados = Object.entries(grupos).sort(([keyA, a], [keyB, b]) => {
+    const puedeAlistarA = a.some((i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO')
+    const puedeAlistarB = b.some((i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO')
+    const soloEntregarA = a.some((i) => i.estado === 'LISTO') && !puedeAlistarA
+    const soloEntregarB = b.some((i) => i.estado === 'LISTO') && !puedeAlistarB
+    if (soloEntregarA && !soloEntregarB) return 1
+    if (!soloEntregarA && soloEntregarB) return -1
     const minA = Math.min(...a.map((i) => new Date(i.createdAt).getTime()))
     const minB = Math.min(...b.map((i) => new Date(i.createdAt).getTime()))
     return minA - minB

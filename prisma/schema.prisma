@@ -66,81 +66,81 @@ enum ScopeVistaDashboard {
 }
 
 model Rol {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   nombre      String
-  codigo      String?   @unique
+  codigo      String?          @unique
   descripcion String?
-  permisos    Json      // ["mesas", "comandas", "carta", ...] o ["*"] para admin
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  permisos    Json // ["mesas", "comandas", "carta", ...] o ["*"] para admin
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
   usuarios    Usuario[]
   dashboards  DashboardVista[]
 }
 
 model Usuario {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  nombre          String
-  apellido        String
-  password        String
-  rolId           String
-  activo          Boolean   @default(true)
-  ultimoAcceso    DateTime?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  nombre       String
+  apellido     String
+  password     String
+  rolId        String
+  activo       Boolean   @default(true)
+  ultimoAcceso DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  rol             Rol       @relation(fields: [rolId], references: [id], onDelete: Restrict)
-  comandasCreadas    Comanda[]            @relation("ComandaCreadaPor")
-  comandasAsignadas  Comanda[]            @relation("ComandaAsignadaA")
-  historialComandas  ComandaHistorial[]   @relation("ComandaHistorialUsuario")
-  auditoria          Auditoria[]           @relation("AuditoriaUsuario")
-  cortesX            CorteX[]
-  cortesZ            CorteZ[]
-  dashboards         DashboardVista[]
+  rol               Rol                @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  comandasCreadas   Comanda[]          @relation("ComandaCreadaPor")
+  comandasAsignadas Comanda[]          @relation("ComandaAsignadaA")
+  historialComandas ComandaHistorial[] @relation("ComandaHistorialUsuario")
+  auditoria         Auditoria[]        @relation("AuditoriaUsuario")
+  cortesX           CorteX[]
+  cortesZ           CorteZ[]
+  dashboards        DashboardVista[]
 
   @@index([rolId])
 }
 
 model Mesa {
-  id              String    @id @default(cuid())
-  numero          Int       @unique
-  capacidad       Int
-  estado          EstadoMesa @default(LIBRE)
-  ubicacion       String?
-  piso            String?   // Piso/planta donde está la mesa (ej. "1", "2", "Terraza")
+  id        String     @id @default(cuid())
+  numero    Int        @unique
+  capacidad Int
+  estado    EstadoMesa @default(LIBRE)
+  ubicacion String?
+  piso      String? // Piso/planta donde está la mesa (ej. "1", "2", "Terraza")
   // Coordenadas espaciales para visualización en planta
-  posicionX       Float?    // Posición X en el plano (0-100 o píxeles)
-  posicionY       Float?    // Posición Y en el plano (0-100 o píxeles)
-  rotacion        Float?    @default(0) // Rotación en grados (0-360)
+  posicionX Float? // Posición X en el plano (0-100 o píxeles)
+  posicionY Float? // Posición Y en el plano (0-100 o píxeles)
+  rotacion  Float?     @default(0) // Rotación en grados (0-360)
   // Relación con planta (opcional)
-  plantaId        String?
-  activa          Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  planta          PlantaRestaurante? @relation(fields: [plantaId], references: [id])
-  comandas        Comanda[]
+  plantaId  String?
+  activa    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  planta   PlantaRestaurante? @relation(fields: [plantaId], references: [id])
+  comandas Comanda[]
 }
 
 model Cliente {
-  id              String    @id @default(cuid())
-  nombre          String
-  telefono        String?
-  direccion       String?
-  notas           String?
-  
+  id        String  @id @default(cuid())
+  nombre    String
+  telefono  String?
+  direccion String?
+  notas     String?
+
   // Datos Fiscales del Receptor (obligatorios para facturación)
-  rfc             String?   // RFC del cliente (obligatorio si factura)
-  razonSocial     String?   // Nombre o razón social exacto (para CFDI)
-  regimenFiscal   String?   // Régimen fiscal del cliente
-  codigoPostal    String?   // CP del domicilio fiscal del receptor
-  usoCFDI         String?   @default("G03") // Uso del CFDI (G03=Gastos en general, S01=Sin efectos fiscales)
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  comandas        Comanda[]
-  
+  rfc           String? // RFC del cliente (obligatorio si factura)
+  razonSocial   String? // Nombre o razón social exacto (para CFDI)
+  regimenFiscal String? // Régimen fiscal del cliente
+  codigoPostal  String? // CP del domicilio fiscal del receptor
+  usoCFDI       String? @default("G03") // Uso del CFDI (G03=Gastos en general, S01=Sin efectos fiscales)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comandas Comanda[]
+
   @@index([rfc])
 }
 
@@ -149,7 +149,7 @@ model Comanda {
   numeroComanda   String        @unique
   mesaId          String?
   clienteId       String?
-  tipoPedido      TipoPedido   @default(EN_MESA)
+  tipoPedido      TipoPedido    @default(EN_MESA)
   estado          EstadoComanda @default(PENDIENTE)
   total           Float
   propina         Float?        @default(0)
@@ -160,16 +160,16 @@ model Comanda {
   fechaEntrega    DateTime?
   creadoPorId     String
   asignadoAId     String?
-  
-  mesa            Mesa?         @relation(fields: [mesaId], references: [id])
-  cliente         Cliente?      @relation(fields: [clienteId], references: [id])
-  items           ComandaItem[]
-  creadoPor       Usuario       @relation("ComandaCreadaPor", fields: [creadoPorId], references: [id])
-  asignadoA       Usuario?      @relation("ComandaAsignadaA", fields: [asignadoAId], references: [id])
-  historial       ComandaHistorial[]
-  pagos           Pago[]
-  facturas        Factura[]
-  
+
+  mesa      Mesa?              @relation(fields: [mesaId], references: [id])
+  cliente   Cliente?           @relation(fields: [clienteId], references: [id])
+  items     ComandaItem[]
+  creadoPor Usuario            @relation("ComandaCreadaPor", fields: [creadoPorId], references: [id])
+  asignadoA Usuario?           @relation("ComandaAsignadaA", fields: [asignadoAId], references: [id])
+  historial ComandaHistorial[]
+  pagos     Pago[]
+  facturas  Factura[]
+
   @@index([mesaId])
   @@index([estado])
   @@index([fechaCreacion])
@@ -182,106 +182,107 @@ model Comanda {
 }
 
 model Categoria {
-  id          String     @id @default(cuid())
+  id          String        @id @default(cuid())
   nombre      String
   descripcion String?
   tipo        TipoCategoria
-  orden       Int        @default(0)
-  activa      Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
+  orden       Int           @default(0)
+  activa      Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
   productos     Producto[]
   modificadores ModificadorCategoria[]
-  
+
   @@index([tipo])
 }
 
 model Producto {
-  id          String     @id @default(cuid())
-  nombre      String
-  descripcion String?
-  precio      Float
-  categoriaId String
-  activo      Boolean    @default(true)
-  imagenUrl   String?
-  
+  id              String  @id @default(cuid())
+  nombre          String
+  descripcion     String?
+  precio          Float
+  categoriaId     String
+  activo          Boolean @default(true)
+  listoPorDefault Boolean @default(false) // ej. Coca-Cola: entra en comanda ya como LISTO
+  imagenUrl       String?
+
   // Datos Fiscales del Producto
-  objetoImp   String?    @default("02") // 01=No objeto, 02=Sí objeto, 03=Sí objeto pero no causa, 04=Sí objeto pero exento
-  claveProdServ String?  // Clave SAT del producto/servicio
-  claveUnidad String?   @default("H87") // Clave de unidad de medida (H87=Pieza)
-  
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
-  categoria   Categoria  @relation(fields: [categoriaId], references: [id])
-  items       ComandaItem[]
-  modificadores ModificadorProducto[]
-  tamanos     ProductoTamano[]
+  objetoImp     String? @default("02") // 01=No objeto, 02=Sí objeto, 03=Sí objeto pero no causa, 04=Sí objeto pero exento
+  claveProdServ String? // Clave SAT del producto/servicio
+  claveUnidad   String? @default("H87") // Clave de unidad de medida (H87=Pieza)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  categoria        Categoria             @relation(fields: [categoriaId], references: [id])
+  items            ComandaItem[]
+  modificadores    ModificadorProducto[]
+  tamanos          ProductoTamano[]
   facturaConceptos FacturaConcepto[]
-  
+
   @@index([categoriaId])
   @@index([activo])
 }
 
 // Tamaños por producto: cada platillo define sus propias opciones (Chico $X, Grande $Y, etc.)
 model ProductoTamano {
-  id         String   @id @default(cuid())
+  id         String @id @default(cuid())
   productoId String
-  nombre     String   // ej. Chico, Mediano, Grande
+  nombre     String // ej. Chico, Mediano, Grande
   precio     Float
-  orden      Int      @default(0)
+  orden      Int    @default(0)
 
-  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
-  items      ComandaItem[]
+  producto Producto      @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  items    ComandaItem[]
 
   @@unique([productoId, nombre])
   @@index([productoId])
 }
 
 model ModificadorProducto {
-  id            String      @id @default(cuid())
+  id            String @id @default(cuid())
   productoId    String
   modificadorId String
-  
-  producto      Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
-  modificador   Modificador @relation(fields: [modificadorId], references: [id], onDelete: Cascade)
-  
+
+  producto    Producto    @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  modificador Modificador @relation(fields: [modificadorId], references: [id], onDelete: Cascade)
+
   @@unique([productoId, modificadorId])
 }
 
 model ModificadorCategoria {
-  id            String      @id @default(cuid())
+  id            String @id @default(cuid())
   categoriaId   String
   modificadorId String
-  
-  categoria     Categoria   @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
-  modificador   Modificador @relation(fields: [modificadorId], references: [id], onDelete: Cascade)
-  
+
+  categoria   Categoria   @relation(fields: [categoriaId], references: [id], onDelete: Cascade)
+  modificador Modificador @relation(fields: [modificadorId], references: [id], onDelete: Cascade)
+
   @@unique([categoriaId, modificadorId])
 }
 
 model ComandaItem {
-  id              String        @id @default(cuid())
-  comandaId       String
-  productoId      String
-  tamanoId        String?       // Si el producto tiene tamaños, cuál se eligió
-  cantidad        Int           @default(1)
-  precioUnitario  Float
-  subtotal        Float
-  notas           String?
-  estado          EstadoItem    @default(PENDIENTE)
-  destino         DestinoItem
+  id               String      @id @default(cuid())
+  comandaId        String
+  productoId       String
+  tamanoId         String? // Si el producto tiene tamaños, cuál se eligió
+  cantidad         Int         @default(1)
+  precioUnitario   Float
+  subtotal         Float
+  notas            String?
+  estado           EstadoItem  @default(PENDIENTE)
+  destino          DestinoItem
   fechaPreparacion DateTime?
-  fechaListo      DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  
-  comanda         Comanda       @relation(fields: [comandaId], references: [id], onDelete: Cascade)
-  producto        Producto      @relation(fields: [productoId], references: [id])
-  tamano          ProductoTamano? @relation(fields: [tamanoId], references: [id], onDelete: SetNull)
-  modificadores   ItemModificador[]
-  
+  fechaListo       DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  comanda       Comanda           @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  producto      Producto          @relation(fields: [productoId], references: [id])
+  tamano        ProductoTamano?   @relation(fields: [tamanoId], references: [id], onDelete: SetNull)
+  modificadores ItemModificador[]
+
   @@index([comandaId])
   @@index([estado])
   @@index([destino])
@@ -290,57 +291,57 @@ model ComandaItem {
 }
 
 model ItemModificador {
-  id              String        @id @default(cuid())
-  comandaItemId   String
-  modificadorId   String
-  precioExtra     Float         @default(0)
-  
-  comandaItem     ComandaItem   @relation(fields: [comandaItemId], references: [id], onDelete: Cascade)
-  modificador     Modificador   @relation(fields: [modificadorId], references: [id])
-  
+  id            String @id @default(cuid())
+  comandaItemId String
+  modificadorId String
+  precioExtra   Float  @default(0)
+
+  comandaItem ComandaItem @relation(fields: [comandaItemId], references: [id], onDelete: Cascade)
+  modificador Modificador @relation(fields: [modificadorId], references: [id])
+
   @@unique([comandaItemId, modificadorId])
 }
 
 model Modificador {
-  id          String     @id @default(cuid())
+  id          String          @id @default(cuid())
   nombre      String
   tipo        TipoModificador
-  precioExtra Float?     @default(0)
-  activo      Boolean    @default(true)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  
-  productos    ModificadorProducto[]
-  categorias   ModificadorCategoria[]
-  items        ItemModificador[]
+  precioExtra Float?          @default(0)
+  activo      Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  productos  ModificadorProducto[]
+  categorias ModificadorCategoria[]
+  items      ItemModificador[]
 }
 
 model ComandaHistorial {
-  id              String        @id @default(cuid())
-  comandaId       String
-  accion          String        // "CREADA", "ESTADO_CAMBIADO", "ITEM_AGREGADO", etc.
-  descripcion     String?
-  usuarioId       String?
-  fechaAccion     DateTime      @default(now())
-  
-  comanda         Comanda       @relation(fields: [comandaId], references: [id], onDelete: Cascade)
-  usuario         Usuario?      @relation("ComandaHistorialUsuario", fields: [usuarioId], references: [id])
-  
+  id          String   @id @default(cuid())
+  comandaId   String
+  accion      String // "CREADA", "ESTADO_CAMBIADO", "ITEM_AGREGADO", etc.
+  descripcion String?
+  usuarioId   String?
+  fechaAccion DateTime @default(now())
+
+  comanda Comanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  usuario Usuario? @relation("ComandaHistorialUsuario", fields: [usuarioId], references: [id])
+
   @@index([comandaId])
   @@index([fechaAccion])
 }
 
 model Auditoria {
-  id              String        @id @default(cuid())
-  usuarioId       String
-  accion          String        // "LOGIN", "LOGOUT", "CREAR_COMANDA", etc.
-  entidad         String?       // "Comanda", "Producto", etc.
-  entidadId       String?
-  detalles        Json?
-  fechaAccion     DateTime      @default(now())
-  
-  usuario         Usuario       @relation("AuditoriaUsuario", fields: [usuarioId], references: [id])
-  
+  id          String   @id @default(cuid())
+  usuarioId   String
+  accion      String // "LOGIN", "LOGOUT", "CREAR_COMANDA", etc.
+  entidad     String? // "Comanda", "Producto", etc.
+  entidadId   String?
+  detalles    Json?
+  fechaAccion DateTime @default(now())
+
+  usuario Usuario @relation("AuditoriaUsuario", fields: [usuarioId], references: [id])
+
   @@index([usuarioId])
   @@index([fechaAccion])
 }
@@ -361,8 +362,8 @@ model DashboardVista {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  usuario     Usuario?            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  rol         Rol?                @relation(fields: [rolId], references: [id], onDelete: SetNull)
+  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol     Rol?     @relation(fields: [rolId], references: [id], onDelete: SetNull)
 
   @@index([scope, modulo])
   @@index([usuarioId, modulo])
@@ -370,92 +371,92 @@ model DashboardVista {
 }
 
 model ConfiguracionRestaurante {
-  id                      String    @id @default(cuid())
+  id             String  @id @default(cuid())
   // Datos Fiscales Obligatorios
-  rfc                     String?   @unique
-  nombre                  String?
-  regimenFiscal           String?   // "601", "621", etc.
-  codigoPostal            String?
-  calle                   String?
-  numeroExterior          String?
-  numeroInterior          String?
-  colonia                 String?
-  municipio               String?
-  estado                  String?
-  pais                    String?   @default("MEX")
-  
+  rfc            String? @unique
+  nombre         String?
+  regimenFiscal  String? // "601", "621", etc.
+  codigoPostal   String?
+  calle          String?
+  numeroExterior String?
+  numeroInterior String?
+  colonia        String?
+  municipio      String?
+  estado         String?
+  pais           String? @default("MEX")
+
   // Lugar de Expedición (separado del domicilio fiscal)
-  lugarExpedicionCp       String?   // Código postal del establecimiento que emite facturas
-  
+  lugarExpedicionCp String? // Código postal del establecimiento que emite facturas
+
   // Serie y Folio
-  serieFactura            String?   @default("A") // Serie para facturas (ej. POS, A, R1)
-  folioInicial            Int?      @default(1) // Folio inicial consecutivo
-  folioActual             Int?      @default(1) // Folio actual (se incrementa automáticamente)
-  
+  serieFactura String? @default("A") // Serie para facturas (ej. POS, A, R1)
+  folioInicial Int?    @default(1) // Folio inicial consecutivo
+  folioActual  Int?    @default(1) // Folio actual (se incrementa automáticamente)
+
   // Configuración del Comprobante (valores por defecto)
-  tipoComprobante        String?   @default("I") // I=Ingreso, E=Egreso, T=Traslado, N=Nómina, P=Pago
-  exportacion            String?   @default("01") // 01=No aplica, 02=Definitiva, 03=Temporal
-  moneda                 String?   @default("MXN")
-  tipoCambio             Float?    // Solo si se usa otra moneda
-  
+  tipoComprobante String? @default("I") // I=Ingreso, E=Egreso, T=Traslado, N=Nómina, P=Pago
+  exportacion     String? @default("01") // 01=No aplica, 02=Definitiva, 03=Temporal
+  moneda          String? @default("MXN")
+  tipoCambio      Float? // Solo si se usa otra moneda
+
   // Configuración Fiscal Operativa
-  preciosIncluyenIva     Boolean   @default(false) // true = precios incluyen IVA, false = se suma IVA
-  tasaIva16              Float?    @default(0.16) // Tasa de IVA 16%
-  tasaIva0               Float?    @default(0.0) // Tasa de IVA 0%
-  tasaIeps               Float?    @default(0.0) // Tasa IEPS (ej. alcohol)
+  preciosIncluyenIva       Boolean @default(false) // true = precios incluyen IVA, false = se suma IVA
+  tasaIva16                Float?  @default(0.16) // Tasa de IVA 16%
+  tasaIva0                 Float?  @default(0.0) // Tasa de IVA 0%
+  tasaIeps                 Float?  @default(0.0) // Tasa IEPS (ej. alcohol)
   descuentosAntesImpuestos Boolean @default(true) // true = descuentos antes de impuestos
-  redondeo               String?   @default("redondeo") // "redondeo", "truncar", "exacto"
-  
+  redondeo                 String? @default("redondeo") // "redondeo", "truncar", "exacto"
+
   // Configuración PAC (Facturación)
-  pacApiKey               String?   // Encriptado
-  pacApiUrl               String?   @default("https://api.facturacion.com/v1")
-  pacModo                 String?   @default("pruebas") // "pruebas" o "produccion"
-  pacConfigurado           Boolean   @default(false)
-  
+  pacApiKey      String? // Encriptado
+  pacApiUrl      String? @default("https://api.facturacion.com/v1")
+  pacModo        String? @default("pruebas") // "pruebas" o "produccion"
+  pacConfigurado Boolean @default(false)
+
   // Configuración Procesador de Pagos
-  conektaPrivateKey       String?   // Encriptado
-  conektaPublicKey        String?   // Encriptado (para frontend)
-  conektaApiVersion       String?   @default("2.0")
-  pagosConfigurado        Boolean   @default(false)
-  
+  conektaPrivateKey String? // Encriptado
+  conektaPublicKey  String? // Encriptado (para frontend)
+  conektaApiVersion String? @default("2.0")
+  pagosConfigurado  Boolean @default(false)
+
   // Certificado de Sello Digital (CSD)
-  csdCerPath              String?   // Ruta al archivo .cer
-  csdKeyPath              String?   // Ruta al archivo .key
-  csdPassword             String?   // Encriptado
-  csdVigente              Boolean   @default(false)
-  csdFechaVencimiento     DateTime?
-  
+  csdCerPath          String? // Ruta al archivo .cer
+  csdKeyPath          String? // Ruta al archivo .key
+  csdPassword         String? // Encriptado
+  csdVigente          Boolean   @default(false)
+  csdFechaVencimiento DateTime?
+
   // Factura Global (obligatoria en restaurantes)
-  facturaGlobalHabilitada Boolean  @default(true)
-  facturaGlobalRfcReceptor String? @default("XAXX010101000") // RFC genérico
-  facturaGlobalNombreReceptor String? @default("PÚBLICO EN GENERAL")
-  facturaGlobalRegimenReceptor String? @default("616") // Régimen para público en general
-  facturaGlobalUsoCFDI    String?   @default("S01") // Sin efectos fiscales
-  facturaGlobalPeriodicidad String? // "01"=Diario, "02"=Semanal, "03"=Quincenal, "04"=Mensual, "05"=Bimestral
-  facturaGlobalMes        Int?      // Mes de la factura global
-  facturaGlobalAnio       Int?      // Año de la factura global
+  facturaGlobalHabilitada         Boolean @default(true)
+  facturaGlobalRfcReceptor        String? @default("XAXX010101000") // RFC genérico
+  facturaGlobalNombreReceptor     String? @default("PÚBLICO EN GENERAL")
+  facturaGlobalRegimenReceptor    String? @default("616") // Régimen para público en general
+  facturaGlobalUsoCFDI            String? @default("S01") // Sin efectos fiscales
+  facturaGlobalPeriodicidad       String? // "01"=Diario, "02"=Semanal, "03"=Quincenal, "04"=Mensual, "05"=Bimestral
+  facturaGlobalMes                Int? // Mes de la factura global
+  facturaGlobalAnio               Int? // Año de la factura global
   facturaGlobalPoliticaNominativa String? @default("emitir_sin_ajustar") // Política cuando cliente pide factura después: "emitir_sin_ajustar", "cancelar_global_emitir_nominativa", "ajustar_global_emitir_nominativa"
-  
+
   // Webhooks
-  webhookSecretConekta    String?   // Encriptado
-  webhookUrl              String?
-  
+  webhookSecretConekta String? // Encriptado
+  webhookUrl           String?
+
   // Configuración General
-  configuracionCompleta   Boolean   @default(false)
-  configuradoPorId        String?   // Usuario que hizo la configuración
-  fechaConfiguracion      DateTime?
-  
+  configuracionCompleta Boolean   @default(false)
+  configuradoPorId      String? // Usuario que hizo la configuración
+  fechaConfiguracion    DateTime?
+
   // Configuración de Tiempos para Mesas (en minutos)
-  tiempoAmarilloMinutos   Int?      @default(30) // Tiempo para cambiar de verde a amarillo
-  tiempoRojoMinutos        Int?      @default(60) // Tiempo para cambiar de amarillo a rojo
-  
+  tiempoAmarilloMinutos Int? @default(30) // Tiempo para cambiar de verde a amarillo
+  tiempoRojoMinutos     Int? @default(60) // Tiempo para cambiar de amarillo a rojo
+
   // Política de Propina
-  propinaFacturar         Boolean   @default(false) // true = se factura la propina como concepto separado
-  propinaObjetoImp        String?   @default("02") // Objeto de impuesto para propina (02=Sí objeto)
-  
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  
+  propinaFacturar  Boolean @default(false) // true = se factura la propina como concepto separado
+  propinaObjetoImp String? @default("02") // Objeto de impuesto para propina (02=Sí objeto)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([rfc])
 }
 
@@ -467,22 +468,22 @@ enum EstadoPago {
 }
 
 model Pago {
-  id              String      @id @default(cuid())
-  comandaId       String
-  monto           Float
-  metodoPago      String      // "tarjeta_credito", "efectivo", "oxxo", etc.
-  procesador      String      @default("conekta")
-  procesadorId    String?     // ID del procesador (Conekta, etc.)
-  estado          EstadoPago  @default(PENDIENTE)
-  comision        Float?      @default(0)
-  referencia      String?     // Para OXXO, SPEI, etc.
-  detalles        Json?       // Datos adicionales del pago
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  
-  comanda         Comanda     @relation(fields: [comandaId], references: [id], onDelete: Cascade)
-  factura         Factura?
-  
+  id           String     @id @default(cuid())
+  comandaId    String
+  monto        Float
+  metodoPago   String // "tarjeta_credito", "efectivo", "oxxo", etc.
+  procesador   String     @default("conekta")
+  procesadorId String? // ID del procesador (Conekta, etc.)
+  estado       EstadoPago @default(PENDIENTE)
+  comision     Float?     @default(0)
+  referencia   String? // Para OXXO, SPEI, etc.
+  detalles     Json? // Datos adicionales del pago
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  comanda Comanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  factura Factura?
+
   @@index([comandaId])
   @@index([estado])
   @@index([procesadorId])
@@ -492,42 +493,42 @@ model Pago {
 }
 
 model Factura {
-  id              String      @id @default(cuid())
-  comandaId       String
-  pagoId          String?     @unique
-  uuid            String      @unique // UUID del CFDI
-  folio           String?
-  serie           String?
-  fechaEmision    DateTime
-  emisorRfc       String
-  receptorRfc     String?
-  receptorNombre  String
-  usoCFDI         String
-  subtotal        Float
-  iva             Float
-  total           Float
-  formaPago       String
-  metodoPago      String
-  xml             String      @db.Text // XML timbrado completo
-  pdf             String?     // Ruta al PDF generado
-  qrCode          String?     // Código QR para verificación
-  estado          String      @default("activa") // "activa", "cancelada"
-  
+  id             String   @id @default(cuid())
+  comandaId      String
+  pagoId         String?  @unique
+  uuid           String   @unique // UUID del CFDI
+  folio          String?
+  serie          String?
+  fechaEmision   DateTime
+  emisorRfc      String
+  receptorRfc    String?
+  receptorNombre String
+  usoCFDI        String
+  subtotal       Float
+  iva            Float
+  total          Float
+  formaPago      String
+  metodoPago     String
+  xml            String   @db.Text // XML timbrado completo
+  pdf            String? // Ruta al PDF generado
+  qrCode         String? // Código QR para verificación
+  estado         String   @default("activa") // "activa", "cancelada"
+
   // Cancelación (requisitos SAT)
-  motivoCancelacion String?   // "01"=Comprobante emitido con errores, "02"=Comprobante no aplicable, "03"=Devolución parcial/total, "04"=Operación nominativa relacionada en factura global
-  uuidSustitucion String?     // UUID del CFDI que sustituye (si motivoCancelacion = "01")
-  fechaCancelacion DateTime?  // Fecha de cancelación
-  
+  motivoCancelacion String? // "01"=Comprobante emitido con errores, "02"=Comprobante no aplicable, "03"=Devolución parcial/total, "04"=Operación nominativa relacionada en factura global
+  uuidSustitucion   String? // UUID del CFDI que sustituye (si motivoCancelacion = "01")
+  fechaCancelacion  DateTime? // Fecha de cancelación
+
   // Log Modo Fácil (auditoría)
-  detallesEmision  Json?      // { modo: 'facil', presetId, overrides, timestamp } cuando se emite con asistente
-  
-  createdAt       DateTime    @default(now())
-  
-  comanda         Comanda     @relation(fields: [comandaId], references: [id], onDelete: Cascade)
-  pago            Pago?       @relation(fields: [pagoId], references: [id])
-  conceptos       FacturaConcepto[]
+  detallesEmision Json? // { modo: 'facil', presetId, overrides, timestamp } cuando se emite con asistente
+
+  createdAt DateTime @default(now())
+
+  comanda          Comanda           @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  pago             Pago?             @relation(fields: [pagoId], references: [id])
+  conceptos        FacturaConcepto[]
   complementosPago ComplementoPago[]
-  
+
   @@index([comandaId])
   @@index([uuid])
   @@index([fechaEmision])
@@ -535,70 +536,70 @@ model Factura {
 }
 
 model FacturaConcepto {
-  id              String      @id @default(cuid())
-  facturaId       String
-  productoId      String?
-  claveProdServ   String
-  cantidad        Float
-  claveUnidad     String
-  descripcion     String      @db.Text
-  valorUnitario   Float
-  importe         Float
-  
+  id            String  @id @default(cuid())
+  facturaId     String
+  productoId    String?
+  claveProdServ String
+  cantidad      Float
+  claveUnidad   String
+  descripcion   String  @db.Text
+  valorUnitario Float
+  importe       Float
+
   // Objeto de Impuesto (requisito SAT CFDI 4.0)
-  objetoImp       String      @default("02") // 01=No objeto, 02=Sí objeto, 03=Sí objeto pero no causa, 04=Sí objeto pero exento
-  
+  objetoImp String @default("02") // 01=No objeto, 02=Sí objeto, 03=Sí objeto pero no causa, 04=Sí objeto pero exento
+
   // Impuestos por concepto
-  iva             Float       @default(0) // IVA del concepto
-  ivaTasa         Float?      // Tasa de IVA aplicada (0.16, 0.08, 0.0)
-  ieps            Float?      @default(0) // IEPS si aplica (ej. alcohol)
-  iepsTasa        Float?      // Tasa de IEPS aplicada
-  
-  createdAt       DateTime    @default(now())
-  
-  factura         Factura     @relation(fields: [facturaId], references: [id], onDelete: Cascade)
-  producto        Producto?   @relation(fields: [productoId], references: [id])
-  
+  iva      Float  @default(0) // IVA del concepto
+  ivaTasa  Float? // Tasa de IVA aplicada (0.16, 0.08, 0.0)
+  ieps     Float? @default(0) // IEPS si aplica (ej. alcohol)
+  iepsTasa Float? // Tasa de IEPS aplicada
+
+  createdAt DateTime @default(now())
+
+  factura  Factura   @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  producto Producto? @relation(fields: [productoId], references: [id])
+
   @@index([facturaId])
   @@index([productoId])
 }
 
 // Complemento de Pago (para PPD - Pago en Parcialidades o Diferido)
 model ComplementoPago {
-  id              String      @id @default(cuid())
-  facturaId       String      // Factura relacionada (puede ser múltiple)
-  fechaPago       DateTime    // Fecha del pago
-  formaPagoP      String      // Forma de pago del complemento
-  monedaP         String      @default("MXN") // Moneda del pago
-  monto           Float       // Monto pagado
-  numOperacion    String?     // Número de operación (transferencia, cheque, etc.)
-  rfcEmisorCtaOrd String?     // RFC del banco emisor (si aplica)
-  nomBancoOrdExt  String?     // Nombre del banco (si aplica)
-  rfcEmisorCtaBen String?     // RFC del banco receptor (si aplica)
-  ctaOrdenante    String?     // Cuenta ordenante
-  ctaBeneficiario String?     // Cuenta beneficiaria
-  tipoCadPago     String?     // Tipo de cadena de pago
-  certPago        String?     // Certificado de pago
-  cadPago         String?     // Cadena de pago
-  selloPago       String?     // Sello del pago
-  
+  id              String   @id @default(cuid())
+  facturaId       String // Factura relacionada (puede ser múltiple)
+  fechaPago       DateTime // Fecha del pago
+  formaPagoP      String // Forma de pago del complemento
+  monedaP         String   @default("MXN") // Moneda del pago
+  monto           Float // Monto pagado
+  numOperacion    String? // Número de operación (transferencia, cheque, etc.)
+  rfcEmisorCtaOrd String? // RFC del banco emisor (si aplica)
+  nomBancoOrdExt  String? // Nombre del banco (si aplica)
+  rfcEmisorCtaBen String? // RFC del banco receptor (si aplica)
+  ctaOrdenante    String? // Cuenta ordenante
+  ctaBeneficiario String? // Cuenta beneficiaria
+  tipoCadPago     String? // Tipo de cadena de pago
+  certPago        String? // Certificado de pago
+  cadPago         String? // Cadena de pago
+  selloPago       String? // Sello del pago
+
   // Relación con documento original
-  uuidDocumento   String?     // UUID del CFDI original que se está pagando
-  serieDocumento  String?     // Serie del documento original
-  folioDocumento String?     // Folio del documento original
-  monedaDR        String?     // Moneda del documento relacionado
-  tipoCambioDR    Float?      // Tipo de cambio del documento relacionado
-  metodoPagoDR    String?     // Método de pago del documento relacionado
-  numParcialidad  Int?        // Número de parcialidad
-  impSaldoAnt     Float?       // Importe del saldo anterior
-  impPagado       Float?       // Importe pagado
-  impSaldoInsoluto Float?      // Importe del saldo insoluto
-  
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime   @updatedAt
-  
-  factura         Factura     @relation(fields: [facturaId], references: [id], onDelete: Cascade)
-  
+  uuidDocumento    String? // UUID del CFDI original que se está pagando
+  serieDocumento   String? // Serie del documento original
+  folioDocumento   String? // Folio del documento original
+  monedaDR         String? // Moneda del documento relacionado
+  tipoCambioDR     Float? // Tipo de cambio del documento relacionado
+  metodoPagoDR     String? // Método de pago del documento relacionado
+  numParcialidad   Int? // Número de parcialidad
+  impSaldoAnt      Float? // Importe del saldo anterior
+  impPagado        Float? // Importe pagado
+  impSaldoInsoluto Float? // Importe del saldo insoluto
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  factura Factura @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+
   @@index([facturaId])
   @@index([uuidDocumento])
   @@index([fechaPago])
@@ -606,18 +607,18 @@ model ComplementoPago {
 
 // Corte X: reporte temporal, NO reinicia la caja
 model CorteX {
-  id              String    @id @default(cuid())
-  fechaHora       DateTime  @default(now())
-  usuarioId       String
+  id        String   @id @default(cuid())
+  fechaHora DateTime @default(now())
+  usuarioId String
 
-  totalVentas     Float     @default(0)
-  totalEfectivo   Float     @default(0)
-  totalTarjeta    Float     @default(0)
-  totalOtros      Float     @default(0)
-  numComandas     Int       @default(0)
-  detalles        Json?     // Desglose por método de pago, etc.
+  totalVentas   Float @default(0)
+  totalEfectivo Float @default(0)
+  totalTarjeta  Float @default(0)
+  totalOtros    Float @default(0)
+  numComandas   Int   @default(0)
+  detalles      Json? // Desglose por método de pago, etc.
 
-  usuario         Usuario   @relation(fields: [usuarioId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
 
   @@index([fechaHora])
   @@index([usuarioId])
@@ -625,18 +626,18 @@ model CorteX {
 
 // Corte Z: cierre definitivo del turno/día
 model CorteZ {
-  id              String    @id @default(cuid())
-  fechaHora       DateTime  @default(now())
-  usuarioId       String
+  id        String   @id @default(cuid())
+  fechaHora DateTime @default(now())
+  usuarioId String
 
-  totalVentas     Float     @default(0)
-  totalEfectivo   Float     @default(0)
-  totalTarjeta    Float     @default(0)
-  totalOtros      Float     @default(0)
-  numComandas     Int       @default(0)
-  detalles        Json?
+  totalVentas   Float @default(0)
+  totalEfectivo Float @default(0)
+  totalTarjeta  Float @default(0)
+  totalOtros    Float @default(0)
+  numComandas   Int   @default(0)
+  detalles      Json?
 
-  usuario         Usuario   @relation(fields: [usuarioId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
 
   @@index([fechaHora])
   @@index([usuarioId])
@@ -644,23 +645,23 @@ model CorteZ {
 
 // Planta del restaurante - contorno del cuarto mapeado
 model PlantaRestaurante {
-  id              String    @id @default(cuid())
-  nombre          String?   // Nombre de la planta/salón (ej. "Salón Principal", "Terraza")
+  id        String   @id @default(cuid())
+  nombre    String? // Nombre de la planta/salón (ej. "Salón Principal", "Terraza")
   // Contorno del cuarto como polígono (vértices en coordenadas de celda)
-  vertices        Json      // Array de {x: number, y: number} en coordenadas de celda
-  edges           Json?     // Array de {from: number, to: number} índices de vértices
+  vertices  Json // Array de {x: number, y: number} en coordenadas de celda
+  edges     Json? // Array de {from: number, to: number} índices de vértices
   // Configuración de la cuadrícula
-  cellSizeM       Float     @default(1.0) // Tamaño de celda en metros
+  cellSizeM Float    @default(1.0) // Tamaño de celda en metros
   // Punto de origen (esquina inicial donde se inició el mapeo)
-  originX         Float     @default(0)
-  originY         Float     @default(0)
+  originX   Float    @default(0)
+  originY   Float    @default(0)
   // Dimensiones del canvas en metros (calculadas del polígono)
-  widthM          Float?
-  heightM         Float?
+  widthM    Float?
+  heightM   Float?
   // Metadatos
-  activa          Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  mesas           Mesa[]
+  activa    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  mesas Mesa[]
 }

@@ -11,6 +11,7 @@ const createProductoSchema = z.object({
   categoriaId: z.string().min(1, 'La categoría es requerida'),
   imagenUrl: z.string().url().optional().or(z.literal('')),
   activo: z.boolean().optional().default(true),
+  listoPorDefault: z.boolean().optional().default(false),
 })
 
 export async function GET(request: NextRequest) {
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
         categoriaId: data.categoriaId,
         imagenUrl: data.imagenUrl || null,
         activo: data.activo ?? true,
+        listoPorDefault: data.listoPorDefault ?? false,
       },
       include: {
         categoria: true,

@@ -61,6 +61,7 @@ interface Producto {
   categoriaId: string
   imagenUrl?: string | null
   activo: boolean
+  listoPorDefault?: boolean
   categoria: Categoria
   modificadores: ModificadorProducto[]
   tamanos?: ProductoTamano[]
@@ -94,6 +95,7 @@ export default function CartaPage() {
     precio: '',
     categoriaId: '',
     imagenUrl: '',
+    listoPorDefault: false,
   })
 
   // Estados para gestión de categorías
@@ -432,6 +434,27 @@ export default function CartaPage() {
     }
   }
 
+  const handleToggleListoPorDefault = async (producto: Producto) => {
+    try {
+      const token = localStorage.getItem('token')
+      const nuevoValor = !(producto.listoPorDefault ?? false)
+      const response = await fetch(`/api/productos/${producto.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listoPorDefault: nuevoValor }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        toast.success(nuevoValor ? 'Listo por default activado (Coca-Cola, etc.)' : 'Listo por default desactivado')
+        fetchProductos()
+      } else {
+        toast.error(data.error || 'Error al actualizar')
+      }
+    } catch {
+      toast.error('Error al actualizar')
+    }
+  }
+
   const handleEliminarCategoria = async (categoria: Categoria) => {
     if (!confirm(`¿Estás seguro de eliminar la categoría "${categoria.nombre}"?`)) return
     try {
@@ -478,12 +501,13 @@ export default function CartaPage() {
           precio,
           categoriaId: formData.categoriaId,
           imagenUrl: formData.imagenUrl || undefined,
+          listoPorDefault: formData.listoPorDefault,
         }),
       })
       const data = await response.json()
       if (data.success) {
         toast.success('Producto creado exitosamente')
-        setFormData({ nombre: '', descripcion: '', precio: '', categoriaId: '', imagenUrl: '' })
+        setFormData({ nombre: '', descripcion: '', precio: '', categoriaId: '', imagenUrl: '', listoPorDefault: false })
         setBusquedaCategoria('')
         setMostrarFormulario(false)
         fetchProductos()
@@ -1200,6 +1224,19 @@ export default function CartaPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">URL de Imagen (opcional)</label>
                 <input type="url" value={formData.imagenUrl} onChange={(e) => setFormData({ ...formData, imagenUrl: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black" placeholder="https://ejemplo.com/imagen.jpg" />
               </div>
+
+              <div className="md:col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="listoPorDefault"
+                  checked={formData.listoPorDefault}
+                  onChange={(e) => setFormData({ ...formData, listoPorDefault: e.target.checked })}
+                  className="rounded border-gray-300"
+                />
+                <label htmlFor="listoPorDefault" className="text-sm font-medium text-gray-700">
+                  Listo por default (ej. Coca-Cola, aguas): entra en comanda ya como listo para entregar
+                </label>
+              </div>
             </div>
 
             <div className="flex justify-end">
@@ -1290,6 +1327,21 @@ export default function CartaPage() {
                           )}
                           {producto.modificadores.length > 0 && (
                             <span className="text-gray-500">· {producto.modificadores.length} extra{producto.modificadores.length !== 1 ? 's' : ''}</span>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleToggleListoPorDefault(producto)}
+                          className={`flex items-center justify-center gap-1 px-4 py-3 sm:py-1.5 rounded text-sm font-medium transition-colors min-h-[44px] sm:min-h-0 ${
+                            producto.listoPorDefault
+                              ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                          }`}
+                          title={producto.listoPorDefault ? 'Quitar listo por default' : 'Marcar como listo por default (ej. Coca-Cola)'}
+                        >
+                          {producto.listoPorDefault ? (
+                            <><CheckCircleIcon className="w-4 h-4" />Listo default</>
+                          ) : (
+                            <>Listo default</>
                           )}
                         </button>
                         <button

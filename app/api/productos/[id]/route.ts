@@ -11,6 +11,7 @@ const updateProductoSchema = z.object({
   categoriaId: z.string().min(1, 'La categoría es requerida').optional(),
   imagenUrl: z.string().url().optional().or(z.literal('')),
   activo: z.boolean().optional(),
+  listoPorDefault: z.boolean().optional(),
 })
 
 export async function PATCH(
@@ -72,6 +73,7 @@ export async function PATCH(
         ...(data.categoriaId && { categoriaId: data.categoriaId }),
         ...(data.imagenUrl !== undefined && { imagenUrl: data.imagenUrl || null }),
         ...(data.activo !== undefined && { activo: data.activo }),
+        ...(data.listoPorDefault !== undefined && { listoPorDefault: data.listoPorDefault }),
       },
       include: {
         categoria: true,

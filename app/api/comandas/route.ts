@@ -221,8 +221,20 @@ export async function POST(request: NextRequest) {
 
       const precioUnitario = precioBase + precioModificadores
       const subtotal = itemData.cantidad * precioUnitario
+      const listoPorDefault = 'listoPorDefault' in producto && producto.listoPorDefault === true
 
-      comandaItems.push({
+      const item: {
+        productoId: string
+        tamanoId?: string
+        cantidad: number
+        precioUnitario: number
+        subtotal: number
+        notas?: string
+        destino: 'COCINA' | 'BARRA'
+        estado?: 'PENDIENTE' | 'LISTO'
+        fechaListo?: Date
+        modificadores: { create: { modificadorId: string; precioExtra: number }[] }
+      } = {
         productoId: producto.id,
         tamanoId: tamanoId || undefined,
         cantidad: itemData.cantidad,
@@ -233,7 +245,12 @@ export async function POST(request: NextRequest) {
         modificadores: {
           create: itemModificadores,
         },
-      })
+      }
+      if (listoPorDefault) {
+        item.estado = 'LISTO'
+        item.fechaListo = new Date()
+      }
+      comandaItems.push(item)
     }
 
     // Calcular total
