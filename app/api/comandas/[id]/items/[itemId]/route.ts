@@ -76,21 +76,39 @@ export async function PATCH(
       },
     })
 
-    // Actualizar estado de comanda si todos los items están listos
-    if (estado === 'LISTO') {
+    // Sincronizar estado de comanda según items
+    const comanda = await prisma.comanda.findUnique({
+      where: { id: params.id },
+      select: { estado: true },
+    })
+    if (comanda) {
       const itemsPendientes = await prisma.comandaItem.count({
         where: {
           comandaId: params.id,
-          estado: {
-            notIn: ['LISTO', 'ENTREGADO'],
-          },
+          estado: { notIn: ['LISTO', 'ENTREGADO'] },
         },
       })
+      const itemsEntregados = await prisma.comandaItem.count({
+        where: { comandaId: params.id, estado: 'ENTREGADO' },
+      })
+      const totalItems = await prisma.comandaItem.count({
+        where: { comandaId: params.id },
+      })
 
-      if (itemsPendientes === 0) {
+      if (itemsEntregados === totalItems && totalItems > 0) {
+        await prisma.comanda.update({
+          where: { id: params.id },
+          data: { estado: 'SERVIDO' },
+        })
+      } else if (itemsPendientes === 0 && comanda.estado !== 'SERVIDO' && comanda.estado !== 'PAGADO') {
         await prisma.comanda.update({
           where: { id: params.id },
           data: { estado: 'LISTO' },
+        })
+      } else if (estado === 'EN_PREPARACION' && comanda.estado === 'PENDIENTE') {
+        await prisma.comanda.update({
+          where: { id: params.id },
+          data: { estado: 'EN_PREPARACION' },
         })
       }
     }

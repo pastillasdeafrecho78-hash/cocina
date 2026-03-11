@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { labelComandaEstado, labelItemEstado } from '@/lib/estado-labels'
 import { useParams, useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
@@ -205,7 +206,7 @@ export default function ComandaDetallePage() {
           <span>
             {comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Para llevar'}
           </span>
-          <span>Estado: {comanda.estado}</span>
+          <span>Estado: {labelComandaEstado(comanda.estado)}</span>
         </div>
       </div>
 
@@ -245,7 +246,7 @@ export default function ComandaDetallePage() {
                   <div className="text-sm text-red-600 mt-1">📝 {item.notas}</div>
                 )}
                 <div className="text-sm text-gray-500 mt-1">
-                  Estado: {item.estado}
+                  Estado: {labelItemEstado(item.estado)}
                 </div>
               </div>
               <div className="text-right">

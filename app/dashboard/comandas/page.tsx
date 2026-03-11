@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { labelComandaEstado } from '@/lib/estado-labels'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
@@ -222,14 +223,18 @@ export default function ComandasPage() {
                       className={`app-badge ${
                         comanda.estado === 'PENDIENTE'
                           ? 'border-yellow-200 bg-yellow-50 text-yellow-800'
-                          : comanda.estado === 'LISTO'
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                            : comanda.estado === 'PAGADO'
-                              ? 'border-stone-200 bg-stone-100 text-stone-700'
-                              : 'border-sky-200 bg-sky-50 text-sky-700'
+                          : comanda.estado === 'EN_PREPARACION'
+                            ? 'border-amber-200 bg-amber-50 text-amber-800'
+                            : comanda.estado === 'LISTO'
+                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                              : comanda.estado === 'SERVIDO'
+                                ? 'border-sky-200 bg-sky-50 text-sky-700'
+                                : comanda.estado === 'PAGADO'
+                                  ? 'border-stone-200 bg-stone-100 text-stone-700'
+                                  : 'border-sky-200 bg-sky-50 text-sky-700'
                       }`}
                     >
-                      {comanda.estado}
+                      {labelComandaEstado(comanda.estado)}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-stone-900">

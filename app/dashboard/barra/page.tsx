@@ -41,7 +41,7 @@ export default function BarraPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pendiente' | 'preparacion' | 'listo'>('all')
   const [confirmando, setConfirmando] = useState<{ itemId: string; nuevoEstado: string; label: string } | null>(null)
-  const [confirmandoGrupo, setConfirmandoGrupo] = useState<string | null>(null)
+  const [confirmandoGrupo, setConfirmandoGrupo] = useState<{ numeroComanda: string; accion: 'alistar' | 'entregar' } | null>(null)
 
   const fetchItems = async () => {
     try {
@@ -78,15 +78,25 @@ export default function BarraPage() {
 
   const cerrarConfirmacion = () => setConfirmando(null)
 
-  const handleEntregarAlistarGrupo = async () => {
+  const handleAccionGrupo = async () => {
     if (!confirmandoGrupo) return
-    const itemsGrupo = grupos[confirmandoGrupo]
+    const { numeroComanda, accion } = confirmandoGrupo
+    const itemsGrupo = grupos[numeroComanda]
     if (!itemsGrupo?.length) {
       setConfirmandoGrupo(null)
       return
     }
-    const numeroComanda = confirmandoGrupo
+    const estadoObjetivo = accion === 'alistar' ? 'LISTO' : 'ENTREGADO'
+    const itemsAfectados = itemsGrupo.filter((i) =>
+      accion === 'alistar'
+        ? i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
+        : i.estado === 'LISTO'
+    )
     setConfirmandoGrupo(null)
+    if (itemsAfectados.length === 0) {
+      toast.error(accion === 'alistar' ? 'No hay items por alistar' : 'No hay items listos para entregar')
+      return
+    }
     try {
       const token = localStorage.getItem('token')
       const comandaRes = await fetch(`/api/comandas?numeroComanda=${encodeURIComponent(numeroComanda)}`, {
@@ -99,15 +109,14 @@ export default function BarraPage() {
         return
       }
       let ok = 0
-      for (const item of itemsGrupo) {
-        if (item.estado === 'ENTREGADO') continue
+      for (const item of itemsAfectados) {
         const res = await fetch(`/api/comandas/${comandaId}/items/${item.id}`, {
           method: 'PATCH',
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ estado: 'ENTREGADO' }),
+          body: JSON.stringify({ estado: estadoObjetivo }),
         })
         const data = await res.json()
         if (data.success) ok++
@@ -319,14 +328,24 @@ export default function BarraPage() {
                 ))}
               </div>
 
-              {itemsGrupo.length > 1 && itemsGrupo.some((i) => i.estado !== 'ENTREGADO') && (
-                <div className="mt-4 pt-4 border-t border-stone-200">
-                  <button
-                    onClick={() => setConfirmandoGrupo(numeroComanda)}
-                    className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-medium text-white hover:bg-sky-700"
-                  >
-                    Entregar y alistar todos
-                  </button>
+              {itemsGrupo.length > 1 && (
+                <div className="mt-4 pt-4 border-t border-stone-200 flex flex-col gap-2">
+                  {itemsGrupo.some((i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO') && (
+                    <button
+                      onClick={() => setConfirmandoGrupo({ numeroComanda, accion: 'alistar' })}
+                      className="w-full rounded-lg bg-amber-600 py-2.5 text-sm font-medium text-white hover:bg-amber-700"
+                    >
+                      Alistar todos
+                    </button>
+                  )}
+                  {itemsGrupo.some((i) => i.estado === 'LISTO') && (
+                    <button
+                      onClick={() => setConfirmandoGrupo({ numeroComanda, accion: 'entregar' })}
+                      className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-medium text-white hover:bg-sky-700"
+                    >
+                      Entregar todos
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -351,15 +370,19 @@ export default function BarraPage() {
             className="app-card max-w-sm w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="mb-2 text-lg font-bold text-stone-900">Entregar y alistar todos</h2>
+            <h2 className="mb-2 text-lg font-bold text-stone-900">
+              {confirmandoGrupo.accion === 'alistar' ? 'Alistar todos' : 'Entregar todos'}
+            </h2>
             <p className="mb-6 text-stone-600">
-              ¿Marcar todos los items de este grupo como entregados?
+              {confirmandoGrupo.accion === 'alistar'
+                ? '¿Marcar todos los items de este grupo como listos para entregar?'
+                : '¿Marcar todos los items listos como entregados?'}
             </p>
             <div className="flex gap-3 justify-end">
               <button type="button" onClick={() => setConfirmandoGrupo(null)} className="app-btn-secondary">
                 Cancelar
               </button>
-              <button type="button" onClick={handleEntregarAlistarGrupo} className="app-btn-primary">
+              <button type="button" onClick={handleAccionGrupo} className="app-btn-primary">
                 Confirmar
               </button>
             </div>
