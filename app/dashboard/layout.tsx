@@ -8,7 +8,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 import { tienePermiso } from '@/lib/permisos'
 
 const MOBILE_BREAKPOINT = 1280
-const SCROLL_THRESHOLD = 60
+const SCROLL_THRESHOLD = 40
 
 function clearSession() {
   localStorage.removeItem('token')
@@ -26,12 +26,19 @@ export default function DashboardLayout({
   const [headerCompact, setHeaderCompact] = useState(false)
 
   const checkScroll = useCallback(() => {
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT
+    if (typeof window === 'undefined') return
+    const isMobile = window.innerWidth < MOBILE_BREAKPOINT
     if (!isMobile) {
       setHeaderCompact(false)
       return
     }
-    setHeaderCompact(window.scrollY > SCROLL_THRESHOLD)
+    const scrollTop =
+      window.scrollY ??
+      window.pageYOffset ??
+      document.documentElement?.scrollTop ??
+      document.body?.scrollTop ??
+      0
+    setHeaderCompact(scrollTop > SCROLL_THRESHOLD)
   }, [])
 
   useEffect(() => {
@@ -125,9 +132,10 @@ export default function DashboardLayout({
       <header className={`app-header-shell sticky top-0 z-20 transition-all duration-300 ease-out ${headerCompact ? 'xl:py-4' : ''}`}>
         <div className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between transition-all duration-300 ${headerCompact ? 'gap-0 py-2 xl:gap-4 xl:py-4' : 'gap-4 py-4'}`}>
           <div
-            className={`flex items-center gap-5 overflow-hidden transition-all duration-300 ease-out xl:min-w-[640px] xl:max-h-none xl:opacity-100 xl:py-0 ${
-              headerCompact ? 'max-h-0 opacity-0 py-0' : 'max-h-64 opacity-100'
+            className={`flex items-center gap-5 xl:min-w-[640px] ${
+              headerCompact ? 'hidden xl:!flex' : 'flex'
             }`}
+            aria-hidden={headerCompact}
           >
             <div className="shrink-0">
               <BrandLogo
