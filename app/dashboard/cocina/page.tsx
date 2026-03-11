@@ -39,7 +39,8 @@ interface Item {
 export default function CocinaPage() {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'pendiente' | 'preparacion'>('all')
+  const [filter, setFilter] = useState<'all' | 'pendiente' | 'preparacion' | 'listo'>('all')
+  const [confirmando, setConfirmando] = useState<{ itemId: string; nuevoEstado: string; label: string } | null>(null)
 
   const fetchItems = async () => {
     try {
@@ -70,18 +71,23 @@ export default function CocinaPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const handleUpdateEstado = async (itemId: string, nuevoEstado: string) => {
+  const abrirConfirmacion = (itemId: string, nuevoEstado: string, label: string) => {
+    setConfirmando({ itemId, nuevoEstado, label })
+  }
+
+  const cerrarConfirmacion = () => setConfirmando(null)
+
+  const handleUpdateEstado = async () => {
+    if (!confirmando) return
+    const { itemId, nuevoEstado } = confirmando
+    setConfirmando(null)
     try {
       const token = localStorage.getItem('token')
-      // Necesitamos el comandaId, lo obtenemos del item
       const item = items.find((i) => i.id === itemId)
       if (!item) return
 
-      // Buscar la comanda
       const comandaResponse = await fetch(`/api/comandas?numeroComanda=${encodeURIComponent(item.comanda.numeroComanda)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       })
       const comandaData = await comandaResponse.json()
       const comandaId = comandaData.data?.[0]?.id
@@ -108,7 +114,7 @@ export default function CocinaPage() {
       } else {
         toast.error('Error al actualizar estado')
       }
-    } catch (error) {
+    } catch {
       toast.error('Error al actualizar estado')
     }
   }
@@ -116,8 +122,16 @@ export default function CocinaPage() {
   const filteredItems = items.filter((item) => {
     if (filter === 'pendiente') return item.estado === 'PENDIENTE'
     if (filter === 'preparacion') return item.estado === 'EN_PREPARACION'
+    if (filter === 'listo') return item.estado === 'LISTO'
     return true
   })
+
+  const ESTADO_LABELS: Record<string, string> = {
+    PENDIENTE: 'Por preparar',
+    EN_PREPARACION: 'Preparando',
+    LISTO: 'Listo para entregar',
+    ENTREGADO: 'Entregado',
+  }
 
   const getTiempoEspera = (fechaCreacion: string) => {
     return formatDistanceToNow(new Date(fechaCreacion), {
@@ -156,13 +170,19 @@ export default function CocinaPage() {
             onClick={() => setFilter('pendiente')}
             className={filter === 'pendiente' ? 'app-btn-primary' : 'app-btn-secondary'}
           >
-            Pendientes
+            Por preparar
           </button>
           <button
             onClick={() => setFilter('preparacion')}
             className={filter === 'preparacion' ? 'app-btn-primary' : 'app-btn-secondary'}
           >
-            En Preparación
+            Preparando
+          </button>
+          <button
+            onClick={() => setFilter('listo')}
+            className={filter === 'listo' ? 'app-btn-primary' : 'app-btn-secondary'}
+          >
+            Listos
           </button>
             </div>
           </div>
@@ -176,6 +196,7 @@ export default function CocinaPage() {
               app-card p-6
               ${item.estado === 'PENDIENTE' ? 'border-l-4 border-l-rose-500' : ''}
               ${item.estado === 'EN_PREPARACION' ? 'border-l-4 border-l-amber-500' : ''}
+              ${item.estado === 'LISTO' ? 'border-l-4 border-l-emerald-500' : ''}
             `}
           >
             <div className="flex justify-between items-start mb-4">
@@ -221,24 +242,27 @@ export default function CocinaPage() {
             <div className="flex gap-2">
               {item.estado === 'PENDIENTE' && (
                 <button
-                  onClick={() => handleUpdateEstado(item.id, 'EN_PREPARACION')}
+                  onClick={() => abrirConfirmacion(item.id, 'EN_PREPARACION', 'Preparando')}
                   className="app-btn-secondary flex-1 border-amber-300 bg-amber-50 text-amber-900"
                 >
-                  En Preparación
+                  Preparando
                 </button>
               )}
               {item.estado === 'EN_PREPARACION' && (
                 <button
-                  onClick={() => handleUpdateEstado(item.id, 'LISTO')}
+                  onClick={() => abrirConfirmacion(item.id, 'LISTO', 'Listo para entregar')}
                   className="app-btn-primary flex-1 bg-emerald-700 hover:bg-emerald-800"
                 >
-                  Listo
+                  Listo para entregar
                 </button>
               )}
               {item.estado === 'LISTO' && (
-                <div className="flex-1 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-emerald-800">
-                  ✓ Listo
-                </div>
+                <button
+                  onClick={() => abrirConfirmacion(item.id, 'ENTREGADO', 'Entregado')}
+                  className="app-btn-primary flex-1 bg-sky-600 hover:bg-sky-700"
+                >
+                  Entregado
+                </button>
               )}
             </div>
           </div>
@@ -248,6 +272,33 @@ export default function CocinaPage() {
       {filteredItems.length === 0 && (
         <div className="app-card text-center text-stone-500">
           No hay items pendientes
+        </div>
+      )}
+
+      {confirmando && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={cerrarConfirmacion}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="app-card max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-2 text-lg font-bold text-stone-900">Confirmar cambio</h2>
+            <p className="mb-6 text-stone-600">
+              ¿Cambiar estado a <strong>{confirmando.label}</strong>?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={cerrarConfirmacion} className="app-btn-secondary">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleUpdateEstado} className="app-btn-primary">
+                Confirmar
+              </button>
+            </div>
+          </div>
         </div>
       )}
       </div>

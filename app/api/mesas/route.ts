@@ -36,6 +36,11 @@ export async function GET(request: NextRequest) {
             fechaCreacion: 'desc',
           },
           take: 1,
+          include: {
+            items: {
+              select: { estado: true, createdAt: true },
+            },
+          },
         },
       },
       orderBy: {
@@ -44,14 +49,35 @@ export async function GET(request: NextRequest) {
     })
 
     // Agregar información de comanda actual a cada mesa
-    const mesasConComanda = mesas.map((mesa) => ({
-      ...mesa,
-      comandaActual: mesa.comandas[0] ? {
-        numeroComanda: mesa.comandas[0].numeroComanda,
-        total: mesa.comandas[0].total,
-        fechaCreacion: mesa.comandas[0].fechaCreacion,
-      } : null,
-    }))
+    const mesasConComanda = mesas.map((mesa) => {
+      const comanda = mesa.comandas[0]
+      if (!comanda) {
+        return { ...mesa, comandaActual: null }
+      }
+      const items = comanda.items
+      const totalItems = items.length
+      const itemsEntregados = items.filter((i) => i.estado === 'ENTREGADO').length
+      const allItemsEntregados = totalItems > 0 && itemsEntregados === totalItems
+      const itemsPendientes = items.filter((i) => i.estado !== 'ENTREGADO')
+      const waitStartFrom =
+        itemsPendientes.length > 0
+          ? new Date(
+              Math.max(...itemsPendientes.map((i) => new Date(i.createdAt).getTime()))
+            ).toISOString()
+          : null
+      return {
+        ...mesa,
+        comandaActual: {
+          numeroComanda: comanda.numeroComanda,
+          total: comanda.total,
+          fechaCreacion: comanda.fechaCreacion,
+          totalItems,
+          itemsEntregados,
+          allItemsEntregados,
+          waitStartFrom,
+        },
+      }
+    })
 
     return NextResponse.json({
       success: true,

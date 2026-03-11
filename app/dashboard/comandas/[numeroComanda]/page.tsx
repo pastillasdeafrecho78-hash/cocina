@@ -48,6 +48,7 @@ export default function ComandaDetallePage() {
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null)
   const [cobrandoEfectivo, setCobrandoEfectivo] = useState(false)
   const [montoRecibido, setMontoRecibido] = useState('')
+  const [confirmandoEntrega, setConfirmandoEntrega] = useState(false)
 
   useEffect(() => {
     fetchComanda()
@@ -152,6 +153,29 @@ export default function ComandaDetallePage() {
     setStripeClientSecret(null)
   }
 
+  const handleConfirmarEntrega = async () => {
+    if (!comanda || !hayItemsListos) return
+    setConfirmandoEntrega(true)
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/comandas/${comanda.id}/entregar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success('Entrega confirmada')
+        fetchComanda()
+      } else {
+        toast.error(data.error ?? 'Error al confirmar entrega')
+      }
+    } catch {
+      toast.error('Error al confirmar entrega')
+    } finally {
+      setConfirmandoEntrega(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="app-loading-shell">
@@ -160,9 +184,10 @@ export default function ComandaDetallePage() {
     )
   }
 
-  if (!comanda) {
-    return null
-  }
+  if (!comanda) return null
+
+  const itemsListos = comanda.items.filter((i) => i.estado === 'LISTO')
+  const hayItemsListos = itemsListos.length > 0
 
   const totalConPropina = comanda.total * (1 + (comanda.propina || 0) / 100)
   const totalFinal = totalConPropina - (comanda.descuento || 0)
@@ -183,6 +208,23 @@ export default function ComandaDetallePage() {
           <span>Estado: {comanda.estado}</span>
         </div>
       </div>
+
+      {hayItemsListos && (
+        <div className="app-card mb-6 border-sky-200 bg-sky-50/50 p-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sky-800">
+              <strong>{itemsListos.length}</strong> {itemsListos.length === 1 ? 'item listo' : 'items listos'} en cocina/barra. Confirma cuando los entregues a la mesa.
+            </p>
+            <button
+              onClick={handleConfirmarEntrega}
+              disabled={confirmandoEntrega}
+              className="rounded-lg bg-sky-600 px-5 py-2 font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            >
+              {confirmandoEntrega ? 'Confirmando…' : 'Confirmar entrega'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="app-card mb-6 p-6">
         <h2 className="text-xl font-bold mb-4">Items</h2>

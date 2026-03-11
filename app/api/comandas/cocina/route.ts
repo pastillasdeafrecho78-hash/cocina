@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       where: {
         destino: 'COCINA',
         estado: {
-          in: ['PENDIENTE', 'EN_PREPARACION'],
+          in: ['PENDIENTE', 'EN_PREPARACION', 'LISTO'],
         },
       },
       include: {

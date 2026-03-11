@@ -11,12 +11,9 @@ interface Comanda {
   estado: string
   total: number
   fechaCreacion: string
-  mesa?: {
-    numero: number
-  } | null
-  cliente?: {
-    nombre: string
-  } | null
+  mesa?: { numero: number } | null
+  cliente?: { nombre: string } | null
+  items?: Array< { estado: string } >
 }
 
 export default function ComandasPage() {
@@ -24,9 +21,12 @@ export default function ComandasPage() {
   const [comandas, setComandas] = useState<Comanda[]>([])
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<string>('')
+  const [entregandoId, setEntregandoId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchComandas()
+    const interval = setInterval(fetchComandas, 8000)
+    return () => clearInterval(interval)
   }, [filtro])
 
   const fetchComandas = async () => {
@@ -37,9 +37,7 @@ export default function ComandasPage() {
         : '/api/comandas'
 
       const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       })
 
       const data = await response.json()
@@ -49,10 +47,39 @@ export default function ComandasPage() {
       } else {
         toast.error('Error al cargar comandas')
       }
-    } catch (error) {
+    } catch {
       toast.error('Error al cargar comandas')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const listasParaRecoger = comandas.filter((c) => {
+    if (!c.items || c.estado === 'PAGADO' || c.estado === 'CANCELADO') return false
+    const listos = c.items.filter((i) => i.estado === 'LISTO').length
+    const entregados = c.items.filter((i) => i.estado === 'ENTREGADO').length
+    return listos > 0 && entregados < c.items.length
+  })
+
+  const handleConfirmarEntrega = async (comandaId: string) => {
+    setEntregandoId(comandaId)
+    try {
+      const token = localStorage.getItem('token')
+      const res = await fetch(`/api/comandas/${comandaId}/entregar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await res.json()
+      if (data.success) {
+        toast.success(data.data.actualizados > 0 ? 'Entrega confirmada' : 'Sin items pendientes de entregar')
+        fetchComandas()
+      } else {
+        toast.error(data.error ?? 'Error al confirmar entrega')
+      }
+    } catch {
+      toast.error('Error al confirmar entrega')
+    } finally {
+      setEntregandoId(null)
     }
   }
 
@@ -108,6 +135,52 @@ export default function ComandasPage() {
             </div>
           </div>
         </div>
+
+        {listasParaRecoger.length > 0 && !filtro && (
+          <div className="app-card border-sky-200 bg-sky-50/50">
+            <h2 className="mb-3 text-lg font-semibold text-sky-900">Listo para recoger</h2>
+            <p className="mb-4 text-sm text-sky-700">
+              Cocina/Barra ya terminó estos pedidos. Confirma entrega al entregar a la mesa.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {listasParaRecoger.map((c) => {
+                const listos = c.items!.filter((i) => i.estado === 'LISTO').length
+                const total = c.items!.length
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-sky-200 bg-white px-4 py-3 shadow-sm"
+                  >
+                    <div>
+                      <span className="font-semibold text-stone-900">{c.numeroComanda}</span>
+                      <span className="ml-2 text-stone-600">
+                        {c.mesa ? `Mesa ${c.mesa.numero}` : c.cliente?.nombre || 'Para llevar'}
+                      </span>
+                      <span className="ml-2 text-sm text-sky-600">
+                        {listos} de {total} listos
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => router.push(`/dashboard/comandas/${c.numeroComanda}`)}
+                        className="app-btn-secondary text-sm"
+                      >
+                        Ver
+                      </button>
+                      <button
+                        onClick={() => handleConfirmarEntrega(c.id)}
+                        disabled={entregandoId === c.id}
+                        className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+                      >
+                        {entregandoId === c.id ? '...' : 'Confirmar entrega'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="app-table-shell">
           <table className="min-w-full divide-y divide-stone-200">

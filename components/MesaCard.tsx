@@ -12,6 +12,7 @@ interface MesaCardProps {
     numeroComanda: string
     total: number
     fechaCreacion?: string
+    allItemsEntregados?: boolean
   } | null
   onClick: () => void
   tiempoAmarilloMinutos?: number
@@ -23,6 +24,8 @@ interface MesaCardProps {
   /** Si el padre pasa estos valores, MesaCard no usa setInterval (optimización). */
   waitTime?: string
   colorProgresivo?: string | null
+  /** Si todos los items están entregados, mesa muestra color azul/verde "Listo". */
+  allItemsEntregados?: boolean
 }
 
 const estadoColors = {
@@ -51,6 +54,7 @@ export default function MesaCard({
   onDelete,
   waitTime: waitTimeProp,
   colorProgresivo: colorProgresivoProp,
+  allItemsEntregados: allItemsEntregadosProp,
 }: MesaCardProps) {
   const [colorClass, setColorClass] = useState(estadoColors[estado])
   const [colorProgresivoLocal, setColorProgresivoLocal] = useState<string | null>(null)
@@ -63,6 +67,7 @@ export default function MesaCard({
   const usarPropsDelPadre = waitTimeProp !== undefined && colorProgresivoProp !== undefined
   const waitTime = usarPropsDelPadre ? waitTimeProp : waitTimeLocal
   const colorProgresivo = usarPropsDelPadre ? colorProgresivoProp : colorProgresivoLocal
+  const allItemsEntregados = allItemsEntregadosProp ?? comandaActual?.allItemsEntregados
 
   useEffect(() => {
     if (usarPropsDelPadre) return
@@ -108,12 +113,18 @@ export default function MesaCard({
   }, [estado, comandaActual, tiempoAmarilloMinutos, tiempoRojoMinutos, variant, usarPropsDelPadre])
 
   const isCompact = variant === 'status'
+  const COLOR_LISTO = '#0ea5e9'
   const cardContent = isCompact ? (
     <>
       <div className="text-xl font-bold leading-tight">M{numero}</div>
       <div className="text-[10px] opacity-90 mt-0.5">👥{capacidad}</div>
       {!comandaActual ? (
         <div className="text-[10px] opacity-80 mt-0.5">Libre</div>
+      ) : allItemsEntregados ? (
+        <>
+          <div className="text-[10px] font-medium bg-black/30 px-1.5 py-0.5 rounded mt-0.5">✓ Listo</div>
+          <div className="text-[9px] opacity-90 truncate max-w-full">{comandaActual.numeroComanda}</div>
+        </>
       ) : (
         <>
           <div className="text-[10px] font-medium bg-black/30 px-1.5 py-0.5 rounded mt-0.5">{waitTime ?? '—'}</div>
@@ -137,11 +148,13 @@ export default function MesaCard({
   const baseClass = isCompact
     ? 'text-white p-2 rounded-[24px] shadow-warm transition-all transform hover:-translate-y-0.5 active:scale-95 flex flex-col items-center justify-center aspect-square min-h-0 w-full text-center border border-white/20'
     : 'text-white p-6 rounded-[26px] shadow-warm transition-all transform hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center min-h-[120px] w-full border border-white/20'
-  const cardClass = colorProgresivo != null ? baseClass : `${colorClass} ${baseClass}`
+  const cardClass = colorProgresivo != null || allItemsEntregados ? baseClass : `${colorClass} ${baseClass}`
   const cardStyle =
-    colorProgresivo != null
-      ? { backgroundColor: colorProgresivo, transition: 'background-color 1.2s ease' }
-      : undefined
+    allItemsEntregados
+      ? { backgroundColor: COLOR_LISTO, transition: 'background-color 0.3s ease' }
+      : colorProgresivo != null
+        ? { backgroundColor: colorProgresivo, transition: 'background-color 1.2s ease' }
+        : undefined
 
   if (onDelete) {
     return (

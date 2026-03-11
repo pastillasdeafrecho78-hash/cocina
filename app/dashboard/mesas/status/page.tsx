@@ -18,6 +18,10 @@ interface Mesa {
     numeroComanda: string
     total: number
     fechaCreacion?: string
+    totalItems?: number
+    itemsEntregados?: number
+    allItemsEntregados?: boolean
+    waitStartFrom?: string | null
   } | null
 }
 
@@ -302,7 +306,7 @@ export default function MesasStatusPage() {
             </button>
           </form>
           <p className="text-xs text-stone-500 mt-2">
-            Verde: 0–{tiempoAmarilloMinutos} min · Amarillo→Rojo: {tiempoAmarilloMinutos}–{tiempoRojoMinutos} min · Rojo: +{tiempoRojoMinutos} min
+            Verde: 0–{tiempoAmarilloMinutos} min · Amarillo→Rojo: {tiempoAmarilloMinutos}–{tiempoRojoMinutos} min · Rojo: +{tiempoRojoMinutos} min · Azul: todos los pedidos entregados
           </p>
         </div>
       )}
@@ -402,15 +406,19 @@ export default function MesasStatusPage() {
                   </h2>
                   <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
                     {lista.map((mesa) => {
-                      const fechaCreacion = mesa.comandaActual?.fechaCreacion
-                      const waitTime = fechaCreacion ? formatWaitTime(fechaCreacion) : undefined
-                      const colorProgresivo = fechaCreacion
-                        ? colorProgresivoPorMinutos(
-                            minutosDesde(fechaCreacion),
-                            tiempoAmarilloMinutos,
-                            tiempoRojoMinutos
-                          )
-                        : undefined
+                      const comanda = mesa.comandaActual
+                      const allEntregados = comanda?.allItemsEntregados
+                      const fechaBase = comanda?.waitStartFrom ?? comanda?.fechaCreacion
+                      const waitTime = fechaBase ? formatWaitTime(fechaBase) : undefined
+                      const colorProgresivo = allEntregados
+                        ? undefined
+                        : fechaBase
+                          ? colorProgresivoPorMinutos(
+                              minutosDesde(fechaBase),
+                              tiempoAmarilloMinutos,
+                              tiempoRojoMinutos
+                            )
+                          : undefined
                       return (
                         <MesaCard
                           key={mesa.id}
@@ -425,6 +433,7 @@ export default function MesasStatusPage() {
                           onDelete={() => abrirConfirmarBorrado(mesa)}
                           waitTime={waitTime}
                           colorProgresivo={colorProgresivo}
+                          allItemsEntregados={allEntregados}
                         />
                       )
                     })}
