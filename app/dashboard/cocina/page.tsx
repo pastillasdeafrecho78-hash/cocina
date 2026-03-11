@@ -41,6 +41,7 @@ export default function CocinaPage() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'pendiente' | 'preparacion' | 'listo'>('all')
   const [confirmando, setConfirmando] = useState<{ itemId: string; nuevoEstado: string; label: string } | null>(null)
+  const [confirmandoGrupo, setConfirmandoGrupo] = useState<string | null>(null)
 
   const fetchItems = async () => {
     try {
@@ -76,6 +77,49 @@ export default function CocinaPage() {
   }
 
   const cerrarConfirmacion = () => setConfirmando(null)
+
+  const handleEntregarAlistarGrupo = async () => {
+    if (!confirmandoGrupo) return
+    const itemsGrupo = grupos[confirmandoGrupo]
+    if (!itemsGrupo?.length) {
+      setConfirmandoGrupo(null)
+      return
+    }
+    const numeroComanda = confirmandoGrupo
+    setConfirmandoGrupo(null)
+    try {
+      const token = localStorage.getItem('token')
+      const comandaRes = await fetch(`/api/comandas?numeroComanda=${encodeURIComponent(numeroComanda)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const comandaData = await comandaRes.json()
+      const comandaId = comandaData.data?.[0]?.id
+      if (!comandaId) {
+        toast.error('No se encontró la comanda')
+        return
+      }
+      let ok = 0
+      for (const item of itemsGrupo) {
+        if (item.estado === 'ENTREGADO') continue
+        const res = await fetch(`/api/comandas/${comandaId}/items/${item.id}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ estado: 'ENTREGADO' }),
+        })
+        const data = await res.json()
+        if (data.success) ok++
+      }
+      if (ok > 0) {
+        toast.success(ok === 1 ? '1 item actualizado' : `${ok} items actualizados`)
+        fetchItems()
+      }
+    } catch {
+      toast.error('Error al actualizar')
+    }
+  }
 
   const handleUpdateEstado = async () => {
     if (!confirmando) return
@@ -281,6 +325,17 @@ export default function CocinaPage() {
                   </div>
                 ))}
               </div>
+
+              {itemsGrupo.length > 1 && itemsGrupo.some((i) => i.estado !== 'ENTREGADO') && (
+                <div className="mt-4 pt-4 border-t border-stone-200">
+                  <button
+                    onClick={() => setConfirmandoGrupo(numeroComanda)}
+                    className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-medium text-white hover:bg-sky-700"
+                  >
+                    Entregar y alistar todos
+                  </button>
+                </div>
+              )}
             </div>
           )
         })}
@@ -289,6 +344,33 @@ export default function CocinaPage() {
       {gruposOrdenados.length === 0 && (
         <div className="app-card text-center text-stone-500">
           No hay items pendientes
+        </div>
+      )}
+
+      {confirmandoGrupo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setConfirmandoGrupo(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="app-card max-w-sm w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="mb-2 text-lg font-bold text-stone-900">Entregar y alistar todos</h2>
+            <p className="mb-6 text-stone-600">
+              ¿Marcar todos los items de este grupo como entregados?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button type="button" onClick={() => setConfirmandoGrupo(null)} className="app-btn-secondary">
+                Cancelar
+              </button>
+              <button type="button" onClick={handleEntregarAlistarGrupo} className="app-btn-primary">
+                Confirmar
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
