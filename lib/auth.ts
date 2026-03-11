@@ -20,6 +20,26 @@ export async function verifyPassword(
   return bcrypt.compare(password, hashedPassword)
 }
 
+async function getRolById(rolId: string | null | undefined) {
+  if (!rolId) {
+    return null
+  }
+
+  try {
+    return await prisma.rol.findUnique({
+      where: { id: rolId },
+      select: {
+        id: true,
+        nombre: true,
+        permisos: true,
+      },
+    })
+  } catch (error) {
+    console.error('No se pudo cargar el rol del usuario:', error)
+    return null
+  }
+}
+
 export async function getUserFromToken(token: string | null) {
   if (!token) return null
 
@@ -35,17 +55,19 @@ export async function getUserFromToken(token: string | null) {
       apellido: true,
       rolId: true,
       activo: true,
-      rol: {
-        select: {
-          id: true,
-          nombre: true,
-          permisos: true,
-        },
-      },
     },
   })
 
-  return user
+  if (!user?.activo) {
+    return null
+  }
+
+  const rol = await getRolById(user.rolId)
+
+  return {
+    ...user,
+    rol,
+  }
 }
 /**
  * Comprueba si el usuario tiene permiso de administración (usuarios_roles o *).

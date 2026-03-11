@@ -11,16 +11,42 @@ const loginSchema = z.object({
   password: z.string().min(1),
 })
 
+async function getRolById(rolId: string | null | undefined) {
+  if (!rolId) {
+    return null
+  }
+
+  try {
+    return await prisma.rol.findUnique({
+      where: { id: rolId },
+      select: {
+        id: true,
+        nombre: true,
+        permisos: true,
+      },
+    })
+  } catch (error) {
+    console.error('No se pudo cargar el rol durante el login:', error)
+    return null
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { email, password } = loginSchema.parse(body)
 
-    // Buscar usuario con rol y permisos
+    // Buscar usuario base; el rol se carga aparte para no bloquear el login.
     const user = await prisma.usuario.findUnique({
       where: { email },
-      include: {
-        rol: { select: { id: true, nombre: true, permisos: true } },
+      select: {
+        id: true,
+        email: true,
+        nombre: true,
+        apellido: true,
+        password: true,
+        rolId: true,
+        activo: true,
       },
     })
 
@@ -40,11 +66,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Actualizar último acceso
-    await prisma.usuario.update({
-      where: { id: user.id },
-      data: { ultimoAcceso: new Date() },
-    })
+    const rol = await getRolById(user.rolId)
+
+    // Si falla un dato secundario, permitimos el login de todas formas.
+    await prisma.usuario
+      .update({
+        where: { id: user.id },
+        data: { ultimoAcceso: new Date() },
+      })
+      .catch((error) => {
+        console.error('No se pudo actualizar ultimoAcceso:', error)
+      })
 
     // Generar token
     const token = await generateToken({
@@ -53,15 +85,18 @@ export async function POST(request: NextRequest) {
       rolId: user.rolId,
     })
 
-    // Registrar auditoría
-    await prisma.auditoria.create({
-      data: {
-        usuarioId: user.id,
-        accion: 'LOGIN',
-        entidad: 'Usuario',
-        entidadId: user.id,
-      },
-    })
+    await prisma.auditoria
+      .create({
+        data: {
+          usuarioId: user.id,
+          accion: 'LOGIN',
+          entidad: 'Usuario',
+          entidadId: user.id,
+        },
+      })
+      .catch((error) => {
+        console.error('No se pudo registrar auditoria de login:', error)
+      })
 
     return NextResponse.json({
       success: true,
@@ -71,11 +106,11 @@ export async function POST(request: NextRequest) {
           email: user.email,
           nombre: user.nombre,
           apellido: user.apellido,
-          rol: user.rol
+          rol: rol
             ? {
-                id: user.rol.id,
-                nombre: user.rol.nombre,
-                permisos: user.rol.permisos,
+                id: rol.id,
+                nombre: rol.nombre,
+                permisos: rol.permisos,
               }
             : null,
         },
