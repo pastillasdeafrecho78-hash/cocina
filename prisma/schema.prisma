@@ -10,15 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Rol {
-  MESERO
-  CAJERO
-  COCINERO
-  BARTENDER
-  ADMIN
-  GERENTE
-}
-
 enum EstadoMesa {
   LIBRE
   OCUPADA
@@ -68,24 +59,46 @@ enum DestinoItem {
   BARRA
 }
 
+enum ScopeVistaDashboard {
+  USER
+  GLOBAL
+  ROL
+}
+
+model Rol {
+  id          String    @id @default(cuid())
+  nombre      String
+  codigo      String?   @unique
+  descripcion String?
+  permisos    Json      // ["mesas", "comandas", "carta", ...] o ["*"] para admin
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  usuarios    Usuario[]
+  dashboards  DashboardVista[]
+}
+
 model Usuario {
   id              String    @id @default(cuid())
   email           String    @unique
   nombre          String
   apellido        String
   password        String
-  rol             Rol
+  rolId           String
   activo          Boolean   @default(true)
   ultimoAcceso    DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  
+
+  rol             Rol       @relation(fields: [rolId], references: [id], onDelete: Restrict)
   comandasCreadas    Comanda[]            @relation("ComandaCreadaPor")
   comandasAsignadas  Comanda[]            @relation("ComandaAsignadaA")
   historialComandas  ComandaHistorial[]   @relation("ComandaHistorialUsuario")
   auditoria          Auditoria[]           @relation("AuditoriaUsuario")
   cortesX            CorteX[]
   cortesZ            CorteZ[]
+  dashboards         DashboardVista[]
+
+  @@index([rolId])
 }
 
 model Mesa {
@@ -160,6 +173,12 @@ model Comanda {
   @@index([mesaId])
   @@index([estado])
   @@index([fechaCreacion])
+  @@index([fechaCompletado])
+  @@index([tipoPedido])
+  @@index([clienteId])
+  @@index([creadoPorId])
+  @@index([estado, fechaCreacion])
+  @@index([estado, fechaCompletado])
 }
 
 model Categoria {
@@ -198,10 +217,26 @@ model Producto {
   categoria   Categoria  @relation(fields: [categoriaId], references: [id])
   items       ComandaItem[]
   modificadores ModificadorProducto[]
+  tamanos     ProductoTamano[]
   facturaConceptos FacturaConcepto[]
   
   @@index([categoriaId])
   @@index([activo])
+}
+
+// Tamaños por producto: cada platillo define sus propias opciones (Chico $X, Grande $Y, etc.)
+model ProductoTamano {
+  id         String   @id @default(cuid())
+  productoId String
+  nombre     String   // ej. Chico, Mediano, Grande
+  precio     Float
+  orden      Int      @default(0)
+
+  producto   Producto @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  items      ComandaItem[]
+
+  @@unique([productoId, nombre])
+  @@index([productoId])
 }
 
 model ModificadorProducto {
@@ -230,6 +265,7 @@ model ComandaItem {
   id              String        @id @default(cuid())
   comandaId       String
   productoId      String
+  tamanoId        String?       // Si el producto tiene tamaños, cuál se eligió
   cantidad        Int           @default(1)
   precioUnitario  Float
   subtotal        Float
@@ -243,11 +279,14 @@ model ComandaItem {
   
   comanda         Comanda       @relation(fields: [comandaId], references: [id], onDelete: Cascade)
   producto        Producto      @relation(fields: [productoId], references: [id])
+  tamano          ProductoTamano? @relation(fields: [tamanoId], references: [id], onDelete: SetNull)
   modificadores   ItemModificador[]
   
   @@index([comandaId])
   @@index([estado])
   @@index([destino])
+  @@index([productoId])
+  @@index([createdAt])
 }
 
 model ItemModificador {
@@ -304,6 +343,30 @@ model Auditoria {
   
   @@index([usuarioId])
   @@index([fechaAccion])
+}
+
+model DashboardVista {
+  id          String              @id @default(cuid())
+  nombre      String
+  descripcion String?
+  modulo      String              @default("reportes")
+  scope       ScopeVistaDashboard @default(USER)
+  usuarioId   String?
+  rolId       String?
+  esDefault   Boolean             @default(false)
+  activa      Boolean             @default(true)
+  filtros     Json
+  widgets     Json
+  layout      Json?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  usuario     Usuario?            @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol         Rol?                @relation(fields: [rolId], references: [id], onDelete: SetNull)
+
+  @@index([scope, modulo])
+  @@index([usuarioId, modulo])
+  @@index([rolId, modulo])
 }
 
 model ConfiguracionRestaurante {
@@ -423,6 +486,9 @@ model Pago {
   @@index([comandaId])
   @@index([estado])
   @@index([procesadorId])
+  @@index([createdAt])
+  @@index([metodoPago])
+  @@index([estado, createdAt])
 }
 
 model Factura {
