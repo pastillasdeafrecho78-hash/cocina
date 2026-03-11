@@ -1,0 +1,42 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { ZodError } from 'zod'
+import { getTokenFromRequest, getUserFromToken } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
+import { reportQuerySchema } from '@/lib/reportes/schemas'
+import { aggregateWidgetData, fetchReportBaseData } from '@/lib/reportes/server'
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
+    }
+    if (!tienePermiso(user, 'reportes')) {
+      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const body = await request.json()
+    const data = reportQuerySchema.parse(body)
+
+    const comandas = await fetchReportBaseData(data.filters)
+    const result = aggregateWidgetData(comandas, data.widget)
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+    })
+  } catch (error) {
+    if (error instanceof ZodError) {
+      return NextResponse.json(
+        { success: false, error: 'Consulta inválida', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Error en POST /api/reportes/query:', error)
+    return NextResponse.json(
+      { success: false, error: 'Error interno del servidor' },
+      { status: 500 }
+    )
+  }
+}
