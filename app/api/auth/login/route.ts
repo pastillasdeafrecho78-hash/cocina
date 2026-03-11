@@ -13,9 +13,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { email, password } = loginSchema.parse(body)
 
-    // Buscar usuario
+    // Buscar usuario con rol y permisos
     const user = await prisma.usuario.findUnique({
       where: { email },
+      include: {
+        rol: { select: { id: true, nombre: true, permisos: true } },
+      },
     })
 
     if (!user || !user.activo) {
@@ -44,7 +47,7 @@ export async function POST(request: NextRequest) {
     const token = await generateToken({
       userId: user.id,
       email: user.email,
-      rol: user.rol,
+      rolId: user.rolId,
     })
 
     // Registrar auditoría
@@ -65,7 +68,13 @@ export async function POST(request: NextRequest) {
           email: user.email,
           nombre: user.nombre,
           apellido: user.apellido,
-          rol: user.rol,
+          rol: user.rol
+            ? {
+                id: user.rol.id,
+                nombre: user.rol.nombre,
+                permisos: user.rol.permisos,
+              }
+            : null,
         },
         token,
       },
