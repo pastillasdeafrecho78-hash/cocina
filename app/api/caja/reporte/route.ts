@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { calcularReportePeriodo, obtenerInicioPeriodoActual } from '@/lib/caja-helpers'
 
 export async function GET(request: NextRequest) {
@@ -8,7 +9,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!['CAJERO', 'ADMIN', 'GERENTE', 'MESERO'].includes(user.rol)) {
+    if (!tienePermiso(user, 'reportes')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 
@@ -40,9 +41,14 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
     console.error('Error en GET /api/caja/reporte:', error)
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
+      {
+        success: false,
+        error:
+          process.env.NODE_ENV === 'development' ? msg : 'Error interno del servidor',
+      },
       { status: 500 }
     )
   }

@@ -26,10 +26,10 @@ interface MesaCardProps {
 }
 
 const estadoColors = {
-  LIBRE: 'bg-green-500 hover:bg-green-600',
-  OCUPADA: 'bg-yellow-500 hover:bg-yellow-600',
-  CUENTA_PEDIDA: 'bg-red-500 hover:bg-red-600',
-  RESERVADA: 'bg-blue-500 hover:bg-blue-600',
+  LIBRE: 'bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700',
+  OCUPADA: 'bg-gradient-to-br from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700',
+  CUENTA_PEDIDA: 'bg-gradient-to-br from-rose-500 to-rose-700 hover:from-rose-600 hover:to-rose-800',
+  RESERVADA: 'bg-gradient-to-br from-sky-500 to-sky-700 hover:from-sky-600 hover:to-sky-800',
 }
 
 const estadoLabels = {
@@ -70,7 +70,7 @@ export default function MesaCard({
     const isStatus = variant === 'status'
 
     if (isStatus && !comandaActual) {
-      setColorClass('bg-gray-400 hover:bg-gray-500')
+      setColorClass('bg-gradient-to-br from-stone-400 to-stone-500 hover:from-stone-500 hover:to-stone-600')
       setColorProgresivoLocal(null)
       setWaitTimeLocal(null)
       return
@@ -135,8 +135,8 @@ export default function MesaCard({
   )
 
   const baseClass = isCompact
-    ? 'text-white p-2 rounded-lg shadow-md transition-all transform hover:scale-105 active:scale-95 flex flex-col items-center justify-center aspect-square min-h-0 w-full text-center'
-    : 'text-white p-6 rounded-lg shadow-md transition-all transform hover:scale-105 active:scale-95 flex flex-col items-center justify-center min-h-[120px] w-full'
+    ? 'text-white p-2 rounded-[24px] shadow-warm transition-all transform hover:-translate-y-0.5 active:scale-95 flex flex-col items-center justify-center aspect-square min-h-0 w-full text-center border border-white/20'
+    : 'text-white p-6 rounded-[26px] shadow-warm transition-all transform hover:-translate-y-1 active:scale-95 flex flex-col items-center justify-center min-h-[120px] w-full border border-white/20'
   const cardClass = colorProgresivo != null ? baseClass : `${colorClass} ${baseClass}`
   const cardStyle =
     colorProgresivo != null
@@ -155,7 +155,7 @@ export default function MesaCard({
             e.stopPropagation()
             onDelete()
           }}
-          className="absolute top-1 right-1 w-7 h-7 rounded-full bg-black/30 hover:bg-red-600 flex items-center justify-center text-white text-sm transition-colors z-10"
+          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/25 text-sm text-white transition-colors hover:bg-rose-600 z-10"
           title="Borrar mesa"
           aria-label="Borrar mesa"
         >

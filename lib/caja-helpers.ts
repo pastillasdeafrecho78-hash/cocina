@@ -24,10 +24,17 @@ export async function calcularReportePeriodo(
   fechaInicio: Date,
   fechaFin: Date
 ): Promise<ReporteCaja> {
+  // Comandas PAGADAS: si tienen fechaCompletado, filtrar por ella; si no, por fechaCreacion
   const comandas = await prisma.comanda.findMany({
     where: {
       estado: 'PAGADO',
-      fechaCreacion: { gte: fechaInicio, lte: fechaFin },
+      OR: [
+        { fechaCompletado: { gte: fechaInicio, lte: fechaFin } },
+        {
+          fechaCompletado: null,
+          fechaCreacion: { gte: fechaInicio, lte: fechaFin },
+        },
+      ],
     },
     include: {
       pagos: { where: { estado: 'COMPLETADO' } },

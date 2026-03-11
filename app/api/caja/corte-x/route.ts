@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { calcularReportePeriodo, obtenerInicioPeriodoActual } from '@/lib/caja-helpers'
 
 /**
@@ -14,7 +15,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!['CAJERO', 'ADMIN', 'GERENTE'].includes(user.rol)) {
+    if (!tienePermiso(user, 'caja')) {
       return NextResponse.json({ success: false, error: 'Sin permisos para Corte X' }, { status: 403 })
     }
 
@@ -22,6 +23,14 @@ export async function POST(request: NextRequest) {
     const fechaFin = new Date()
 
     const reporte = await calcularReportePeriodo(fechaInicio, fechaFin)
+
+    const detallesJson = reporte.comandas.map((c) => ({
+      id: c.id,
+      numeroComanda: c.numeroComanda,
+      total: c.total,
+      mesa: c.mesa,
+      fechaCreacion: c.fechaCreacion.toISOString(),
+    }))
 
     const corteX = await prisma.corteX.create({
       data: {
@@ -31,7 +40,7 @@ export async function POST(request: NextRequest) {
         totalTarjeta: reporte.totalTarjeta,
         totalOtros: reporte.totalOtros,
         numComandas: reporte.numComandas,
-        detalles: reporte.comandas as any,
+        detalles: detallesJson,
       },
     })
 

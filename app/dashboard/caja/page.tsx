@@ -118,40 +118,45 @@ export default function CajaPage() {
 
   if (loading && !reporte) {
     return (
-      <div className="p-8 text-black">
-        <div className="text-center">Cargando...</div>
+      <div className="app-page">
+        <div className="app-card text-center text-stone-600">Cargando...</div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 text-black">
-      <BackButton className="mb-4" />
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Caja</h1>
-        <p className="text-gray-600 mt-1">Corte X (informativo) y Corte Z (cierre definitivo)</p>
-      </div>
+    <div className="app-page">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="app-card">
+          <BackButton className="mb-4" />
+          <div>
+            <p className="app-kicker">Caja</p>
+            <h1 className="mt-2 text-3xl font-semibold text-stone-900">Cortes y resumen</h1>
+            <p className="mt-1 text-stone-600">
+              Corte X informativo y Corte Z como cierre definitivo del periodo.
+            </p>
+          </div>
+        </div>
 
-      {/* Resumen actual */}
-      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Resumen del periodo actual</h2>
+        <div className="app-card">
+        <h2 className="text-xl font-semibold text-stone-900 mb-4">Resumen del periodo actual</h2>
         {reporte && (
-          <p className="text-sm text-gray-500 mb-4">
+          <p className="text-sm text-stone-500 mb-4">
             Desde {new Date(reporte.fechaInicio).toLocaleString('es-MX')} hasta{' '}
             {new Date(reporte.fechaFin).toLocaleString('es-MX')}
           </p>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-gray-600 text-sm mb-1">
+          <div className="app-card-muted p-4">
+            <div className="flex items-center gap-2 text-stone-600 text-sm mb-1">
               <DocumentTextIcon className="w-5 h-5" />
               Ventas totales
             </div>
-            <div className="text-2xl font-bold text-gray-900">
+            <div className="text-2xl font-bold text-stone-900">
               ${(reporte?.totalVentas ?? 0).toFixed(2)}
             </div>
           </div>
-          <div className="bg-green-50 rounded-lg p-4">
+          <div className="app-card-muted border-emerald-200 bg-emerald-50 p-4">
             <div className="flex items-center gap-2 text-green-700 text-sm mb-1">
               <BanknotesIcon className="w-5 h-5" />
               Efectivo
@@ -160,29 +165,28 @@ export default function CajaPage() {
               ${(reporte?.totalEfectivo ?? 0).toFixed(2)}
             </div>
           </div>
-          <div className="bg-blue-50 rounded-lg p-4">
-            <div className="flex items-center gap-2 text-blue-700 text-sm mb-1">
+          <div className="app-card-muted border-sky-200 bg-sky-50 p-4">
+            <div className="flex items-center gap-2 text-sky-700 text-sm mb-1">
               <CreditCardIcon className="w-5 h-5" />
               Tarjeta
             </div>
-            <div className="text-2xl font-bold text-blue-800">
+            <div className="text-2xl font-bold text-sky-800">
               ${(reporte?.totalTarjeta ?? 0).toFixed(2)}
             </div>
           </div>
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="text-gray-600 text-sm mb-1">Otros / Comandas</div>
-            <div className="text-2xl font-bold text-gray-900">
+          <div className="app-card-muted p-4">
+            <div className="text-stone-600 text-sm mb-1">Otros / Comandas</div>
+            <div className="text-2xl font-bold text-stone-900">
               {(reporte?.numComandas ?? 0)}
             </div>
           </div>
         </div>
 
-        {/* Botones Corte X y Corte Z */}
         <div className="flex flex-wrap gap-4">
           <button
             onClick={handleCorteX}
             disabled={ejecutandoCorteX}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            className="app-btn-secondary"
           >
             <DocumentDuplicateIcon className="w-5 h-5" />
             {ejecutandoCorteX ? 'Generando...' : 'Corte X'}
@@ -190,7 +194,7 @@ export default function CajaPage() {
           <button
             onClick={handleCorteZ}
             disabled={ejecutandoCorteZ}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            className="app-btn-primary"
           >
             <DocumentCheckIcon className="w-5 h-5" />
             {ejecutandoCorteZ ? 'Cerrando...' : 'Corte Z'}
@@ -198,24 +202,23 @@ export default function CajaPage() {
           <button
             onClick={cargarReporte}
             disabled={loading}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 text-sm"
+            className="app-btn-secondary"
           >
             Actualizar
           </button>
         </div>
-      </div>
+        </div>
 
-      {/* Explicación */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <h3 className="font-semibold text-blue-900 mb-2">Corte X (informativo)</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="app-card border-sky-200 bg-sky-50/80">
+          <h3 className="font-semibold text-sky-900 mb-2">Corte X (informativo)</h3>
+          <ul className="text-sm text-sky-800 space-y-1">
             <li>• Reporte temporal, no reinicia la caja</li>
             <li>• Se puede hacer varias veces al día</li>
             <li>• Para revisar cómo va el turno o supervisión</li>
           </ul>
         </div>
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+        <div className="app-card border-amber-200 bg-amber-50/80">
           <h3 className="font-semibold text-amber-900 mb-2">Corte Z (cierre definitivo)</h3>
           <ul className="text-sm text-amber-800 space-y-1">
             <li>• Cierre oficial del turno o día</li>
@@ -223,18 +226,17 @@ export default function CajaPage() {
             <li>• Solo se hace una vez por turno o por día</li>
           </ul>
         </div>
-      </div>
+        </div>
 
-      {/* Detalle de comandas */}
-      {reporte?.detalles && reporte.detalles.length > 0 && (
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">
+        {reporte?.detalles && reporte.detalles.length > 0 && (
+        <div className="app-card">
+          <h2 className="text-xl font-semibold text-stone-900 mb-4">
             Comandas del periodo ({reporte.detalles.length})
           </h2>
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
               <thead>
-                <tr className="border-b text-left text-gray-600">
+                <tr className="border-b text-left text-stone-600">
                   <th className="py-2 pr-4">Comanda</th>
                   <th className="py-2 pr-4">Mesa</th>
                   <th className="py-2 pr-4">Fecha</th>
@@ -259,10 +261,11 @@ export default function CajaPage() {
       )}
 
       {reporte && (!reporte.detalles || reporte.detalles.length === 0) && (
-        <div className="bg-white rounded-lg shadow-md p-8 text-center text-gray-500">
+        <div className="app-card text-center text-stone-500">
           No hay comandas pagadas en el periodo actual
         </div>
       )}
+      </div>
     </div>
   )
 }

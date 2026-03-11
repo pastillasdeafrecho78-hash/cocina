@@ -58,8 +58,8 @@ export default function ComandasPage() {
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="text-center">Cargando...</div>
+      <div className="app-page">
+        <div className="app-card text-center text-stone-600">Cargando...</div>
       </div>
     )
   }
@@ -74,107 +74,116 @@ export default function ComandasPage() {
   ]
 
   return (
-    <div className="p-8 text-black">
-      <BackButton className="mb-4" />
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Comandas</h1>
-        <div className="flex gap-4">
-          <select
-            value={filtro}
-            onChange={(e) => setFiltro(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-md text-black"
-          >
-            {estados.map((estado) => (
-              <option key={estado.value} value={estado.value}>
-                {estado.label}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={() => router.push('/dashboard/comandas/nueva')}
-            className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700"
-          >
-            Nueva Comanda
-          </button>
-        </div>
-      </div>
+    <div className="app-page">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="app-card">
+          <BackButton className="mb-4" />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="app-kicker">Operación</p>
+              <h1 className="mt-2 text-3xl font-semibold text-stone-900">Comandas</h1>
+              <p className="mt-1 text-sm text-stone-600">
+                Controla el ciclo completo de atención y cobro.
+              </p>
+            </div>
 
-      <div className="bg-white rounded-lg shadow-md overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Comanda
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Mesa/Cliente
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Estado
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Fecha
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Acciones
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {comandas.map((comanda) => (
-              <tr key={comanda.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {comanda.numeroComanda}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {comanda.mesa
-                    ? `Mesa ${comanda.mesa.numero}`
-                    : comanda.cliente?.nombre || 'Para llevar'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                      comanda.estado === 'PENDIENTE'
-                        ? 'bg-yellow-100 text-yellow-800'
-                        : comanda.estado === 'LISTO'
-                        ? 'bg-green-100 text-green-800'
-                        : comanda.estado === 'PAGADO'
-                        ? 'bg-gray-100 text-gray-800'
-                        : 'bg-blue-100 text-blue-800'
-                    }`}
-                  >
-                    {comanda.estado}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ${comanda.total.toFixed(2)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(comanda.fechaCreacion).toLocaleString('es-MX')}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <button
-                    onClick={() =>
-                      router.push(`/dashboard/comandas/${comanda.numeroComanda}`)
-                    }
-                    className="text-primary-600 hover:text-primary-900"
-                  >
-                    Ver
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {comandas.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
-            No hay comandas {filtro ? 'con este estado' : ''}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <select
+                value={filtro}
+                onChange={(e) => setFiltro(e.target.value)}
+                className="app-input min-w-[180px]"
+              >
+                {estados.map((estado) => (
+                  <option key={estado.value} value={estado.value}>
+                    {estado.label}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => router.push('/dashboard/comandas/nueva')}
+                className="app-btn-primary"
+              >
+                Nueva Comanda
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+
+        <div className="app-table-shell">
+          <table className="min-w-full divide-y divide-stone-200">
+            <thead className="bg-stone-50/90">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                  Comanda
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                  Mesa/Cliente
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                  Estado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                  Total
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                  Fecha
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                  Acciones
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100 bg-white/95">
+              {comandas.map((comanda) => (
+                <tr key={comanda.id} className="hover:bg-amber-50/60">
+                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-stone-900">
+                    {comanda.numeroComanda}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-stone-600">
+                    {comanda.mesa
+                      ? `Mesa ${comanda.mesa.numero}`
+                      : comanda.cliente?.nombre || 'Para llevar'}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4">
+                    <span
+                      className={`app-badge ${
+                        comanda.estado === 'PENDIENTE'
+                          ? 'border-yellow-200 bg-yellow-50 text-yellow-800'
+                          : comanda.estado === 'LISTO'
+                            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                            : comanda.estado === 'PAGADO'
+                              ? 'border-stone-200 bg-stone-100 text-stone-700'
+                              : 'border-sky-200 bg-sky-50 text-sky-700'
+                      }`}
+                    >
+                      {comanda.estado}
+                    </span>
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-stone-900">
+                    ${comanda.total.toFixed(2)}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm text-stone-600">
+                    {new Date(comanda.fechaCreacion).toLocaleString('es-MX')}
+                  </td>
+                  <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">
+                    <button
+                      onClick={() => router.push(`/dashboard/comandas/${comanda.numeroComanda}`)}
+                      className="text-amber-700 hover:text-amber-900"
+                    >
+                      Ver
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {comandas.length === 0 && (
+            <div className="py-12 text-center text-stone-500">
+              No hay comandas {filtro ? 'con este estado' : ''}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verificarConfiguracionCompleta, obtenerConfiguracion } from '@/lib/configuracion-restaurante'
-import { verifyToken } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
 
 /**
  * GET /api/configuracion/estado
@@ -8,17 +8,8 @@ import { verifyToken } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Token requerido' },
-        { status: 401 }
-      )
-    }
-
-    const payload = verifyToken(token)
-    if (!payload) {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },
         { status: 401 }

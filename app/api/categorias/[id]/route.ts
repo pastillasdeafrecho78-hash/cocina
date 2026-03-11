@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken, getTokenFromRequest, isAdmin } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
 
 const updateCategoriaSchema = z.object({
@@ -24,7 +25,7 @@ export async function PATCH(
       )
     }
 
-    if (!isAdmin(user.rol)) {
+    if (!tienePermiso(user, 'carta')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para editar categorías' },
         { status: 403 }
@@ -118,7 +119,7 @@ export async function DELETE(
       )
     }
 
-    if (!isAdmin(user.rol)) {
+    if (!tienePermiso(user, 'carta')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para eliminar categorías' },
         { status: 403 }

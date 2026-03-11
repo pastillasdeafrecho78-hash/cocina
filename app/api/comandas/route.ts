@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { generarNumeroComanda, calcularTotal, getDestinoFromCategoria } from '@/lib/comanda-helpers'
 import { z } from 'zod'
 
@@ -11,6 +12,7 @@ const createComandaSchema = z.object({
   items: z.array(
     z.object({
       productoId: z.string(),
+      tamanoId: z.string().optional(),
       cantidad: z.number().int().positive(),
       modificadores: z.array(z.string()).optional(),
       notas: z.string().optional(),
@@ -26,6 +28,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'No autenticado' },
         { status: 401 }
+      )
+    }
+    if (!tienePermiso(user, 'comandas') && !tienePermiso(user, 'reportes')) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos' },
+        { status: 403 }
       )
     }
 
@@ -50,14 +58,24 @@ export async function GET(request: NextRequest) {
     if (mesaId) where.mesaId = mesaId
     if (numeroComanda) where.numeroComanda = numeroComanda
     
-    // Filtros de fecha
+    // Filtros de fecha: para PAGADO usar fechaCompletado (fecha de pago); si no, fechaCreacion
     if (fechaInicio || fechaFin) {
-      where.fechaCreacion = {}
-      if (fechaInicio) {
-        where.fechaCreacion.gte = new Date(fechaInicio)
-      }
-      if (fechaFin) {
-        where.fechaCreacion.lte = new Date(fechaFin)
+      const inicio = fechaInicio ? new Date(fechaInicio) : null
+      const fin = fechaFin ? new Date(fechaFin) : null
+      const esPagado =
+        estado === 'PAGADO' || (typeof estado === 'string' && estado.includes('PAGADO'))
+      if (esPagado && (inicio || fin)) {
+        const rango = {} as { gte?: Date; lte?: Date }
+        if (inicio) rango.gte = inicio
+        if (fin) rango.lte = fin
+        where.OR = [
+          { fechaCompletado: rango },
+          { fechaCompletado: null, fechaCreacion: rango },
+        ]
+      } else {
+        where.fechaCreacion = {}
+        if (inicio) where.fechaCreacion.gte = inicio
+        if (fin) where.fechaCreacion.lte = fin
       }
     }
 
@@ -74,6 +92,7 @@ export async function GET(request: NextRequest) {
                   categoria: true,
                 },
               },
+              tamano: true,
               modificadores: {
                 include: {
                   modificador: true,
@@ -123,7 +142,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar permisos
-    if (!['MESERO', 'ADMIN', 'GERENTE'].includes(user.rol)) {
+    if (!tienePermiso(user, 'comandas')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos' },
         { status: 403 }
@@ -157,17 +176,40 @@ export async function POST(request: NextRequest) {
         throw new Error(`Producto ${itemData.productoId} no encontrado`)
       }
 
-      // Calcular precio de modificadores
+      // Obtener producto con tamanos para validar
+      const productoConTamanos = await prisma.producto.findUnique({
+        where: { id: producto.id },
+        include: { tamanos: true },
+      })
+      const tieneTamanos = productoConTamanos && productoConTamanos.tamanos.length > 0
+
+      if (tieneTamanos && !itemData.tamanoId) {
+        throw new Error(`El producto "${producto.nombre}" requiere selección de tamaño`)
+      }
+      if (!tieneTamanos && itemData.tamanoId) {
+        throw new Error(`El producto "${producto.nombre}" no tiene tamaños configurados`)
+      }
+
+      let precioBase = producto.precio
+      let tamanoId: string | undefined
+      if (itemData.tamanoId) {
+        const tamano = productoConTamanos!.tamanos.find((t) => t.id === itemData.tamanoId)
+        if (!tamano) {
+          throw new Error(`Tamaño no válido para el producto "${producto.nombre}"`)
+        }
+        precioBase = tamano.precio
+        tamanoId = tamano.id
+      }
+
+      // Calcular precio de modificadores (excluyendo TAMANO, ya manejado por ProductoTamano)
       let precioModificadores = 0
       const itemModificadores = []
-
       if (itemData.modificadores && itemData.modificadores.length > 0) {
         for (const modificadorId of itemData.modificadores) {
           const modificador = await prisma.modificador.findUnique({
             where: { id: modificadorId },
           })
-
-          if (modificador) {
+          if (modificador && modificador.tipo !== 'TAMANO') {
             precioModificadores += modificador.precioExtra || 0
             itemModificadores.push({
               modificadorId: modificador.id,
@@ -177,11 +219,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const precioUnitario = producto.precio
-      const subtotal = itemData.cantidad * (precioUnitario + precioModificadores)
+      const precioUnitario = precioBase + precioModificadores
+      const subtotal = itemData.cantidad * precioUnitario
 
       comandaItems.push({
         productoId: producto.id,
+        tamanoId: tamanoId || undefined,
         cantidad: itemData.cantidad,
         precioUnitario,
         subtotal,

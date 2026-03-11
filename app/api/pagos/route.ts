@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { procesarPago, guardarPago } from '@/lib/pagos'
 import { timbrarCFDI, almacenarCFDI, generarPDFCFDI } from '@/lib/facturacion'
-import { verifyToken } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -10,25 +11,14 @@ import { prisma } from '@/lib/prisma'
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Token requerido' },
+        { success: false, error: 'No autenticado' },
         { status: 401 }
       )
     }
-
-    const payload = await verifyToken(token)
-    if (!payload) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
-        { status: 401 }
-      )
-    }
-
-    const rolesPago = ['CAJERO', 'ADMIN', 'GERENTE', 'MESERO']
-    if (!rolesPago.includes(payload.rol)) {
+    if (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para procesar pagos' },
         { status: 403 }
@@ -54,9 +44,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Obtener comanda
+    // Obtener comanda con ítems
     const comanda = await prisma.comanda.findUnique({
       where: { id: comandaId },
+      include: { items: true },
     })
 
     if (!comanda) {
@@ -66,8 +57,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calcular monto total
-    const total = comanda.total + (comanda.propina || 0) - (comanda.descuento || 0)
+    const itemsPendientes = comanda.items.filter(
+      (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
+    )
+    if (itemsPendientes.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'No se puede pagar hasta que todos los productos estén marcados como listos.',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Calcular monto total: subtotal * (1 + propina%) - descuento
+    const totalConPropina = comanda.total * (1 + (comanda.propina || 0) / 100)
+    const total = totalConPropina - (comanda.descuento || 0)
 
     // Procesar pago
     const resultadoPago = await procesarPago({
@@ -80,46 +86,39 @@ export async function POST(request: NextRequest) {
     // Guardar pago en BD
     const pago = await guardarPago(comandaId, resultadoPago, metodo)
 
-    // Si el pago fue completado, generar factura
+    // Si el pago fue completado: marcar comanda PAGADO y liberar mesa (siempre)
+    // La factura es opcional; si el PAC no está configurado, el pago se registra igual
     let factura = null
     if (resultadoPago.estado === 'completado') {
-      // Timbrar CFDI (override desde Asistente Modo Fácil si se envían)
-      const cfdi = await timbrarCFDI({
-        comandaId,
-        receptor,
-        formaPago: formaPagoOverride ?? (metodo === 'efectivo' ? '01' : metodo === 'tarjeta_credito' ? '04' : metodo === 'tarjeta_debito' ? '28' : '03'),
-        metodoPago: metodoPagoOverride ?? 'PUE',
-        ...(typeof esFacturaGlobal === 'boolean' && { esFacturaGlobal }),
-      })
-
-      // Generar PDF
-      const pdf = await generarPDFCFDI(cfdi)
-
-      // Almacenar CFDI con conceptos (detallesEmision = log Modo Fácil para auditoría)
-      factura = await almacenarCFDI(
-        comandaId,
-        pago.id,
-        { ...cfdi, pdf: pdf.toString('base64') },
-        cfdi.conceptos,
-        detallesEmision ?? undefined
-      )
-
-      // Actualizar comanda
       await prisma.comanda.update({
         where: { id: comandaId },
-        data: {
-          estado: 'PAGADO',
-        },
+        data: { estado: 'PAGADO', fechaCompletado: new Date() },
       })
-
-      // Si tiene mesa, liberarla
       if (comanda.mesaId) {
         await prisma.mesa.update({
           where: { id: comanda.mesaId },
-          data: {
-            estado: 'LIBRE',
-          },
+          data: { estado: 'LIBRE' },
         })
+      }
+
+      try {
+        const cfdi = await timbrarCFDI({
+          comandaId,
+          receptor,
+          formaPago: formaPagoOverride ?? (metodo === 'efectivo' ? '01' : metodo === 'tarjeta_credito' ? '04' : metodo === 'tarjeta_debito' ? '28' : '03'),
+          metodoPago: metodoPagoOverride ?? 'PUE',
+          ...(typeof esFacturaGlobal === 'boolean' && { esFacturaGlobal }),
+        })
+        const pdf = await generarPDFCFDI(cfdi)
+        factura = await almacenarCFDI(
+          comandaId,
+          pago.id,
+          { ...cfdi, pdf: pdf.toString('base64') },
+          cfdi.conceptos,
+          detallesEmision ?? undefined
+        )
+      } catch (errFactura) {
+        console.warn('Factura no emitida (PAC no configurado o error):', errFactura)
       }
     }
 

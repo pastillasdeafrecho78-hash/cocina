@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { verifyToken } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { prisma } from '@/lib/prisma'
 import { getPaymentProvider } from '@/lib/payments'
 
@@ -17,16 +18,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const payload = await verifyToken(token)
-    if (!payload) {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },
         { status: 401 }
       )
     }
-
-    const rolesPago = ['CAJERO', 'ADMIN', 'GERENTE', 'MESERO']
-    if (!rolesPago.includes(payload.rol)) {
+    if (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para procesar pagos' },
         { status: 403 }
@@ -53,12 +52,27 @@ export async function POST(request: NextRequest) {
 
     const comanda = await prisma.comanda.findUnique({
       where: { id: comandaId },
+      include: { items: true },
     })
 
     if (!comanda) {
       return NextResponse.json(
         { success: false, error: 'Comanda no encontrada' },
         { status: 404 }
+      )
+    }
+
+    const itemsPendientes = comanda.items.filter(
+      (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
+    )
+    if (itemsPendientes.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'No se puede pagar hasta que todos los productos estén marcados como listos.',
+        },
+        { status: 400 }
       )
     }
 

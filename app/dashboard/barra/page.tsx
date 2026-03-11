@@ -15,6 +15,7 @@ interface Item {
       nombre: string
     }
   }
+  tamano?: { nombre: string } | null
   notas?: string
   estado: string
   createdAt: string
@@ -125,68 +126,69 @@ export default function BarraPage() {
 
   if (loading) {
     return (
-      <div className="p-8 text-black">
-        <div className="text-center">Cargando...</div>
+      <div className="app-page">
+        <div className="app-card text-center text-stone-600">Cargando...</div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 text-black">
-      <BackButton className="mb-4" />
-      <div className="mb-6 flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Bar Display System</h1>
-        <div className="flex gap-2">
+    <div className="app-page">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="app-card">
+          <BackButton className="mb-4" />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="app-kicker">Barra</p>
+              <h1 className="mt-2 text-3xl font-semibold text-stone-900">Bar Display</h1>
+              <p className="mt-1 text-stone-600">Seguimiento visual de bebidas y salidas de barra.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded ${
-              filter === 'all' ? 'bg-primary-600 text-white' : 'bg-gray-200'
-            }`}
+            className={filter === 'all' ? 'app-btn-primary' : 'app-btn-secondary'}
           >
             Todas
           </button>
           <button
             onClick={() => setFilter('pendiente')}
-            className={`px-4 py-2 rounded ${
-              filter === 'pendiente' ? 'bg-primary-600 text-white' : 'bg-gray-200'
-            }`}
+            className={filter === 'pendiente' ? 'app-btn-primary' : 'app-btn-secondary'}
           >
             Pendientes
           </button>
           <button
             onClick={() => setFilter('preparacion')}
-            className={`px-4 py-2 rounded ${
-              filter === 'preparacion' ? 'bg-primary-600 text-white' : 'bg-gray-200'
-            }`}
+            className={filter === 'preparacion' ? 'app-btn-primary' : 'app-btn-secondary'}
           >
             En Preparación
           </button>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredItems.map((item) => (
           <div
             key={item.id}
             className={`
-              bg-white rounded-lg shadow-md p-6
-              ${item.estado === 'PENDIENTE' ? 'border-l-4 border-red-500' : ''}
-              ${item.estado === 'EN_PREPARACION' ? 'border-l-4 border-yellow-500' : ''}
+              app-card p-6
+              ${item.estado === 'PENDIENTE' ? 'border-l-4 border-l-rose-500' : ''}
+              ${item.estado === 'EN_PREPARACION' ? 'border-l-4 border-l-amber-500' : ''}
             `}
           >
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h3 className="text-xl font-bold">
+                <h3 className="text-xl font-semibold text-stone-900">
                   {item.comanda.mesa
                     ? `Mesa ${item.comanda.mesa.numero}`
                     : item.comanda.cliente?.nombre || 'Para llevar'}
                 </h3>
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-stone-500">
                   {item.comanda.numeroComanda}
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-stone-500">
                   {getTiempoEspera(item.createdAt)}
                 </div>
               </div>
@@ -195,17 +197,20 @@ export default function BarraPage() {
             <div className="mb-4">
               <div className="text-lg font-semibold">
                 {item.cantidad}x {item.producto.nombre}
+                {item.tamano && (
+                  <span className="font-normal text-stone-600"> — {item.tamano.nombre}</span>
+                )}
               </div>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-stone-600">
                 {item.producto.categoria.nombre}
               </div>
               {item.notas && (
-                <div className="text-sm text-red-600 mt-1">
+                <div className="mt-1 text-sm text-rose-600">
                   📝 {item.notas}
                 </div>
               )}
               {item.modificadores.length > 0 && (
-                <div className="text-sm text-gray-500 mt-1">
+                <div className="mt-1 text-sm text-stone-500">
                   {item.modificadores.map((m) => m.modificador.nombre).join(', ')}
                 </div>
               )}
@@ -215,7 +220,7 @@ export default function BarraPage() {
               {item.estado === 'PENDIENTE' && (
                 <button
                   onClick={() => handleUpdateEstado(item.id, 'EN_PREPARACION')}
-                  className="flex-1 bg-yellow-500 text-white px-4 py-2 rounded hover:bg-yellow-600"
+                  className="app-btn-secondary flex-1 border-amber-300 bg-amber-50 text-amber-900"
                 >
                   En Preparación
                 </button>
@@ -223,13 +228,13 @@ export default function BarraPage() {
               {item.estado === 'EN_PREPARACION' && (
                 <button
                   onClick={() => handleUpdateEstado(item.id, 'LISTO')}
-                  className="flex-1 bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                  className="app-btn-primary flex-1 bg-emerald-700 hover:bg-emerald-800"
                 >
                   Listo
                 </button>
               )}
               {item.estado === 'LISTO' && (
-                <div className="flex-1 bg-green-100 text-green-800 px-4 py-2 rounded text-center">
+                <div className="flex-1 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-emerald-800">
                   ✓ Listo
                 </div>
               )}
@@ -239,10 +244,11 @@ export default function BarraPage() {
       </div>
 
       {filteredItems.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
+        <div className="app-card text-center text-stone-500">
           No hay items pendientes
         </div>
       )}
+      </div>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
 
 const updateComandaSchema = z.object({
@@ -22,6 +23,12 @@ export async function GET(
         { status: 401 }
       )
     }
+    if (!tienePermiso(user, 'comandas') && !tienePermiso(user, 'reportes')) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos' },
+        { status: 403 }
+      )
+    }
 
     const comanda = await prisma.comanda.findUnique({
       where: { id: params.id },
@@ -35,6 +42,7 @@ export async function GET(
                 categoria: true,
               },
             },
+            tamano: true,
             modificadores: {
               include: {
                 modificador: true,
@@ -101,6 +109,12 @@ export async function PATCH(
       return NextResponse.json(
         { success: false, error: 'No autenticado' },
         { status: 401 }
+      )
+    }
+    if (!tienePermiso(user, 'comandas')) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos' },
+        { status: 403 }
       )
     }
 

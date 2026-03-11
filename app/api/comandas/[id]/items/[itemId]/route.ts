@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
 
 const updateItemSchema = z.object({
@@ -35,6 +36,16 @@ export async function PATCH(
       return NextResponse.json(
         { success: false, error: 'Item no encontrado' },
         { status: 404 }
+      )
+    }
+    const puede =
+      tienePermiso(user, 'comandas') ||
+      (item.destino === 'COCINA' && tienePermiso(user, 'cocina')) ||
+      (item.destino === 'BARRA' && tienePermiso(user, 'barra'))
+    if (!puede) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos' },
+        { status: 403 }
       )
     }
 

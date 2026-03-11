@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken, getTokenFromRequest, isAdmin } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
 
 const modificadorSchema = z.object({
@@ -60,7 +61,7 @@ export async function POST(
       )
     }
 
-    if (!isAdmin(user.rol)) {
+    if (!tienePermiso(user, 'carta')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para asignar extras a categorías' },
         { status: 403 }
@@ -147,7 +148,7 @@ export async function DELETE(
       )
     }
 
-    if (!isAdmin(user.rol)) {
+    if (!tienePermiso(user, 'carta')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para quitar extras de categorías' },
         { status: 403 }

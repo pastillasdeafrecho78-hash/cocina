@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken, getTokenFromRequest, isAdmin } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
 
 const createMesaSchema = z.object({
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!isAdmin(user.rol)) {
+    if (!tienePermiso(user, 'mesas')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para crear mesas' },
         { status: 403 }

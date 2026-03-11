@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Verificar rol
-    if (!['COCINERO', 'ADMIN', 'GERENTE'].includes(user.rol)) {
+    if (!tienePermiso(user, 'cocina')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos' },
         { status: 403 }
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
             cliente: true,
           },
         },
+        tamano: true,
         modificadores: {
           include: {
             modificador: true,

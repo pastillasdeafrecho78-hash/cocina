@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { obtenerConfiguracion, guardarConfiguracion } from '@/lib/configuracion-restaurante'
-import { verifyToken, getUserFromToken, isAdmin } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 
 /**
  * GET /api/configuracion/tiempos
@@ -8,19 +9,10 @@ import { verifyToken, getUserFromToken, isAdmin } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Token requerido' },
-        { status: 401 }
-      )
-    }
-
-    const payload = await verifyToken(token)
-    if (!payload) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
+        { success: false, error: 'No autenticado' },
         { status: 401 }
       )
     }
@@ -48,25 +40,16 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Token requerido' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getUserFromToken(token)
+    const user = await getUserFromToken(getTokenFromRequest(request))
     if (!user || !user.activo) {
       return NextResponse.json(
         { success: false, error: 'Token inválido o usuario no válido' },
         { status: 401 }
       )
     }
-    if (!isAdmin(user.rol)) {
+    if (!tienePermiso(user, 'configuracion')) {
       return NextResponse.json(
-        { success: false, error: 'Solo el administrador puede configurar' },
+        { success: false, error: 'Sin permisos para configurar' },
         { status: 403 }
       )
     }

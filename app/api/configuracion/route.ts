@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { obtenerConfiguracion, guardarConfiguracion } from '@/lib/configuracion-restaurante'
-import { verifyToken, isAdmin } from '@/lib/auth'
+import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { tienePermiso } from '@/lib/permisos'
 
 /**
  * GET /api/configuracion
@@ -8,27 +9,18 @@ import { verifyToken, isAdmin } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Token requerido' },
-        { status: 401 }
-      )
-    }
-
-    const payload = await verifyToken(token)
-    if (!payload) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
+        { success: false, error: 'No autenticado' },
         { status: 401 }
       )
     }
 
     const config = await obtenerConfiguracion()
 
-    // Solo admin ve la configuración completa; el resto solo tiempos
-    if (!isAdmin(payload.rol)) {
+    // Solo quien tiene configuracion ve la configuración completa; el resto solo tiempos
+    if (!tienePermiso(user, 'configuracion')) {
       return NextResponse.json({
         success: true,
         data: {
@@ -65,17 +57,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const payload = await verifyToken(token)
-    if (!payload) {
+    const user = await getUserFromToken(getTokenFromRequest(request))
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Token inválido' },
+        { success: false, error: 'No autenticado' },
         { status: 401 }
       )
     }
-
-    if (!isAdmin(payload.rol)) {
+    if (!tienePermiso(user, 'configuracion')) {
       return NextResponse.json(
-        { success: false, error: 'Solo el administrador puede configurar' },
+        { success: false, error: 'Sin permisos para configurar' },
         { status: 403 }
       )
     }
@@ -93,7 +84,7 @@ export async function POST(request: NextRequest) {
       facturaGlobal: body.facturaGlobal,
       webhookSecretConekta: body.webhookSecretConekta,
       webhookUrl: body.webhookUrl,
-      configuradoPorId: payload.userId,
+      configuradoPorId: user.id,
       tiempoAmarilloMinutos: body.tiempos?.tiempoAmarilloMinutos,
       tiempoRojoMinutos: body.tiempos?.tiempoRojoMinutos,
     })
