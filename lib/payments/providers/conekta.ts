@@ -4,6 +4,7 @@
  * Este plugin se usa para handleWebhook (confirmación automática) y confirmPayment (idempotente).
  */
 
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import type { PaymentProvider } from '../provider-interface'
 import type {
@@ -17,6 +18,16 @@ import type {
 import { onPaymentConfirmed } from '../on-payment-confirmed'
 
 const PROVIDER_ID = 'conekta' as const
+
+function normalizeConfirmEstado(
+  estado: string
+): 'COMPLETADO' | 'PENDIENTE' | 'FALLIDO' {
+  if (estado === 'COMPLETADO' || estado === 'PENDIENTE' || estado === 'FALLIDO') {
+    return estado
+  }
+
+  return 'FALLIDO'
+}
 
 function mapMetodoPago(charge: { payment_method?: { type?: string } }): MetodoPago {
   const type = charge.payment_method?.type
@@ -45,7 +56,7 @@ export const conektaProvider: PaymentProvider = {
     if (existing) {
       return {
         pagoId: existing.id,
-        estado: existing.estado,
+        estado: normalizeConfirmEstado(existing.estado),
         procesadorId: input.paymentId,
       }
     }
@@ -60,7 +71,7 @@ export const conektaProvider: PaymentProvider = {
         estado: 'COMPLETADO',
         comision: input.comision ?? 0,
         referencia: input.referencia ?? null,
-        detalles: input.detalles ? (input.detalles as object) : null,
+        detalles: input.detalles ? (input.detalles as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
     })
 
@@ -68,7 +79,7 @@ export const conektaProvider: PaymentProvider = {
 
     return {
       pagoId: pago.id,
-      estado: pago.estado,
+      estado: normalizeConfirmEstado(pago.estado),
       procesadorId: input.paymentId,
     }
   },

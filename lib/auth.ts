@@ -1,16 +1,16 @@
-import { SignJWT, jwtVerify } from 'jose'
+import { SignJWT, jwtVerify, type JWTPayload as JoseJWTPayload } from 'jose'
 import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
-import { Rol } from '@prisma/client'
+import { tienePermiso } from './permisos'
 
 const JWT_SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || 'default-secret-key-change-in-production'
 )
 
-export interface JWTPayload {
+export interface JWTPayload extends JoseJWTPayload {
   userId: string
   email: string
-  rol: Rol
+  rolId: string
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -56,8 +56,15 @@ export async function getUserFromToken(token: string | null) {
       email: true,
       nombre: true,
       apellido: true,
-      rol: true,
+      rolId: true,
       activo: true,
+      rol: {
+        select: {
+          id: true,
+          nombre: true,
+          permisos: true,
+        },
+      },
     },
   })
 
@@ -70,13 +77,10 @@ export function getTokenFromRequest(request: Request): string | null {
 }
 
 /**
- * Comprueba si el rol es ADMIN (único status de administrador).
- * Quien compra/registra por primera vez obtiene este status; desde permisos puede otorgarlo a otros.
- * Comparación insensible a mayúsculas para robustez.
+ * Comprueba si el usuario tiene permiso de administración (usuarios_roles o *).
  */
-export function isAdmin(rol: Rol | string | null | undefined): boolean {
-  if (rol == null) return false
-  return String(rol).toUpperCase() === 'ADMIN'
+export function isAdmin(user: { rol?: { permisos?: unknown } } | null | undefined): boolean {
+  return tienePermiso(user, 'usuarios_roles')
 }
 
 

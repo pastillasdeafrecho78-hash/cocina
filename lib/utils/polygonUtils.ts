@@ -63,7 +63,7 @@ export function segmentsIntersect(
   p3: Point,
   p4: Point
 ): boolean {
-  const ccw = (A: Point, B: Point, C: Point): number => {
+  const ccw = (A: Point, B: Point, C: Point): boolean => {
     return (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x)
   }
 

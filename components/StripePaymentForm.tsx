@@ -38,7 +38,6 @@ function CheckoutForm({
       elements,
       confirmParams: {
         return_url: typeof window !== 'undefined' ? window.location.href : '',
-        metadata: { comandaId },
       },
     })
 

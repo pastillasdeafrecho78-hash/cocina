@@ -1,6 +1,5 @@
 import { obtenerConfiguracion } from './configuracion-restaurante'
 import { prisma } from './prisma'
-import Conekta from 'conekta'
 
 /**
  * Tipos de métodos de pago
@@ -45,17 +44,8 @@ export interface ResultadoPago {
  * Procesa un pago usando Conekta
  */
 export async function procesarPago(datos: DatosPago): Promise<ResultadoPago> {
-  const config = await obtenerConfiguracion()
-  
-  if (!config || !config.conektaPrivateKey) {
-    throw new Error('Procesador de pagos no configurado. Configure Conekta primero.')
-  }
-
-  // TODO: Integrar con SDK de Conekta
-  // Por ahora simulamos el procesamiento
-  
+  // Efectivo no requiere procesador ni configuración
   if (datos.metodo === 'efectivo') {
-    // Pago en efectivo no requiere procesador
     return {
       id: `cash-${Date.now()}`,
       estado: 'completado',
@@ -63,6 +53,11 @@ export async function procesarPago(datos: DatosPago): Promise<ResultadoPago> {
       comision: 0,
       fecha: new Date(),
     }
+  }
+
+  const config = await obtenerConfiguracion()
+  if (!config || !config.conektaPrivateKey) {
+    throw new Error('Procesador de pagos no configurado. Configure Conekta para tarjeta/OXXO/SPEI.')
   }
 
   if (datos.metodo === 'oxxo') {
@@ -98,8 +93,12 @@ export async function procesarPago(datos: DatosPago): Promise<ResultadoPago> {
     if (!datos.datosTarjeta?.token) {
       throw new Error('Token de tarjeta requerido')
     }
+    const tokenTarjeta = datos.datosTarjeta.token
 
     // Inicializar Conekta
+    const conektaModule = (await import('conekta')) as any
+    const Conekta = conektaModule.default ?? conektaModule
+
     Conekta.apiKey = config.conektaPrivateKey
     Conekta.apiVersion = config.conektaApiVersion || '2.0'
 
@@ -120,7 +119,7 @@ export async function procesarPago(datos: DatosPago): Promise<ResultadoPago> {
           charges: [{
             payment_method: {
               type: 'card',
-              token_id: datos.datosTarjeta.token,
+              token_id: tokenTarjeta,
             }
           }]
         }, (err: any, res: any) => {

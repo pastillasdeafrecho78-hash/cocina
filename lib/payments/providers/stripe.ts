@@ -2,6 +2,7 @@
  * Plugin de pagos Stripe. Implementa la interfaz PaymentProvider.
  */
 
+import { Prisma } from '@prisma/client'
 import Stripe from 'stripe'
 import { prisma } from '@/lib/prisma'
 import type { PaymentProvider } from '../provider-interface'
@@ -16,6 +17,16 @@ import type {
 import { onPaymentConfirmed } from '../on-payment-confirmed'
 
 const PROVIDER_ID = 'stripe' as const
+
+function normalizeConfirmEstado(
+  estado: string
+): 'COMPLETADO' | 'PENDIENTE' | 'FALLIDO' {
+  if (estado === 'COMPLETADO' || estado === 'PENDIENTE' || estado === 'FALLIDO') {
+    return estado
+  }
+
+  return 'FALLIDO'
+}
 
 function getStripe(): Stripe {
   const key = process.env.STRIPE_SECRET_KEY
@@ -66,7 +77,7 @@ export const stripeProvider: PaymentProvider = {
     if (existing) {
       return {
         pagoId: existing.id,
-        estado: existing.estado,
+        estado: normalizeConfirmEstado(existing.estado),
         procesadorId: input.paymentId,
       }
     }
@@ -81,7 +92,7 @@ export const stripeProvider: PaymentProvider = {
         estado: 'COMPLETADO',
         comision: input.comision ?? 0,
         referencia: input.referencia ?? null,
-        detalles: input.detalles ? (input.detalles as object) : null,
+        detalles: input.detalles ? (input.detalles as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
     })
 
@@ -89,7 +100,7 @@ export const stripeProvider: PaymentProvider = {
 
     return {
       pagoId: pago.id,
-      estado: pago.estado,
+      estado: normalizeConfirmEstado(pago.estado),
       procesadorId: input.paymentId,
     }
   },

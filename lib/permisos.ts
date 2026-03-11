@@ -24,7 +24,16 @@ export interface RolConPermisos {
 }
 
 export interface UserConRol {
-  rol?: RolConPermisos | null
+  rol?: RolConPermisos | string | null
+}
+
+function extractPermisos(user: UserConRol | null | undefined): string[] {
+  if (!user?.rol || typeof user.rol === 'string') return []
+
+  const permisos = user.rol.permisos
+  if (!permisos || !Array.isArray(permisos)) return []
+
+  return permisos as string[]
 }
 
 /**
@@ -35,10 +44,8 @@ export function tienePermiso(
   user: UserConRol | null | undefined,
   modulo: string
 ): boolean {
-  if (!user?.rol) return false
-  const permisos = user.rol.permisos
-  if (!permisos || !Array.isArray(permisos)) return false
-  const arr = permisos as string[]
+  const arr = extractPermisos(user)
+  if (arr.length === 0) return false
   if (arr.includes('*') || arr.includes('admin')) return true
   return arr.includes(modulo)
 }

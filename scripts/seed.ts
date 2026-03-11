@@ -6,6 +6,36 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Iniciando seed...')
 
+  const adminRol = await prisma.rol.upsert({
+    where: { codigo: 'ADMIN' },
+    update: {},
+    create: {
+      nombre: 'Administrador',
+      codigo: 'ADMIN',
+      permisos: ['*'],
+    },
+  })
+
+  const meseroRol = await prisma.rol.upsert({
+    where: { codigo: 'MESERO' },
+    update: {},
+    create: {
+      nombre: 'Mesero',
+      codigo: 'MESERO',
+      permisos: ['mesas', 'comandas', 'reportes'],
+    },
+  })
+
+  const cocineroRol = await prisma.rol.upsert({
+    where: { codigo: 'COCINERO' },
+    update: {},
+    create: {
+      nombre: 'Cocinero',
+      codigo: 'COCINERO',
+      permisos: ['cocina'],
+    },
+  })
+
   // Crear usuario admin
   const hashedPassword = await bcrypt.hash('admin123', 12)
   const admin = await prisma.usuario.upsert({
@@ -16,7 +46,7 @@ async function main() {
       nombre: 'Admin',
       apellido: 'Sistema',
       password: hashedPassword,
-      rol: 'ADMIN',
+      rolId: adminRol.id,
     },
   })
   console.log('✅ Usuario admin creado:', admin.email)
@@ -31,7 +61,7 @@ async function main() {
       nombre: 'Juan',
       apellido: 'Mesero',
       password: meseroPassword,
-      rol: 'MESERO',
+      rolId: meseroRol.id,
     },
   })
   console.log('✅ Usuario mesero creado:', mesero.email)
@@ -46,7 +76,7 @@ async function main() {
       nombre: 'Pedro',
       apellido: 'Cocinero',
       password: cocineroPassword,
-      rol: 'COCINERO',
+      rolId: cocineroRol.id,
     },
   })
   console.log('✅ Usuario cocinero creado:', cocinero.email)
