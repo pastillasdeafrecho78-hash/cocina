@@ -1,8 +1,9 @@
 import { SignJWT, jwtVerify, type JWTPayload as JoseJWTPayload } from 'jose'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'default-secret-key-change-in-production'
-)
+function getJwtSecret() {
+  const secret = process.env.JWT_SECRET || 'default-secret-key-change-in-production'
+  return new TextEncoder().encode(secret)
+}
 
 export interface JWTPayload extends JoseJWTPayload {
   userId: string
@@ -15,14 +16,14 @@ export async function generateToken(payload: JWTPayload): Promise<string> {
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('24h')
-    .sign(JWT_SECRET)
+    .sign(getJwtSecret())
 
   return token
 }
 
 export async function verifyToken(token: string): Promise<JWTPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET)
+    const { payload } = await jwtVerify(token, getJwtSecret())
     return payload as JWTPayload
   } catch {
     return null

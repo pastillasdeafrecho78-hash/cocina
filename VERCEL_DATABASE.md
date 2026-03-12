@@ -12,3 +12,12 @@ postgresql://postgres.[PROJECT]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:65
 ```
 
 El puerto **6543** es esencial para Vercel serverless. No cambies a 5432.
+
+## JWT_SECRET (obligatorio)
+
+Añade `JWT_SECRET` en Vercel (mínimo 16 caracteres). Si falta, aparecerán 401 en todas las APIs.
+
+1. Genera un secreto: `openssl rand -base64 32` o usa https://generate-secret.vercel.app/32
+2. En Vercel: Environment Variables → `JWT_SECRET` = (tu secreto)
+
+Para verificar: visita `https://tu-app.vercel.app/api/health` y revisa que `jwt` sea `"ok"`.

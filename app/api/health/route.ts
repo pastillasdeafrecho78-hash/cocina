@@ -50,12 +50,20 @@ export async function GET() {
     // Tablas no creadas
   }
 
+  const jwtOk =
+    !!process.env.JWT_SECRET &&
+    process.env.JWT_SECRET.length >= 16 &&
+    process.env.JWT_SECRET !== 'default-secret-key-change-in-production'
+
   return NextResponse.json({
     ok: true,
     database: 'conectada',
     tables: tablesOk ? 'ok' : 'no creadas',
-    hint: tablesOk
-      ? undefined
-      : 'Ejecuta en la raíz del proyecto: npm run db:push y luego npm run db:seed',
+    jwt: jwtOk ? 'ok' : 'no_configurado',
+    hint: !jwtOk
+      ? 'En Vercel: añade JWT_SECRET en Environment Variables (mín. 16 caracteres)'
+      : tablesOk
+        ? undefined
+        : 'Ejecuta en la raíz del proyecto: npm run db:push y luego npm run db:seed',
   })
 }

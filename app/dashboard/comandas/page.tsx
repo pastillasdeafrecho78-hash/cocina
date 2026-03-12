@@ -41,6 +41,13 @@ export default function ComandasPage() {
         headers: { Authorization: `Bearer ${token}` },
       })
 
+      if (response.status === 401) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        router.replace('/login')
+        return
+      }
+
       const data = await response.json()
 
       if (data.success) {
