@@ -32,5 +32,6 @@ export async function verifyToken(token: string): Promise<JWTPayload | null> {
 
 export function getTokenFromRequest(request: Request): string | null {
   const authHeader = request.headers.get('authorization')
-  return authHeader?.replace('Bearer ', '') || null
+  const token = authHeader?.replace(/^Bearer\s+/i, '').trim()
+  return token || null
 }

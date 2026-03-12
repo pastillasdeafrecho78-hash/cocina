@@ -5,6 +5,7 @@ import toast from 'react-hot-toast'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import BackButton from '@/components/BackButton'
+import { authFetch } from '@/lib/auth-fetch'
 
 interface Item {
   id: string
@@ -45,12 +46,8 @@ export default function BarraPage() {
 
   const fetchItems = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/comandas/barra', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await authFetch('/api/comandas/barra')
+      if (response.status === 401) return
 
       const data = await response.json()
 
@@ -98,10 +95,8 @@ export default function BarraPage() {
       return
     }
     try {
-      const token = localStorage.getItem('token')
-      const comandaRes = await fetch(`/api/comandas?numeroComanda=${encodeURIComponent(numeroComanda)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const comandaRes = await authFetch(`/api/comandas?numeroComanda=${encodeURIComponent(numeroComanda)}`)
+      if (comandaRes.status === 401) return
       const comandaData = await comandaRes.json()
       const comandaId = comandaData.data?.[0]?.id
       if (!comandaId) {
@@ -110,12 +105,9 @@ export default function BarraPage() {
       }
       let ok = 0
       for (const item of itemsAfectados) {
-        const res = await fetch(`/api/comandas/${comandaId}/items/${item.id}`, {
+        const res = await authFetch(`/api/comandas/${comandaId}/items/${item.id}`, {
           method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ estado: estadoObjetivo }),
         })
         const data = await res.json()
@@ -135,13 +127,11 @@ export default function BarraPage() {
     const { itemId, nuevoEstado } = confirmando
     setConfirmando(null)
     try {
-      const token = localStorage.getItem('token')
       const item = items.find((i) => i.id === itemId)
       if (!item) return
 
-      const comandaResponse = await fetch(`/api/comandas?numeroComanda=${encodeURIComponent(item.comanda.numeroComanda)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const comandaResponse = await authFetch(`/api/comandas?numeroComanda=${encodeURIComponent(item.comanda.numeroComanda)}`)
+      if (comandaResponse.status === 401) return
       const comandaData = await comandaResponse.json()
       const comandaId = comandaData.data?.[0]?.id
 
@@ -150,14 +140,12 @@ export default function BarraPage() {
         return
       }
 
-      const response = await fetch(`/api/comandas/${comandaId}/items/${itemId}`, {
+      const response = await authFetch(`/api/comandas/${comandaId}/items/${itemId}`, {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ estado: nuevoEstado }),
       })
+      if (response.status === 401) return
 
       const data = await response.json()
 

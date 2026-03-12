@@ -63,6 +63,8 @@ export default function DashboardLayout({
     let cancelled = false
     fetch('/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
+      cache: 'no-store',
+      credentials: 'same-origin',
     })
       .then((res) => {
         if (cancelled) return

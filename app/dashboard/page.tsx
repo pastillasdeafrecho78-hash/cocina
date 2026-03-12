@@ -15,6 +15,7 @@ import {
   RectangleStackIcon,
   BanknotesIcon,
 } from '@heroicons/react/24/outline'
+import { authFetch } from '@/lib/auth-fetch'
 
 interface EstadoConfiguracion {
   configuracionCompleta: boolean
@@ -56,17 +57,8 @@ export default function DashboardPage() {
 
   const verificarConfiguracion = async () => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) return
-      const response = await fetch('/api/configuracion/estado', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      if (response.status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        window.location.href = '/login'
-        return
-      }
+      const response = await authFetch('/api/configuracion/estado')
+      if (response.status === 401) return
       const data = await response.json()
       if (data.success) {
         setEstadoConfig(data.data)
@@ -78,19 +70,8 @@ export default function DashboardPage() {
 
   const cargarEstadisticas = async () => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) return
-
-      const res = await fetch('/api/dashboard/estadisticas', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (res.status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        window.location.href = '/login'
-        return
-      }
+      const res = await authFetch('/api/dashboard/estadisticas')
+      if (res.status === 401) return
 
       const data = await res.json()
       if (data.success) {

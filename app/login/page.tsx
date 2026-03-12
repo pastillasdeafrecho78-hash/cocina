@@ -60,8 +60,8 @@ export default function LoginPage() {
         throw new Error(data.error || 'Error al iniciar sesión')
       }
 
-      // Guardar token
-      localStorage.setItem('token', data.data.token)
+      // Guardar token (sin espacios sobrantes)
+      localStorage.setItem('token', String(data.data.token).trim())
       localStorage.setItem('user', JSON.stringify(data.data.user))
 
       toast.success('Sesión iniciada correctamente')

@@ -5,6 +5,7 @@ import { labelComandaEstado } from '@/lib/estado-labels'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
+import { authFetch } from '@/lib/auth-fetch'
 
 interface Comanda {
   id: string
@@ -32,21 +33,13 @@ export default function ComandasPage() {
 
   const fetchComandas = async () => {
     try {
-      const token = localStorage.getItem('token')
       const url = filtro
         ? `/api/comandas?estado=${filtro}`
         : '/api/comandas'
 
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const response = await authFetch(url)
 
-      if (response.status === 401) {
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        router.replace('/login')
-        return
-      }
+      if (response.status === 401) return
 
       const data = await response.json()
 
@@ -72,10 +65,8 @@ export default function ComandasPage() {
   const handleConfirmarEntrega = async (comandaId: string) => {
     setEntregandoId(comandaId)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/comandas/${comandaId}/entregar`, {
+      const res = await authFetch(`/api/comandas/${comandaId}/entregar`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
       })
       const data = await res.json()
       if (data.success) {

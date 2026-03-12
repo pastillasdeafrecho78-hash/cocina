@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
+import { authFetch } from '@/lib/auth-fetch'
 import {
   PencilIcon,
   TrashIcon,
@@ -151,10 +152,8 @@ export default function CartaPage() {
 
   const fetchCategorias = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/categorias', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const response = await authFetch('/api/categorias')
+      if (response.status === 401) return
       const data = await response.json()
       if (data.success) {
         setCategorias(data.data)
@@ -168,10 +167,8 @@ export default function CartaPage() {
 
   const fetchProductos = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/productos', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const response = await authFetch('/api/productos')
+      if (response.status === 401) return
       const data = await response.json()
       if (data.success) {
         setProductos(data.data)
@@ -187,10 +184,8 @@ export default function CartaPage() {
 
   const fetchModificadores = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/modificadores', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const response = await authFetch('/api/modificadores')
+      if (response.status === 401) return
       const data = await response.json()
       if (data.success) {
         setModificadores(data.data)

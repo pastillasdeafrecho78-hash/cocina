@@ -5,6 +5,8 @@ import { tienePermiso } from '@/lib/permisos'
 import { generarNumeroComanda, calcularTotal, getDestinoFromCategoria } from '@/lib/comanda-helpers'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 const createComandaSchema = z.object({
   mesaId: z.string().optional(),
   clienteId: z.string().optional(),
