@@ -6,6 +6,7 @@ import MesaCard from '@/components/MesaCard'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { formatWaitTime, minutosDesde, colorProgresivoPorMinutos } from '@/lib/mesa-utils'
+import { authFetch } from '@/lib/auth-fetch'
 
 interface Mesa {
   id: string
@@ -49,19 +50,15 @@ export default function MesasStatusPage() {
 
   const fetchMesas = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/mesas', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await authFetch('/api/mesas')
+      if (response.status === 401) return
 
       const data = await response.json()
 
       if (data.success) {
         setMesas(data.data)
       } else {
-        toast.error('Error al cargar mesas')
+        toast.error(data.debug ? `Error: ${data.debug}` : 'Error al cargar mesas')
       }
     } catch (error) {
       toast.error('Error al cargar mesas')
@@ -82,12 +79,8 @@ export default function MesasStatusPage() {
 
   const fetchConfiguracionTiempos = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/configuracion/tiempos', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await authFetch('/api/configuracion/tiempos')
+      if (response.status === 401) return
 
       const data = await response.json()
       if (data.success && data.data) {

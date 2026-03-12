@@ -46,7 +46,7 @@ export default function ComandasPage() {
       if (data.success) {
         setComandas(data.data)
       } else {
-        toast.error('Error al cargar comandas')
+        toast.error(data.debug ? `Error: ${data.debug}` : 'Error al cargar comandas')
       }
     } catch {
       toast.error('Error al cargar comandas')

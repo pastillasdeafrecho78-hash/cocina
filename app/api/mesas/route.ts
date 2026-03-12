@@ -4,6 +4,8 @@ import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
 import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
 
+export const dynamic = 'force-dynamic'
+
 const createMesaSchema = z.object({
   numero: z.number().int().positive(),
   capacidad: z.number().int().positive(),
@@ -84,9 +86,14 @@ export async function GET(request: NextRequest) {
       data: mesasConComanda,
     })
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
     console.error('Error en GET /api/mesas:', error)
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
+      {
+        success: false,
+        error: 'Error interno del servidor',
+        ...((process.env.NODE_ENV === 'development' || process.env.VERBOSE_ERRORS) && { debug: msg }),
+      },
       { status: 500 }
     )
   }

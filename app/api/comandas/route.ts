@@ -125,9 +125,14 @@ export async function GET(request: NextRequest) {
       limit,
     })
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error)
     console.error('Error en GET /api/comandas:', error)
     return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
+      {
+        success: false,
+        error: 'Error interno del servidor',
+        ...((process.env.NODE_ENV === 'development' || process.env.VERBOSE_ERRORS) && { debug: msg }),
+      },
       { status: 500 }
     )
   }
