@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error: 'Error interno del servidor',
-        ...((process.env.NODE_ENV === 'development' || process.env.VERBOSE_ERRORS) && { debug: msg }),
+        debug: msg,
       },
       { status: 500 }
     )

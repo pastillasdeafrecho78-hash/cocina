@@ -43,9 +43,19 @@ export async function GET() {
   }
 
   let tablesOk = false
+  let schemaOk = true
+  let schemaHint: string | undefined
   try {
     await prisma.usuario.count()
     tablesOk = true
+    // Verificar que la columna listoPorDefault existe (migración común no aplicada)
+    try {
+      await prisma.$queryRaw`SELECT "listoPorDefault" FROM "Producto" LIMIT 1`
+    } catch {
+      schemaOk = false
+      schemaHint =
+        'Falta columna Producto.listoPorDefault. Ejecuta el SQL en scripts/fix-listopordefault.sql en tu BD, o: DATABASE_URL="tu-url-prod" npm run db:migrate:deploy'
+    }
   } catch {
     // Tablas no creadas
   }
@@ -55,15 +65,17 @@ export async function GET() {
     process.env.JWT_SECRET.length >= 16 &&
     process.env.JWT_SECRET !== 'default-secret-key-change-in-production'
 
+  const ok = hasUrl && tablesOk && schemaOk && jwtOk
   return NextResponse.json({
-    ok: true,
+    ok,
     database: 'conectada',
     tables: tablesOk ? 'ok' : 'no creadas',
+    schema: schemaOk ? 'ok' : 'falta listoPorDefault',
     jwt: jwtOk ? 'ok' : 'no_configurado',
     hint: !jwtOk
       ? 'En Vercel: añade JWT_SECRET en Environment Variables (mín. 16 caracteres)'
-      : tablesOk
-        ? undefined
-        : 'Ejecuta en la raíz del proyecto: npm run db:push y luego npm run db:seed',
+      : !tablesOk
+        ? 'Ejecuta en la raíz del proyecto: npm run db:push y luego npm run db:seed'
+        : schemaHint,
   })
 }
