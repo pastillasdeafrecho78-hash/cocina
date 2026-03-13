@@ -19,11 +19,6 @@ function getPrismaDatabaseUrl(): string | undefined {
     url += (url.includes('?') ? '&' : '?') + 'pgbouncer=true'
   }
 
-  // Vercel/serverless: limitar conexiones para evitar agotar el pool
-  if (process.env.VERCEL && !url.includes('connection_limit=')) {
-    url += (url.includes('?') ? '&' : '?') + 'connection_limit=1'
-  }
-
   return url
 }
 
