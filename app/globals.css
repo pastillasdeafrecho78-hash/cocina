@@ -134,6 +134,7 @@ html.dark {
 @layer components {
   .app-shell {
     min-height: 100vh;
+    min-height: 100dvh;
     background:
       radial-gradient(circle at 12% 12%, rgb(var(--brand-soft) / 0.18), transparent 24%),
       radial-gradient(circle at 88% 10%, rgb(var(--brand) / 0.14), transparent 22%),

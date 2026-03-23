@@ -46,7 +46,9 @@ export default function DashboardLayout({
     const diff = scrollTop - prev
     const direction = diff > 0 ? 'down' : diff < 0 ? 'up' : null
 
-    if (direction === 'down' && scrollTop > SCROLL_THRESHOLD) {
+    if (scrollTop <= SCROLL_THRESHOLD) {
+      setHeaderCompact(false)
+    } else if (direction === 'down') {
       setHeaderCompact(true)
     } else if (direction === 'up') {
       setHeaderCompact(false)
@@ -55,21 +57,20 @@ export default function DashboardLayout({
 
   useEffect(() => {
     checkScroll()
-    let raf: number
-    let lastCall = 0
+    let raf: number | null = null
     const throttledScroll = () => {
-      const now = Date.now()
-      if (now - lastCall >= SCROLL_DEBOUNCE_MS) {
-        lastCall = now
-        raf = requestAnimationFrame(checkScroll)
-      }
+      if (raf !== null) return
+      raf = requestAnimationFrame(() => {
+        checkScroll()
+        raf = null
+      })
     }
     window.addEventListener('scroll', throttledScroll, { passive: true })
     window.addEventListener('resize', checkScroll)
     return () => {
       window.removeEventListener('scroll', throttledScroll)
       window.removeEventListener('resize', checkScroll)
-      cancelAnimationFrame(raf)
+      if (raf !== null) cancelAnimationFrame(raf)
     }
   }, [checkScroll])
 

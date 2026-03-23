@@ -17,6 +17,12 @@ export const metadata: Metadata = {
   description: 'Suite operativa para restaurantes, comandas y servicio.',
 }
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover' as const,
+}
+
 export default function RootLayout({
   children,
 }: {
