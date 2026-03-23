@@ -9,6 +9,7 @@ export interface JWTPayload extends JoseJWTPayload {
   userId: string
   email: string
   rolId: string
+  restauranteId: string
 }
 
 export async function generateToken(payload: JWTPayload): Promise<string> {

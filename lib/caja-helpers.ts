@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 
 const METODOS_EFECTIVO = ['efectivo', 'efectivo_pago']
-const METODOS_TARJETA = ['tarjeta_credito', 'tarjeta_debito', 'stripe']
+const METODOS_TARJETA = ['tarjeta_credito', 'tarjeta_debito', 'stripe', 'tarjeta_clip']
 
 export interface ReporteCaja {
   fechaInicio: Date
@@ -22,11 +22,12 @@ export interface ReporteCaja {
 
 export async function calcularReportePeriodo(
   fechaInicio: Date,
-  fechaFin: Date
+  fechaFin: Date,
+  restauranteId: string
 ): Promise<ReporteCaja> {
-  // Comandas PAGADAS: si tienen fechaCompletado, filtrar por ella; si no, por fechaCreacion
   const comandas = await prisma.comanda.findMany({
     where: {
+      restauranteId,
       estado: 'PAGADO',
       OR: [
         { fechaCompletado: { gte: fechaInicio, lte: fechaFin } },
@@ -85,11 +86,21 @@ export async function calcularReportePeriodo(
   }
 }
 
-export async function obtenerInicioPeriodoActual(): Promise<Date> {
+export async function obtenerInicioPeriodoActual(
+  restauranteId: string
+): Promise<Date> {
+  const turnoAbierto = await prisma.turnoCaja.findFirst({
+    where: { restauranteId, fechaCierre: null },
+    orderBy: { fechaApertura: 'desc' },
+  })
+  if (turnoAbierto) return turnoAbierto.fechaApertura
+
   const ultimoCorteZ = await prisma.corteZ.findFirst({
+    where: { restauranteId },
     orderBy: { fechaHora: 'desc' },
   })
   if (ultimoCorteZ) return ultimoCorteZ.fechaHora
+
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   return hoy

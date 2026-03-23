@@ -36,8 +36,8 @@ export async function PATCH(
     const data = updateCategoriaSchema.parse(body)
 
     // Verificar que la categoría existe
-    const categoriaExistente = await prisma.categoria.findUnique({
-      where: { id: params.id },
+    const categoriaExistente = await prisma.categoria.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
     })
 
     if (!categoriaExistente) {
@@ -51,6 +51,7 @@ export async function PATCH(
     if (data.nombre && data.nombre !== categoriaExistente.nombre) {
       const nombreExistente = await prisma.categoria.findFirst({
         where: {
+          restauranteId: user.restauranteId,
           nombre: data.nombre,
           activa: true,
           id: { not: params.id },
@@ -79,6 +80,7 @@ export async function PATCH(
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ACTUALIZAR_CATEGORIA',
         entidad: 'Categoria',
@@ -127,8 +129,8 @@ export async function DELETE(
     }
 
     // Verificar que la categoría existe
-    const categoria = await prisma.categoria.findUnique({
-      where: { id: params.id },
+    const categoria = await prisma.categoria.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       include: {
         productos: {
           where: { activo: true },
@@ -147,13 +149,14 @@ export async function DELETE(
     if (categoria.productos.length > 0) {
       // Desactivar en lugar de eliminar
       const categoriaActualizada = await prisma.categoria.update({
-        where: { id: params.id },
+        where: { id: categoria.id },
         data: { activa: false },
       })
 
       // Registrar auditoría
       await prisma.auditoria.create({
         data: {
+          restauranteId: user.restauranteId,
           usuarioId: user.id,
           accion: 'DESACTIVAR_CATEGORIA',
           entidad: 'Categoria',
@@ -170,12 +173,13 @@ export async function DELETE(
 
     // Si no tiene productos, eliminar físicamente
     await prisma.categoria.delete({
-      where: { id: params.id },
+      where: { id: categoria.id },
     })
 
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ELIMINAR_CATEGORIA',
         entidad: 'Categoria',

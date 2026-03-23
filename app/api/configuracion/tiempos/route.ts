@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const config = await obtenerConfiguracion()
+    const config = await obtenerConfiguracion(user.restauranteId)
 
     return NextResponse.json({
       success: true,
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const config = await guardarConfiguracion({
+    const config = await guardarConfiguracion(user.restauranteId, {
       tiempoAmarilloMinutos: body.tiempoAmarilloMinutos,
       tiempoRojoMinutos: body.tiempoRojoMinutos,
     })

@@ -48,7 +48,8 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    const where: any = {}
+    const rid = user.restauranteId
+    const where: any = { restauranteId: rid }
     if (estado) {
       // Si hay múltiples estados separados por coma
       if (estado.includes(',')) {
@@ -158,15 +159,40 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const data = createComandaSchema.parse(body)
+    const rid = user.restauranteId
 
-    // Obtener productos con sus categorías
+    if (data.mesaId) {
+      const mesaOk = await prisma.mesa.findFirst({
+        where: { id: data.mesaId, restauranteId: rid, activa: true },
+      })
+      if (!mesaOk) {
+        return NextResponse.json(
+          { success: false, error: 'Mesa no válida' },
+          { status: 400 }
+        )
+      }
+    }
+    if (data.clienteId) {
+      const cli = await prisma.cliente.findFirst({
+        where: { id: data.clienteId, restauranteId: rid },
+      })
+      if (!cli) {
+        return NextResponse.json(
+          { success: false, error: 'Cliente no válido' },
+          { status: 400 }
+        )
+      }
+    }
+
     const productos = await prisma.producto.findMany({
       where: {
         id: { in: data.items.map((item) => item.productoId) },
         activo: true,
+        categoria: { restauranteId: rid },
       },
       include: {
         categoria: true,
+        tamanos: true,
         modificadores: {
           include: {
             modificador: true,
@@ -183,12 +209,7 @@ export async function POST(request: NextRequest) {
         throw new Error(`Producto ${itemData.productoId} no encontrado`)
       }
 
-      // Obtener producto con tamanos para validar
-      const productoConTamanos = await prisma.producto.findUnique({
-        where: { id: producto.id },
-        include: { tamanos: true },
-      })
-      const tieneTamanos = productoConTamanos && productoConTamanos.tamanos.length > 0
+      const tieneTamanos = producto.tamanos && producto.tamanos.length > 0
 
       if (tieneTamanos && !itemData.tamanoId) {
         throw new Error(`El producto "${producto.nombre}" requiere selección de tamaño`)
@@ -200,7 +221,7 @@ export async function POST(request: NextRequest) {
       let precioBase = producto.precio
       let tamanoId: string | undefined
       if (itemData.tamanoId) {
-        const tamano = productoConTamanos!.tamanos.find((t) => t.id === itemData.tamanoId)
+        const tamano = producto.tamanos.find((t) => t.id === itemData.tamanoId)
         if (!tamano) {
           throw new Error(`Tamaño no válido para el producto "${producto.nombre}"`)
         }
@@ -213,8 +234,8 @@ export async function POST(request: NextRequest) {
       const itemModificadores = []
       if (itemData.modificadores && itemData.modificadores.length > 0) {
         for (const modificadorId of itemData.modificadores) {
-          const modificador = await prisma.modificador.findUnique({
-            where: { id: modificadorId },
+          const modificador = await prisma.modificador.findFirst({
+            where: { id: modificadorId, restauranteId: rid },
           })
           if (modificador && modificador.tipo !== 'TAMANO') {
             precioModificadores += modificador.precioExtra || 0
@@ -277,10 +298,10 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Crear comanda
-    const numeroComanda = await generarNumeroComanda()
+    const numeroComanda = await generarNumeroComanda(rid)
     const comanda = await prisma.comanda.create({
       data: {
+        restauranteId: rid,
         numeroComanda,
         mesaId: data.mesaId,
         clienteId: data.clienteId,
@@ -321,6 +342,7 @@ export async function POST(request: NextRequest) {
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: rid,
         usuarioId: user.id,
         accion: 'CREAR_COMANDA',
         entidad: 'Comanda',

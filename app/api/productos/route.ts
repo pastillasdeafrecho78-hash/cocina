@@ -93,8 +93,8 @@ export async function POST(request: NextRequest) {
     const data = createProductoSchema.parse(body)
 
     // Verificar que la categoría existe
-    const categoria = await prisma.categoria.findUnique({
-      where: { id: data.categoriaId },
+    const categoria = await prisma.categoria.findFirst({
+      where: { id: data.categoriaId, restauranteId: user.restauranteId },
     })
 
     if (!categoria) {
@@ -123,6 +123,7 @@ export async function POST(request: NextRequest) {
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'CREAR_PRODUCTO',
         entidad: 'Producto',

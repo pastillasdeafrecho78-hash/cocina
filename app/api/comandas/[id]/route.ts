@@ -30,8 +30,8 @@ export async function GET(
       )
     }
 
-    const comanda = await prisma.comanda.findUnique({
-      where: { id: params.id },
+    const comanda = await prisma.comanda.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       include: {
         mesa: true,
         cliente: true,
@@ -121,8 +121,8 @@ export async function PATCH(
     const body = await request.json()
     const data = updateComandaSchema.parse(body)
 
-    const comanda = await prisma.comanda.findUnique({
-      where: { id: params.id },
+    const comanda = await prisma.comanda.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
     })
 
     if (!comanda) {
@@ -142,7 +142,7 @@ export async function PATCH(
       if (data.estado === 'PAGADO' && comanda.mesaId) {
         // Liberar mesa
         await prisma.mesa.update({
-          where: { id: comanda.mesaId },
+          where: { id: comanda.mesaId! },
           data: { estado: 'LIBRE' },
         })
       }

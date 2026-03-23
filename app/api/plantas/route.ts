@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
 
     const plantas = await prisma.plantaRestaurante.findMany({
       where: {
+        restauranteId: user.restauranteId,
         activa: true,
       },
       include: {
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
 
     const planta = await prisma.plantaRestaurante.create({
       data: {
+        restauranteId: user.restauranteId,
         nombre: data.nombre,
         vertices: data.vertices as any,
         edges: (data.edges || []) as any,
@@ -109,6 +111,7 @@ export async function POST(request: NextRequest) {
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'CREAR_PLANTA',
         entidad: 'PlantaRestaurante',

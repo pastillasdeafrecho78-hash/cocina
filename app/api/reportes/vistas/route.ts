@@ -71,6 +71,7 @@ export async function POST(request: NextRequest) {
 
     const vista = await prisma.dashboardVista.create({
       data: {
+        restauranteId: user.restauranteId,
         nombre: data.nombre.trim(),
         descripcion: data.descripcion?.trim() || null,
         modulo: 'reportes',

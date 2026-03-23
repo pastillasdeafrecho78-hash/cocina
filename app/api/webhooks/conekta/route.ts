@@ -11,8 +11,23 @@ export async function POST(request: NextRequest) {
   try {
     const signature = request.headers.get('x-conekta-signature')
     const payload = await request.text()
-    
-    const config = await obtenerConfiguracion()
+
+    let restauranteId: string | null = null
+    try {
+      const parsed = JSON.parse(payload) as {
+        data?: { object?: { metadata?: { restauranteId?: string } } }
+      }
+      restauranteId = parsed?.data?.object?.metadata?.restauranteId ?? null
+    } catch {
+      /* ignore */
+    }
+    if (!restauranteId) {
+      const r = await prisma.restaurante.findFirst({ orderBy: { createdAt: 'asc' } })
+      restauranteId = r?.id ?? null
+    }
+    const config = restauranteId
+      ? await obtenerConfiguracion(restauranteId)
+      : null
     if (!config?.webhookSecretConekta && process.env.NODE_ENV !== 'development') {
       return NextResponse.json(
         { error: 'Webhook no configurado' },

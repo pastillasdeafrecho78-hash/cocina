@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!tienePermiso(user, 'reportes')) {
+    if (!tienePermiso(user, 'reportes') && !tienePermiso(user, 'caja')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 
@@ -22,13 +22,14 @@ export async function GET(request: NextRequest) {
     let fechaInicio: Date
     const fechaFin = fechaFinParam ? new Date(fechaFinParam) : new Date()
 
+    const rid = user.restauranteId
     if (fechaInicioParam) {
       fechaInicio = new Date(fechaInicioParam)
     } else {
-      fechaInicio = await obtenerInicioPeriodoActual()
+      fechaInicio = await obtenerInicioPeriodoActual(rid)
     }
 
-    const reporte = await calcularReportePeriodo(fechaInicio, fechaFin)
+    const reporte = await calcularReportePeriodo(fechaInicio, fechaFin, rid)
 
     return NextResponse.json({
       success: true,

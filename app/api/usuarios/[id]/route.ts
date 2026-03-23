@@ -36,13 +36,18 @@ export async function PATCH(
     const existente = await prisma.usuario.findUnique({
       where: { id: params.id },
     })
-    if (!existente) {
+    if (!existente || existente.restauranteId !== user.restauranteId) {
       return NextResponse.json({ success: false, error: 'Usuario no encontrado' }, { status: 404 })
     }
 
     if (data.email && data.email.toLowerCase().trim() !== existente.email) {
       const emailOcupado = await prisma.usuario.findUnique({
-        where: { email: data.email.toLowerCase().trim() },
+        where: {
+          restauranteId_email: {
+            restauranteId: user.restauranteId,
+            email: data.email.toLowerCase().trim(),
+          },
+        },
       })
       if (emailOcupado) {
         return NextResponse.json(

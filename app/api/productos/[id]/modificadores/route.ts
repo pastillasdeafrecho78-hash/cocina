@@ -21,8 +21,8 @@ export async function GET(
       )
     }
 
-    const producto = await prisma.producto.findUnique({
-      where: { id: params.id },
+    const producto = await prisma.producto.findFirst({
+      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
     })
 
     if (!producto) {
@@ -68,8 +68,8 @@ export async function POST(
       )
     }
 
-    const producto = await prisma.producto.findUnique({
-      where: { id: params.id },
+    const producto = await prisma.producto.findFirst({
+      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
     })
 
     if (!producto) {
@@ -82,8 +82,8 @@ export async function POST(
     const body = await request.json()
     const data = asignarModificadorSchema.parse(body)
 
-    const modificador = await prisma.modificador.findUnique({
-      where: { id: data.modificadorId },
+    const modificador = await prisma.modificador.findFirst({
+      where: { id: data.modificadorId, restauranteId: user.restauranteId },
     })
 
     if (!modificador) {
@@ -111,6 +111,7 @@ export async function POST(
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ASIGNAR_EXTRA_PRODUCTO',
         entidad: 'Producto',
@@ -159,6 +160,16 @@ export async function DELETE(
     const body = await request.json()
     const data = asignarModificadorSchema.parse(body)
 
+    const prodOk = await prisma.producto.findFirst({
+      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
+    })
+    if (!prodOk) {
+      return NextResponse.json(
+        { success: false, error: 'Producto no encontrado' },
+        { status: 404 }
+      )
+    }
+
     const relacion = await prisma.modificadorProducto.findUnique({
       where: {
         productoId_modificadorId: {
@@ -186,6 +197,7 @@ export async function DELETE(
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'QUITAR_EXTRA_PRODUCTO',
         entidad: 'Producto',

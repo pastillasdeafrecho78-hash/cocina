@@ -1,13 +1,13 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import BrandLogo from '@/components/BrandLogo'
 import ThemeToggle from '@/components/ThemeToggle'
 import { tienePermiso } from '@/lib/permisos'
 
-const MOBILE_BREAKPOINT = 1280
+const MOBILE_BREAKPOINT = 768
 const SCROLL_THRESHOLD = 40
 
 function clearSession() {
@@ -24,12 +24,14 @@ export default function DashboardLayout({
   const [user, setUser] = useState<any>(null)
   const [checking, setChecking] = useState(true)
   const [headerCompact, setHeaderCompact] = useState(false)
+  const lastScrollYRef = useRef(0)
 
   const checkScroll = useCallback(() => {
     if (typeof window === 'undefined') return
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT
     if (!isMobile) {
       setHeaderCompact(false)
+      lastScrollYRef.current = 0
       return
     }
     const scrollTop =
@@ -38,16 +40,36 @@ export default function DashboardLayout({
       document.documentElement?.scrollTop ??
       document.body?.scrollTop ??
       0
-    setHeaderCompact(scrollTop > SCROLL_THRESHOLD)
+
+    const prev = lastScrollYRef.current
+    lastScrollYRef.current = scrollTop
+    const diff = scrollTop - prev
+    const direction = diff > 0 ? 'down' : diff < 0 ? 'up' : null
+
+    if (direction === 'down' && scrollTop > SCROLL_THRESHOLD) {
+      setHeaderCompact(true)
+    } else if (direction === 'up') {
+      setHeaderCompact(false)
+    }
   }, [])
 
   useEffect(() => {
     checkScroll()
-    window.addEventListener('scroll', checkScroll, { passive: true })
+    let raf: number
+    let lastCall = 0
+    const throttledScroll = () => {
+      const now = Date.now()
+      if (now - lastCall >= SCROLL_DEBOUNCE_MS) {
+        lastCall = now
+        raf = requestAnimationFrame(checkScroll)
+      }
+    }
+    window.addEventListener('scroll', throttledScroll, { passive: true })
     window.addEventListener('resize', checkScroll)
     return () => {
-      window.removeEventListener('scroll', checkScroll)
+      window.removeEventListener('scroll', throttledScroll)
       window.removeEventListener('resize', checkScroll)
+      cancelAnimationFrame(raf)
     }
   }, [checkScroll])
 
@@ -132,21 +154,20 @@ export default function DashboardLayout({
   return (
     <div className="app-shell">
       <header className={`app-header-shell sticky top-0 z-20 transition-all duration-300 ease-out ${headerCompact ? 'xl:py-4' : ''}`}>
-        <div className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between transition-all duration-300 ${headerCompact ? 'gap-0 py-2 xl:gap-4 xl:py-4' : 'gap-4 py-4'}`}>
+        <div className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between transition-all duration-300 ${headerCompact ? 'gap-2 py-2 xl:gap-4 xl:py-4' : 'gap-4 py-4'}`}>
           <div
-            className={`flex items-center gap-5 xl:min-w-[640px] ${
-              headerCompact ? 'hidden xl:!flex' : 'flex'
+            className={`flex items-center gap-5 xl:min-w-[640px] transition-all duration-300 ${
+              headerCompact ? 'gap-2 xl:gap-5' : ''
             }`}
-            aria-hidden={headerCompact}
           >
             <div className="shrink-0">
               <BrandLogo
-                size="lg"
+                size={headerCompact ? 'sm' : 'lg'}
                 priority
-                className="h-[92px] w-[420px] max-w-[42vw]"
+                className={headerCompact ? 'h-9 w-32 xl:h-[92px] xl:w-[420px] xl:max-w-[42vw]' : 'h-[92px] w-[420px] max-w-[42vw]'}
               />
             </div>
-            <div className="min-w-0">
+            <div className={`min-w-0 ${headerCompact ? 'hidden xl:block' : 'block'}`}>
               <p className="app-kicker">Operación y servicio inteligente</p>
               <p className="text-lg font-semibold text-stone-900">
                 {user.nombre} {user.apellido}
@@ -155,7 +176,7 @@ export default function DashboardLayout({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-h-[44px] flex-wrap items-center gap-2 shrink-0">
             <ThemeToggle />
             {navItems.map((item) => (
               <Link key={item.href} href={item.href} className="app-chip hover:border-amber-300 hover:bg-amber-50">

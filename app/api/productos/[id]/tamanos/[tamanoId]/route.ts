@@ -27,7 +27,11 @@ export async function PATCH(
     }
 
     const tamano = await prisma.productoTamano.findFirst({
-      where: { id: params.tamanoId, productoId: params.id },
+      where: {
+        id: params.tamanoId,
+        productoId: params.id,
+        producto: { categoria: { restauranteId: user.restauranteId } },
+      },
     })
     if (!tamano) {
       return NextResponse.json({ success: false, error: 'Tamaño no encontrado' }, { status: 404 })
@@ -78,7 +82,11 @@ export async function DELETE(
     }
 
     const tamano = await prisma.productoTamano.findFirst({
-      where: { id: params.tamanoId, productoId: params.id },
+      where: {
+        id: params.tamanoId,
+        productoId: params.id,
+        producto: { categoria: { restauranteId: user.restauranteId } },
+      },
     })
     if (!tamano) {
       return NextResponse.json({ success: false, error: 'Tamaño no encontrado' }, { status: 404 })

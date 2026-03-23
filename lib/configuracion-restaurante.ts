@@ -8,6 +8,15 @@ const ALGORITHM = 'aes-256-cbc'
 /**
  * Encripta un texto usando AES-256-CBC
  */
+/** Reutilizable para IntegracionClip y otros secretos por tenant */
+export function encryptSecret(text: string): string {
+  return encrypt(text)
+}
+
+export function decryptSecret(encryptedText: string): string {
+  return decrypt(encryptedText)
+}
+
 function encrypt(text: string): string {
   if (!text) return ''
   const iv = crypto.randomBytes(16)
@@ -100,10 +109,12 @@ export interface ConfiguracionFacturaGlobal {
 }
 
 /**
- * Obtiene la configuración del restaurante
+ * Obtiene la configuración del restaurante (por tenant)
  */
-export async function obtenerConfiguracion() {
-  const config = await prisma.configuracionRestaurante.findFirst()
+export async function obtenerConfiguracion(restauranteId: string) {
+  const config = await prisma.configuracionRestaurante.findUnique({
+    where: { restauranteId },
+  })
   if (!config) return null
 
   return {
@@ -120,7 +131,9 @@ export async function obtenerConfiguracion() {
 /**
  * Actualiza o crea la configuración del restaurante
  */
-export async function guardarConfiguracion(data: {
+export async function guardarConfiguracion(
+  restauranteId: string,
+  data: {
   datosFiscales?: DatosFiscales
   lugarExpedicion?: LugarExpedicion
   configuracionComprobante?: ConfiguracionComprobante
@@ -134,8 +147,12 @@ export async function guardarConfiguracion(data: {
   configuradoPorId?: string
   tiempoAmarilloMinutos?: number
   tiempoRojoMinutos?: number
-}) {
-  const existing = await prisma.configuracionRestaurante.findFirst()
+  alertaEfectivoMinimo?: number | null
+}
+) {
+  const existing = await prisma.configuracionRestaurante.findUnique({
+    where: { restauranteId },
+  })
 
   const updateData: any = {
     updatedAt: new Date(),
@@ -239,6 +256,9 @@ export async function guardarConfiguracion(data: {
   if (data.tiempoRojoMinutos !== undefined) {
     updateData.tiempoRojoMinutos = data.tiempoRojoMinutos
   }
+  if (data.alertaEfectivoMinimo !== undefined) {
+    updateData.alertaEfectivoMinimo = data.alertaEfectivoMinimo
+  }
 
   // Verificar si la configuración está completa
   const configCompleta = 
@@ -265,6 +285,7 @@ export async function guardarConfiguracion(data: {
   } else {
     return await prisma.configuracionRestaurante.create({
       data: {
+        restauranteId,
         ...updateData,
         configuracionCompleta: false,
       },
@@ -275,7 +296,11 @@ export async function guardarConfiguracion(data: {
 /**
  * Verifica si la configuración está completa
  */
-export async function verificarConfiguracionCompleta(): Promise<boolean> {
-  const config = await prisma.configuracionRestaurante.findFirst()
+export async function verificarConfiguracionCompleta(
+  restauranteId: string
+): Promise<boolean> {
+  const config = await prisma.configuracionRestaurante.findUnique({
+    where: { restauranteId },
+  })
   return config?.configuracionCompleta || false
 }

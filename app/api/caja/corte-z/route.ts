@@ -19,10 +19,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Sin permisos para Corte Z' }, { status: 403 })
     }
 
-    const fechaInicio = await obtenerInicioPeriodoActual()
+    const rid = user.restauranteId
+    const fechaInicio = await obtenerInicioPeriodoActual(rid)
     const fechaFin = new Date()
 
-    const reporte = await calcularReportePeriodo(fechaInicio, fechaFin)
+    const reporte = await calcularReportePeriodo(fechaInicio, fechaFin, rid)
 
     const detallesJson = reporte.comandas.map((c) => ({
       id: c.id,
@@ -34,6 +35,7 @@ export async function POST(request: NextRequest) {
 
     const corteZ = await prisma.corteZ.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         totalVentas: reporte.totalVentas,
         totalEfectivo: reporte.totalEfectivo,
@@ -46,6 +48,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'CORTE_Z',
         entidad: 'CorteZ',

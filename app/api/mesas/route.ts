@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
 
     const mesas = await prisma.mesa.findMany({
       where: {
+        restauranteId: user.restauranteId,
         activa: true,
       },
       include: {
@@ -119,8 +120,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = createMesaSchema.parse(body)
 
-    const mesaExistente = await prisma.mesa.findUnique({
-      where: { numero: data.numero },
+    const rid = user.restauranteId
+    const mesaExistente = await prisma.mesa.findFirst({
+      where: { restauranteId: rid, numero: data.numero },
     })
 
     if (mesaExistente?.activa) {
@@ -146,6 +148,7 @@ export async function POST(request: NextRequest) {
     } else {
       mesa = await prisma.mesa.create({
         data: {
+          restauranteId: rid,
           numero: data.numero,
           capacidad: data.capacidad,
           ubicacion: data.ubicacion || null,
@@ -159,6 +162,7 @@ export async function POST(request: NextRequest) {
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'CREAR_MESA',
         entidad: 'Mesa',

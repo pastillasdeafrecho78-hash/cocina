@@ -24,15 +24,19 @@ export async function PATCH(
     const body = await request.json()
     const { estado } = updateItemSchema.parse(body)
 
-    const item = await prisma.comandaItem.findUnique({
-      where: { id: params.itemId },
+    const item = await prisma.comandaItem.findFirst({
+      where: {
+        id: params.itemId,
+        comandaId: params.id,
+        comanda: { restauranteId: user.restauranteId },
+      },
       include: {
         comanda: true,
         producto: true,
       },
     })
 
-    if (!item || item.comandaId !== params.id) {
+    if (!item) {
       return NextResponse.json(
         { success: false, error: 'Item no encontrado' },
         { status: 404 }
@@ -77,8 +81,8 @@ export async function PATCH(
     })
 
     // Sincronizar estado de comanda según items
-    const comanda = await prisma.comanda.findUnique({
-      where: { id: params.id },
+    const comanda = await prisma.comanda.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       select: { estado: true },
     })
     if (comanda) {

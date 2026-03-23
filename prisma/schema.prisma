@@ -77,33 +77,64 @@ model Rol {
   dashboards  DashboardVista[]
 }
 
+model Restaurante {
+  id        String   @id @default(cuid())
+  nombre    String
+  slug      String?  @unique
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usuarios                 Usuario[]
+  mesas                    Mesa[]
+  clientes                 Cliente[]
+  comandas                 Comanda[]
+  categorias               Categoria[]
+  modificadores            Modificador[]
+  plantas                  PlantaRestaurante[]
+  configuracion            ConfiguracionRestaurante?
+  auditorias               Auditoria[]
+  cortesX                  CorteX[]
+  cortesZ                  CorteZ[]
+  dashboards               DashboardVista[]
+  integracionClip          IntegracionClip?
+  terminalesClip           ClipTerminal[]
+  turnosCaja               TurnoCaja[]
+}
+
 model Usuario {
   id           String    @id @default(cuid())
-  email        String    @unique
+  email        String
   nombre       String
   apellido     String
   password     String
   rolId        String
+  restauranteId String
   activo       Boolean   @default(true)
   ultimoAcceso DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   rol               Rol                @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  restaurante       Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
   comandasCreadas   Comanda[]          @relation("ComandaCreadaPor")
   comandasAsignadas Comanda[]          @relation("ComandaAsignadaA")
   historialComandas ComandaHistorial[] @relation("ComandaHistorialUsuario")
   auditoria         Auditoria[]        @relation("AuditoriaUsuario")
   cortesX           CorteX[]
   cortesZ           CorteZ[]
+  turnosCaja        TurnoCaja[]
   dashboards        DashboardVista[]
 
+  @@unique([restauranteId, email])
   @@index([rolId])
+  @@index([restauranteId])
 }
 
 model Mesa {
   id        String     @id @default(cuid())
-  numero    Int        @unique
+  restauranteId String
+  numero    Int
   capacidad Int
   estado    EstadoMesa @default(LIBRE)
   ubicacion String?
@@ -118,12 +149,17 @@ model Mesa {
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
 
-  planta   PlantaRestaurante? @relation(fields: [plantaId], references: [id])
-  comandas Comanda[]
+  restaurante Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  planta      PlantaRestaurante? @relation(fields: [plantaId], references: [id])
+  comandas    Comanda[]
+
+  @@unique([restauranteId, numero])
+  @@index([restauranteId])
 }
 
 model Cliente {
   id        String  @id @default(cuid())
+  restauranteId String
   nombre    String
   telefono  String?
   direccion String?
@@ -139,14 +175,17 @@ model Cliente {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  comandas Comanda[]
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  comandas    Comanda[]
 
   @@index([rfc])
+  @@index([restauranteId])
 }
 
 model Comanda {
   id              String        @id @default(cuid())
-  numeroComanda   String        @unique
+  restauranteId   String
+  numeroComanda   String
   mesaId          String?
   clienteId       String?
   tipoPedido      TipoPedido    @default(EN_MESA)
@@ -161,8 +200,9 @@ model Comanda {
   creadoPorId     String
   asignadoAId     String?
 
-  mesa      Mesa?              @relation(fields: [mesaId], references: [id])
-  cliente   Cliente?           @relation(fields: [clienteId], references: [id])
+  restaurante Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  mesa        Mesa?              @relation(fields: [mesaId], references: [id])
+  cliente     Cliente?           @relation(fields: [clienteId], references: [id])
   items     ComandaItem[]
   creadoPor Usuario            @relation("ComandaCreadaPor", fields: [creadoPorId], references: [id])
   asignadoA Usuario?           @relation("ComandaAsignadaA", fields: [asignadoAId], references: [id])
@@ -177,12 +217,15 @@ model Comanda {
   @@index([tipoPedido])
   @@index([clienteId])
   @@index([creadoPorId])
+  @@unique([restauranteId, numeroComanda])
   @@index([estado, fechaCreacion])
   @@index([estado, fechaCompletado])
+  @@index([restauranteId])
 }
 
 model Categoria {
   id          String        @id @default(cuid())
+  restauranteId String
   nombre      String
   descripcion String?
   tipo        TipoCategoria
@@ -191,10 +234,12 @@ model Categoria {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  restaurante   Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
   productos     Producto[]
   modificadores ModificadorCategoria[]
 
   @@index([tipo])
+  @@index([restauranteId])
 }
 
 model Producto {
@@ -304,6 +349,7 @@ model ItemModificador {
 
 model Modificador {
   id          String          @id @default(cuid())
+  restauranteId String
   nombre      String
   tipo        TipoModificador
   precioExtra Float?          @default(0)
@@ -311,9 +357,12 @@ model Modificador {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  productos  ModificadorProducto[]
-  categorias ModificadorCategoria[]
-  items      ItemModificador[]
+  restaurante Restaurante           @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  productos   ModificadorProducto[]
+  categorias  ModificadorCategoria[]
+  items       ItemModificador[]
+
+  @@index([restauranteId])
 }
 
 model ComandaHistorial {
@@ -333,6 +382,7 @@ model ComandaHistorial {
 
 model Auditoria {
   id          String   @id @default(cuid())
+  restauranteId String
   usuarioId   String
   accion      String // "LOGIN", "LOGOUT", "CREAR_COMANDA", etc.
   entidad     String? // "Comanda", "Producto", etc.
@@ -340,14 +390,17 @@ model Auditoria {
   detalles    Json?
   fechaAccion DateTime @default(now())
 
-  usuario Usuario @relation("AuditoriaUsuario", fields: [usuarioId], references: [id])
+  usuario     Usuario     @relation("AuditoriaUsuario", fields: [usuarioId], references: [id])
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
 
   @@index([usuarioId])
   @@index([fechaAccion])
+  @@index([restauranteId])
 }
 
 model DashboardVista {
   id          String              @id @default(cuid())
+  restauranteId String
   nombre      String
   descripcion String?
   modulo      String              @default("reportes")
@@ -362,8 +415,9 @@ model DashboardVista {
   createdAt   DateTime            @default(now())
   updatedAt   DateTime            @updatedAt
 
-  usuario Usuario? @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  rol     Rol?     @relation(fields: [rolId], references: [id], onDelete: SetNull)
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  usuario     Usuario?    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  rol         Rol?        @relation(fields: [rolId], references: [id], onDelete: SetNull)
 
   @@index([scope, modulo])
   @@index([usuarioId, modulo])
@@ -372,8 +426,9 @@ model DashboardVista {
 
 model ConfiguracionRestaurante {
   id             String  @id @default(cuid())
+  restauranteId  String  @unique
   // Datos Fiscales Obligatorios
-  rfc            String? @unique
+  rfc            String?
   nombre         String?
   regimenFiscal  String? // "601", "621", etc.
   codigoPostal   String?
@@ -450,12 +505,17 @@ model ConfiguracionRestaurante {
   tiempoAmarilloMinutos Int? @default(30) // Tiempo para cambiar de verde a amarillo
   tiempoRojoMinutos     Int? @default(60) // Tiempo para cambiar de amarillo a rojo
 
+  // Alerta efectivo bajo (MXN) - banner cuando efectivo en caja < este valor
+  alertaEfectivoMinimo Float?
+
   // Política de Propina
   propinaFacturar  Boolean @default(false) // true = se factura la propina como concepto separado
   propinaObjetoImp String? @default("02") // Objeto de impuesto para propina (02=Sí objeto)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
 
   @@index([rfc])
 }
@@ -608,6 +668,7 @@ model ComplementoPago {
 // Corte X: reporte temporal, NO reinicia la caja
 model CorteX {
   id        String   @id @default(cuid())
+  restauranteId String
   fechaHora DateTime @default(now())
   usuarioId String
 
@@ -618,15 +679,35 @@ model CorteX {
   numComandas   Int   @default(0)
   detalles      Json? // Desglose por método de pago, etc.
 
-  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id])
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
 
   @@index([fechaHora])
   @@index([usuarioId])
+  @@index([restauranteId])
+}
+
+// Turno de caja: apertura con fondo inicial, cierre con arqueo
+model TurnoCaja {
+  id            String    @id @default(cuid())
+  restauranteId String
+  usuarioId     String
+  fechaApertura DateTime  @default(now())
+  fechaCierre   DateTime? // null = turno abierto
+  fondoInicial  Float     // efectivo al abrir
+  fondoCierre   Float?    // efectivo contado al cerrar (arqueo)
+
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id])
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@index([restauranteId])
+  @@index([fechaApertura])
 }
 
 // Corte Z: cierre definitivo del turno/día
 model CorteZ {
   id        String   @id @default(cuid())
+  restauranteId String
   fechaHora DateTime @default(now())
   usuarioId String
 
@@ -637,15 +718,18 @@ model CorteZ {
   numComandas   Int   @default(0)
   detalles      Json?
 
-  usuario Usuario @relation(fields: [usuarioId], references: [id])
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id])
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
 
   @@index([fechaHora])
   @@index([usuarioId])
+  @@index([restauranteId])
 }
 
 // Planta del restaurante - contorno del cuarto mapeado
 model PlantaRestaurante {
   id        String   @id @default(cuid())
+  restauranteId String
   nombre    String? // Nombre de la planta/salón (ej. "Salón Principal", "Terraza")
   // Contorno del cuarto como polígono (vértices en coordenadas de celda)
   vertices  Json // Array de {x: number, y: number} en coordenadas de celda
@@ -663,5 +747,35 @@ model PlantaRestaurante {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  mesas Mesa[]
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  mesas       Mesa[]
+
+  @@index([restauranteId])
+}
+
+model IntegracionClip {
+  id              String   @id @default(cuid())
+  restauranteId   String   @unique
+  apiKeyEncrypted String? // Bearer / API key (encriptado)
+  activo          Boolean  @default(false)
+  webhookSecret   String? // validar webhooks (encriptado)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+}
+
+model ClipTerminal {
+  id            String   @id @default(cuid())
+  restauranteId String
+  serialNumber  String
+  nombre        String?
+  activo        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@unique([restauranteId, serialNumber])
+  @@index([restauranteId])
 }

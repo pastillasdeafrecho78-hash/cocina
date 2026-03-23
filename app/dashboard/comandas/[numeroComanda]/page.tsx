@@ -50,10 +50,29 @@ export default function ComandaDetallePage() {
   const [cobrandoEfectivo, setCobrandoEfectivo] = useState(false)
   const [montoRecibido, setMontoRecibido] = useState('')
   const [confirmandoEntrega, setConfirmandoEntrega] = useState(false)
+  const [efectivoEsperado, setEfectivoEsperado] = useState<number | null>(null)
 
   useEffect(() => {
     fetchComanda()
   }, [numeroComanda])
+
+  useEffect(() => {
+    if (metodoPago === 'efectivo') {
+      const token = localStorage.getItem('token')
+      fetch('/api/caja/turno', { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => r.json())
+        .then((j) => {
+          if (j.success && j.data?.abierto) {
+            setEfectivoEsperado(j.data.efectivoEsperado ?? null)
+          } else {
+            setEfectivoEsperado(null)
+          }
+        })
+        .catch(() => setEfectivoEsperado(null))
+    } else {
+      setEfectivoEsperado(null)
+    }
+  }, [metodoPago])
 
   const fetchComanda = async () => {
     try {
@@ -329,9 +348,17 @@ export default function ComandaDetallePage() {
                 />
               </div>
               {montoRecibidoNum >= totalFinal && montoRecibidoNum > 0 && (
-                <p className="rounded-2xl bg-green-50 px-4 py-2 text-lg font-semibold text-green-700">
-                  Cambio a devolver: <strong>${cambio.toFixed(2)}</strong>
-                </p>
+                <>
+                  <p className="rounded-2xl bg-green-50 px-4 py-2 text-lg font-semibold text-green-700">
+                    Cambio a devolver: <strong>${cambio.toFixed(2)}</strong>
+                  </p>
+                  {efectivoEsperado != null && efectivoEsperado < cambio && (
+                    <p className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800">
+                      Posible efectivo insuficiente para dar cambio. Efectivo esperado en caja: $
+                      {efectivoEsperado.toFixed(2)}. Considera reforzar la caja antes de cobrar.
+                    </p>
+                  )}
+                </>
               )}
               <div className="flex gap-2 flex-wrap">
                 <button

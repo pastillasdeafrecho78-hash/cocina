@@ -26,22 +26,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 
+    const rid = user.restauranteId
     const [mesasTotal, mesasOcupadas, comandasActivas, itemsCocina, itemsBarra] = await Promise.all([
-      prisma.mesa.count({ where: { activa: true } }),
-      prisma.mesa.count({ where: { activa: true, estado: 'OCUPADA' } }),
+      prisma.mesa.count({ where: { activa: true, restauranteId: rid } }),
+      prisma.mesa.count({ where: { activa: true, estado: 'OCUPADA', restauranteId: rid } }),
       prisma.comanda.count({
-        where: { estado: { in: ['PENDIENTE', 'EN_PREPARACION', 'LISTO'] } },
+        where: {
+          restauranteId: rid,
+          estado: { in: ['PENDIENTE', 'EN_PREPARACION', 'LISTO'] },
+        },
       }),
       prisma.comandaItem.count({
         where: {
           destino: 'COCINA',
           estado: { in: ['PENDIENTE', 'EN_PREPARACION'] },
+          comanda: { restauranteId: rid },
         },
       }),
       prisma.comandaItem.count({
         where: {
           destino: 'BARRA',
           estado: { in: ['PENDIENTE', 'EN_PREPARACION'] },
+          comanda: { restauranteId: rid },
         },
       }),
     ])

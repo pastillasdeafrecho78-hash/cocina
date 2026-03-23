@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     }
 
     const usuarios = await prisma.usuario.findMany({
+      where: { restauranteId: user.restauranteId },
       select: {
         id: true,
         email: true,
@@ -83,7 +84,12 @@ export async function POST(request: NextRequest) {
     }
 
     const existente = await prisma.usuario.findUnique({
-      where: { email: data.email.toLowerCase().trim() },
+      where: {
+        restauranteId_email: {
+          restauranteId: user.restauranteId,
+          email: data.email.toLowerCase().trim(),
+        },
+      },
     })
     if (existente) {
       return NextResponse.json(
@@ -96,6 +102,7 @@ export async function POST(request: NextRequest) {
 
     const nuevoUsuario = await prisma.usuario.create({
       data: {
+        restauranteId: user.restauranteId,
         nombre: data.nombre.trim(),
         apellido: data.apellido.trim(),
         email: data.email.toLowerCase().trim(),

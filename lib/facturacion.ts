@@ -66,7 +66,7 @@ async function generarDatosCFDI(comandaId: string, receptor?: CFDIData['receptor
     throw new Error('Comanda no encontrada')
   }
 
-  const config = await obtenerConfiguracion()
+  const config = await obtenerConfiguracion(comanda.restauranteId)
   if (!config || !config.rfc) {
     throw new Error('Configuración fiscal no encontrada. Configure el restaurante primero.')
   }
@@ -300,13 +300,19 @@ async function generarDatosCFDI(comandaId: string, receptor?: CFDIData['receptor
  * Timbra un CFDI usando el PAC configurado
  */
 export async function timbrarCFDI(data: CFDIData): Promise<CFDIResult & { conceptos: any[] }> {
-  const config = await obtenerConfiguracion()
-  
+  const comandaRef = await prisma.comanda.findUnique({
+    where: { id: data.comandaId },
+    select: { restauranteId: true },
+  })
+  if (!comandaRef) {
+    throw new Error('Comanda no encontrada')
+  }
+  const config = await obtenerConfiguracion(comandaRef.restauranteId)
+
   if (!config || !config.pacApiKey) {
     throw new Error('PAC no configurado. Configure la facturación primero.')
   }
 
-  // Generar datos del CFDI
   const cfdiData = await generarDatosCFDI(data.comandaId, data.receptor, data.esFacturaGlobal)
 
   // VALIDACIONES FISCALES ANTES DE TIMBRAR
@@ -377,7 +383,8 @@ export async function timbrarCFDI(data: CFDIData): Promise<CFDIResult & { concep
   let folioActual = config.folioActual || config.folioInicial || 1
 
   // Incrementar folio actual
-  await prisma.configuracionRestaurante.updateMany({
+  await prisma.configuracionRestaurante.update({
+    where: { restauranteId: comandaRef.restauranteId },
     data: {
       folioActual: folioActual + 1,
     },
@@ -429,11 +436,6 @@ export async function almacenarCFDI(
   }>,
   detallesEmision?: Record<string, unknown>
 ) {
-  const config = await obtenerConfiguracion()
-  if (!config) {
-    throw new Error('Configuración no encontrada')
-  }
-
   const comanda = await prisma.comanda.findUnique({
     where: { id: comandaId },
     include: { cliente: true }
@@ -441,6 +443,11 @@ export async function almacenarCFDI(
 
   if (!comanda) {
     throw new Error('Comanda no encontrada')
+  }
+
+  const config = await obtenerConfiguracion(comanda.restauranteId)
+  if (!config) {
+    throw new Error('Configuración no encontrada')
   }
 
   // Determinar datos del receptor

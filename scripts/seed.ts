@@ -6,6 +6,17 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Iniciando seed...')
 
+  let restaurante = await prisma.restaurante.findUnique({
+    where: { slug: 'principal' },
+  })
+  if (!restaurante) {
+    restaurante = await prisma.restaurante.create({
+      data: { nombre: 'Restaurante principal', slug: 'principal' },
+    })
+  }
+  const rid = restaurante.id
+  console.log('✅ Restaurante:', restaurante.nombre, rid)
+
   const adminRol = await prisma.rol.upsert({
     where: { codigo: 'ADMIN' },
     update: {},
@@ -18,11 +29,11 @@ async function main() {
 
   const meseroRol = await prisma.rol.upsert({
     where: { codigo: 'MESERO' },
-    update: {},
+    update: { permisos: ['mesas', 'comandas', 'reportes', 'caja'] },
     create: {
       nombre: 'Mesero',
       codigo: 'MESERO',
-      permisos: ['mesas', 'comandas', 'reportes'],
+      permisos: ['mesas', 'comandas', 'reportes', 'caja'],
     },
   })
 
@@ -36,12 +47,14 @@ async function main() {
     },
   })
 
-  // Crear usuario admin
   const hashedPassword = await bcrypt.hash('admin123', 12)
   const admin = await prisma.usuario.upsert({
-    where: { email: 'admin@restaurante.com' },
+    where: {
+      restauranteId_email: { restauranteId: rid, email: 'admin@restaurante.com' },
+    },
     update: {},
     create: {
+      restauranteId: rid,
       email: 'admin@restaurante.com',
       nombre: 'Admin',
       apellido: 'Sistema',
@@ -49,14 +62,16 @@ async function main() {
       rolId: adminRol.id,
     },
   })
-  console.log('✅ Usuario admin creado:', admin.email)
+  console.log('✅ Usuario admin:', admin.email)
 
-  // Crear usuario mesero
   const meseroPassword = await bcrypt.hash('mesero123', 12)
   const mesero = await prisma.usuario.upsert({
-    where: { email: 'mesero@restaurante.com' },
+    where: {
+      restauranteId_email: { restauranteId: rid, email: 'mesero@restaurante.com' },
+    },
     update: {},
     create: {
+      restauranteId: rid,
       email: 'mesero@restaurante.com',
       nombre: 'Juan',
       apellido: 'Mesero',
@@ -64,14 +79,16 @@ async function main() {
       rolId: meseroRol.id,
     },
   })
-  console.log('✅ Usuario mesero creado:', mesero.email)
+  console.log('✅ Usuario mesero:', mesero.email)
 
-  // Crear usuario cocinero
   const cocineroPassword = await bcrypt.hash('cocinero123', 12)
   const cocinero = await prisma.usuario.upsert({
-    where: { email: 'cocinero@restaurante.com' },
+    where: {
+      restauranteId_email: { restauranteId: rid, email: 'cocinero@restaurante.com' },
+    },
     update: {},
     create: {
+      restauranteId: rid,
       email: 'cocinero@restaurante.com',
       nombre: 'Pedro',
       apellido: 'Cocinero',
@@ -79,15 +96,17 @@ async function main() {
       rolId: cocineroRol.id,
     },
   })
-  console.log('✅ Usuario cocinero creado:', cocinero.email)
+  console.log('✅ Usuario cocinero:', cocinero.email)
 
-  // Crear mesas
   const mesas = []
   for (let i = 1; i <= 12; i++) {
     const mesa = await prisma.mesa.upsert({
-      where: { numero: i },
+      where: {
+        restauranteId_numero: { restauranteId: rid, numero: i },
+      },
       update: {},
       create: {
+        restauranteId: rid,
         numero: i,
         capacidad: i <= 4 ? 4 : i <= 8 ? 6 : 8,
         estado: 'LIBRE',
@@ -96,15 +115,15 @@ async function main() {
     })
     mesas.push(mesa)
   }
-  console.log(`✅ ${mesas.length} mesas creadas`)
+  console.log(`✅ ${mesas.length} mesas`)
 
-  // Crear categorías (buscar primero, crear si no existen)
   let categoriaComida = await prisma.categoria.findFirst({
-    where: { nombre: 'Comida', tipo: 'COMIDA' },
+    where: { restauranteId: rid, nombre: 'Comida', tipo: 'COMIDA' },
   })
   if (!categoriaComida) {
     categoriaComida = await prisma.categoria.create({
       data: {
+        restauranteId: rid,
         nombre: 'Comida',
         tipo: 'COMIDA',
         orden: 1,
@@ -113,11 +132,12 @@ async function main() {
   }
 
   let categoriaBebida = await prisma.categoria.findFirst({
-    where: { nombre: 'Bebidas', tipo: 'BEBIDA' },
+    where: { restauranteId: rid, nombre: 'Bebidas', tipo: 'BEBIDA' },
   })
   if (!categoriaBebida) {
     categoriaBebida = await prisma.categoria.create({
       data: {
+        restauranteId: rid,
         nombre: 'Bebidas',
         tipo: 'BEBIDA',
         orden: 2,
@@ -126,11 +146,12 @@ async function main() {
   }
 
   let categoriaPostre = await prisma.categoria.findFirst({
-    where: { nombre: 'Postres', tipo: 'POSTRE' },
+    where: { restauranteId: rid, nombre: 'Postres', tipo: 'POSTRE' },
   })
   if (!categoriaPostre) {
     categoriaPostre = await prisma.categoria.create({
       data: {
+        restauranteId: rid,
         nombre: 'Postres',
         tipo: 'POSTRE',
         orden: 3,
@@ -138,68 +159,30 @@ async function main() {
     })
   }
 
-  console.log('✅ Categorías creadas')
-
-  // Crear productos
   const productos = [
-    {
-      nombre: 'Tacos al Pastor',
-      precio: 80,
-      categoriaId: categoriaComida.id,
-    },
-    {
-      nombre: 'Quesadillas',
-      precio: 70,
-      categoriaId: categoriaComida.id,
-    },
-    {
-      nombre: 'Alambre',
-      precio: 120,
-      categoriaId: categoriaComida.id,
-    },
-    {
-      nombre: 'Coca Cola',
-      precio: 25,
-      categoriaId: categoriaBebida.id,
-    },
-    {
-      nombre: 'Agua Natural',
-      precio: 20,
-      categoriaId: categoriaBebida.id,
-    },
-    {
-      nombre: 'Flan',
-      precio: 45,
-      categoriaId: categoriaPostre.id,
-    },
+    { nombre: 'Tacos al Pastor', precio: 80, categoriaId: categoriaComida.id },
+    { nombre: 'Quesadillas', precio: 70, categoriaId: categoriaComida.id },
+    { nombre: 'Alambre', precio: 120, categoriaId: categoriaComida.id },
+    { nombre: 'Coca Cola', precio: 25, categoriaId: categoriaBebida.id },
+    { nombre: 'Agua Natural', precio: 20, categoriaId: categoriaBebida.id },
+    { nombre: 'Flan', precio: 45, categoriaId: categoriaPostre.id },
   ]
-
   for (const producto of productos) {
     const existente = await prisma.producto.findFirst({
-      where: {
-        nombre: producto.nombre,
-        categoriaId: producto.categoriaId,
-      },
+      where: { nombre: producto.nombre, categoriaId: producto.categoriaId },
     })
-
     if (!existente) {
-      await prisma.producto.create({
-        data: producto,
-      })
+      await prisma.producto.create({ data: producto })
     }
   }
-  console.log(`✅ ${productos.length} productos creados`)
+  console.log(`✅ ${productos.length} productos`)
 
-  console.log('🎉 Seed completado exitosamente!')
-  console.log('\nCredenciales de acceso:')
-  console.log('Admin: admin@restaurante.com / admin123')
-  console.log('Mesero: mesero@restaurante.com / mesero123')
-  console.log('Cocinero: cocinero@restaurante.com / cocinero123')
+  console.log('🎉 Seed OK — Admin admin@restaurante.com / admin123')
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Error en seed:', e)
+    console.error(e)
     process.exit(1)
   })
   .finally(async () => {

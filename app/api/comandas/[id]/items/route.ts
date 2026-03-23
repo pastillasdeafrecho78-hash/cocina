@@ -41,8 +41,8 @@ export async function POST(
       )
     }
 
-    const comanda = await prisma.comanda.findUnique({
-      where: { id: params.id },
+    const comanda = await prisma.comanda.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       include: { items: true },
     })
 
@@ -74,6 +74,7 @@ export async function POST(
       where: {
         id: { in: data.items.map((i) => i.productoId) },
         activo: true,
+        categoria: { restauranteId: user.restauranteId },
       },
       include: {
         categoria: true,
@@ -134,8 +135,8 @@ export async function POST(
       const itemModificadores: Array<{ modificadorId: string; precioExtra: number }> = []
       if (itemData.modificadores && itemData.modificadores.length > 0) {
         for (const modificadorId of itemData.modificadores) {
-          const modificador = await prisma.modificador.findUnique({
-            where: { id: modificadorId },
+          const modificador = await prisma.modificador.findFirst({
+            where: { id: modificadorId, restauranteId: user.restauranteId },
           })
           if (modificador && modificador.tipo !== 'TAMANO') {
             precioModificadores += modificador.precioExtra || 0
@@ -201,8 +202,8 @@ export async function POST(
       },
     })
 
-    const comandaActualizada = await prisma.comanda.findUnique({
-      where: { id: params.id },
+    const comandaActualizada = await prisma.comanda.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       include: {
         items: {
           include: {

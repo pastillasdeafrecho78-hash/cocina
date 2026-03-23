@@ -45,8 +45,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Obtener comanda con ítems
-    const comanda = await prisma.comanda.findUnique({
-      where: { id: comandaId },
+    const comanda = await prisma.comanda.findFirst({
+      where: { id: comandaId, restauranteId: user.restauranteId },
       include: { items: true },
     })
 
@@ -78,6 +78,7 @@ export async function POST(request: NextRequest) {
     // Procesar pago
     const resultadoPago = await procesarPago({
       comandaId,
+      restauranteId: comanda.restauranteId,
       monto: total,
       metodo,
       datosTarjeta,

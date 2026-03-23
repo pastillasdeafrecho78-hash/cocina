@@ -21,8 +21,8 @@ export async function GET(
       )
     }
 
-    const categoria = await prisma.categoria.findUnique({
-      where: { id: params.id },
+    const categoria = await prisma.categoria.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
     })
 
     if (!categoria) {
@@ -68,8 +68,8 @@ export async function POST(
       )
     }
 
-    const categoria = await prisma.categoria.findUnique({
-      where: { id: params.id },
+    const categoria = await prisma.categoria.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
     })
 
     if (!categoria) {
@@ -82,8 +82,8 @@ export async function POST(
     const body = await request.json()
     const data = modificadorSchema.parse(body)
 
-    const modificador = await prisma.modificador.findUnique({
-      where: { id: data.modificadorId },
+    const modificador = await prisma.modificador.findFirst({
+      where: { id: data.modificadorId, restauranteId: user.restauranteId },
     })
 
     if (!modificador) {
@@ -110,6 +110,7 @@ export async function POST(
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ASIGNAR_EXTRA_CATEGORIA',
         entidad: 'Categoria',
@@ -158,6 +159,16 @@ export async function DELETE(
     const body = await request.json()
     const data = modificadorSchema.parse(body)
 
+    const catOk = await prisma.categoria.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
+    })
+    if (!catOk) {
+      return NextResponse.json(
+        { success: false, error: 'Categoría no encontrada' },
+        { status: 404 }
+      )
+    }
+
     const relacion = await prisma.modificadorCategoria.findUnique({
       where: {
         categoriaId_modificadorId: {
@@ -185,6 +196,7 @@ export async function DELETE(
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'QUITAR_EXTRA_CATEGORIA',
         entidad: 'Categoria',

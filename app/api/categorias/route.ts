@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
 
     const categorias = await prisma.categoria.findMany({
       where: {
+        restauranteId: user.restauranteId,
         activa: true,
       },
       include: {
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
     // Verificar si ya existe una categoría con ese nombre
     const categoriaExistente = await prisma.categoria.findFirst({
       where: {
+        restauranteId: user.restauranteId,
         nombre: data.nombre,
         activa: true,
       },
@@ -109,6 +111,7 @@ export async function POST(request: NextRequest) {
 
     // Obtener el máximo orden para poner la nueva categoría al final
     const maxOrden = await prisma.categoria.aggregate({
+      where: { restauranteId: user.restauranteId },
       _max: {
         orden: true,
       },
@@ -116,6 +119,7 @@ export async function POST(request: NextRequest) {
 
     const categoria = await prisma.categoria.create({
       data: {
+        restauranteId: user.restauranteId,
         nombre: data.nombre,
         descripcion: data.descripcion || null,
         tipo: data.tipo,
@@ -127,6 +131,7 @@ export async function POST(request: NextRequest) {
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'CREAR_CATEGORIA',
         entidad: 'Categoria',

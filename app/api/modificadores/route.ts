@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const soloActivos = searchParams.get('activo')
 
-    const where: any = {}
+    const where: any = { restauranteId: user.restauranteId }
     if (soloActivos !== null) {
       where.activo = soloActivos === 'true'
     }
@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
 
     const modificador = await prisma.modificador.create({
       data: {
+        restauranteId: user.restauranteId,
         nombre: data.nombre,
         tipo: data.tipo,
         precioExtra: data.precioExtra,
@@ -85,6 +86,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'CREAR_MODIFICADOR',
         entidad: 'Modificador',

@@ -9,7 +9,13 @@ import {
   CreditCardIcon,
   DocumentDuplicateIcon,
   DocumentCheckIcon,
+  DevicePhoneMobileIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline'
+import ClipCajaSection from './ClipCajaSection'
+import FondoCajaSection from './FondoCajaSection'
+
+type TabId = 'resumen' | 'clip' | 'fondo'
 
 interface ReporteData {
   fechaInicio: string
@@ -27,7 +33,14 @@ interface ReporteData {
   }>
 }
 
+const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'clip', label: 'Clip (PinPad)', icon: DevicePhoneMobileIcon },
+  { id: 'fondo', label: 'Fondo de caja', icon: CurrencyDollarIcon },
+  { id: 'resumen', label: 'Resumen', icon: DocumentTextIcon },
+]
+
 export default function CajaPage() {
+  const [activeTab, setActiveTab] = useState<TabId>('clip')
   const [reporte, setReporte] = useState<ReporteData | null>(null)
   const [loading, setLoading] = useState(true)
   const [ejecutandoCorteX, setEjecutandoCorteX] = useState(false)
@@ -136,8 +149,33 @@ export default function CajaPage() {
               Corte X informativo y Corte Z como cierre definitivo del periodo.
             </p>
           </div>
+
+          <div className="mt-6 flex flex-wrap gap-1 rounded-lg border border-stone-200 bg-stone-50/80 p-1">
+            {TABS.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                    activeTab === tab.id
+                      ? 'bg-white text-stone-900 shadow-sm'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
+        {activeTab === 'clip' && <ClipCajaSection />}
+        {activeTab === 'fondo' && <FondoCajaSection reporte={reporte} onRefresh={cargarReporte} />}
+        {activeTab === 'resumen' && (
+        <>
         <div className="app-card">
         <h2 className="text-xl font-semibold text-stone-900 mb-4">Resumen del periodo actual</h2>
         {reporte && (
@@ -265,6 +303,8 @@ export default function CajaPage() {
           No hay comandas pagadas en el periodo actual
         </div>
       )}
+        </>
+        )}
       </div>
     </div>
   )

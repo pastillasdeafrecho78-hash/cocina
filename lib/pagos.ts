@@ -18,6 +18,7 @@ export type MetodoPago =
  */
 export interface DatosPago {
   comandaId: string
+  restauranteId: string
   monto: number
   metodo: MetodoPago
   datosTarjeta?: {
@@ -55,7 +56,7 @@ export async function procesarPago(datos: DatosPago): Promise<ResultadoPago> {
     }
   }
 
-  const config = await obtenerConfiguracion()
+  const config = await obtenerConfiguracion(datos.restauranteId)
   if (!config || !config.conektaPrivateKey) {
     throw new Error('Procesador de pagos no configurado. Configure Conekta para tarjeta/OXXO/SPEI.')
   }
@@ -107,6 +108,10 @@ export async function procesarPago(datos: DatosPago): Promise<ResultadoPago> {
       const order = await new Promise((resolve, reject) => {
         Conekta.Order.create({
           currency: 'MXN',
+          metadata: {
+            restauranteId: datos.restauranteId,
+            comandaId: datos.comandaId,
+          },
           customer_info: {
             name: 'Cliente',
             email: 'cliente@example.com',

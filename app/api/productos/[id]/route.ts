@@ -38,8 +38,11 @@ export async function PATCH(
     const data = updateProductoSchema.parse(body)
 
     // Verificar que el producto existe
-    const productoExistente = await prisma.producto.findUnique({
-      where: { id: params.id },
+    const productoExistente = await prisma.producto.findFirst({
+      where: {
+        id: params.id,
+        categoria: { restauranteId: user.restauranteId },
+      },
     })
 
     if (!productoExistente) {
@@ -51,8 +54,8 @@ export async function PATCH(
 
     // Si se está cambiando la categoría, verificar que existe
     if (data.categoriaId) {
-      const categoria = await prisma.categoria.findUnique({
-        where: { id: data.categoriaId },
+      const categoria = await prisma.categoria.findFirst({
+        where: { id: data.categoriaId, restauranteId: user.restauranteId },
       })
 
       if (!categoria) {
@@ -83,6 +86,7 @@ export async function PATCH(
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ACTUALIZAR_PRODUCTO',
         entidad: 'Producto',

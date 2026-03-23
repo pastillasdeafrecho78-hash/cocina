@@ -9,6 +9,8 @@ export const dynamic = 'force-dynamic'
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  /** Slug del restaurante (ej. principal). Por defecto se usa "principal". */
+  slug: z.string().optional(),
 })
 
 async function getRolById(rolId: string | null | undefined) {
@@ -34,11 +36,24 @@ async function getRolById(rolId: string | null | undefined) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password } = loginSchema.parse(body)
+    const { email, password, slug } = loginSchema.parse(body)
 
-    // Buscar usuario base; el rol se carga aparte para no bloquear el login.
+    const restaurante = await prisma.restaurante.findFirst({
+      where: slug
+        ? { slug, activo: true }
+        : { slug: 'principal', activo: true },
+    })
+    if (!restaurante) {
+      return NextResponse.json(
+        { success: false, error: 'Restaurante no encontrado' },
+        { status: 404 }
+      )
+    }
+
     const user = await prisma.usuario.findUnique({
-      where: { email },
+      where: {
+        restauranteId_email: { restauranteId: restaurante.id, email },
+      },
       select: {
         id: true,
         email: true,
@@ -47,6 +62,7 @@ export async function POST(request: NextRequest) {
         password: true,
         rolId: true,
         activo: true,
+        restauranteId: true,
       },
     })
 
@@ -83,11 +99,13 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       email: user.email,
       rolId: user.rolId,
+      restauranteId: user.restauranteId,
     })
 
     await prisma.auditoria
       .create({
         data: {
+          restauranteId: user.restauranteId,
           usuarioId: user.id,
           accion: 'LOGIN',
           entidad: 'Usuario',
@@ -106,6 +124,12 @@ export async function POST(request: NextRequest) {
           email: user.email,
           nombre: user.nombre,
           apellido: user.apellido,
+          restauranteId: user.restauranteId,
+          restaurante: {
+            id: restaurante.id,
+            nombre: restaurante.nombre,
+            slug: restaurante.slug,
+          },
           rol: rol
             ? {
                 id: rol.id,

@@ -31,8 +31,8 @@ export async function PATCH(
       )
     }
 
-    const modificadorExistente = await prisma.modificador.findUnique({
-      where: { id: params.id },
+    const modificadorExistente = await prisma.modificador.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
     })
 
     if (!modificadorExistente) {
@@ -48,6 +48,7 @@ export async function PATCH(
     if (data.nombre && data.tipo && (data.nombre !== modificadorExistente.nombre || data.tipo !== modificadorExistente.tipo)) {
       const duplicado = await prisma.modificador.findFirst({
         where: {
+          restauranteId: user.restauranteId,
           nombre: data.nombre,
           tipo: data.tipo,
           id: { not: params.id },
@@ -74,6 +75,7 @@ export async function PATCH(
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ACTUALIZAR_MODIFICADOR',
         entidad: 'Modificador',
@@ -118,8 +120,8 @@ export async function DELETE(
       )
     }
 
-    const modificador = await prisma.modificador.findUnique({
-      where: { id: params.id },
+    const modificador = await prisma.modificador.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       include: {
         productos: true,
         items: true,
@@ -136,12 +138,13 @@ export async function DELETE(
     // Si está asignado a productos o usado en comandas, solo desactivar
     if (modificador.productos.length > 0 || modificador.items.length > 0) {
       const modificadorActualizado = await prisma.modificador.update({
-        where: { id: params.id },
+        where: { id: modificador.id },
         data: { activo: false },
       })
 
       await prisma.auditoria.create({
         data: {
+          restauranteId: user.restauranteId,
           usuarioId: user.id,
           accion: 'DESACTIVAR_MODIFICADOR',
           entidad: 'Modificador',
@@ -156,10 +159,11 @@ export async function DELETE(
       })
     }
 
-    await prisma.modificador.delete({ where: { id: params.id } })
+    await prisma.modificador.delete({ where: { id: modificador.id } })
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ELIMINAR_MODIFICADOR',
         entidad: 'Modificador',

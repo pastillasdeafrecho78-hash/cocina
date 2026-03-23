@@ -24,8 +24,15 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
 
+    const producto = await prisma.producto.findFirst({
+      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
+    })
+    if (!producto) {
+      return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })
+    }
+
     const tamanos = await prisma.productoTamano.findMany({
-      where: { productoId: params.id },
+      where: { productoId: producto.id },
       orderBy: { orden: 'asc' },
     })
 
@@ -56,8 +63,8 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 
-    const producto = await prisma.producto.findUnique({
-      where: { id: params.id },
+    const producto = await prisma.producto.findFirst({
+      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
     })
     if (!producto) {
       return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })

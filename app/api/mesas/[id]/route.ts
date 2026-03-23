@@ -28,8 +28,18 @@ export async function PATCH(
     const body = await request.json()
     const data = updateMesaSchema.parse(body)
 
+    const existente = await prisma.mesa.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
+    })
+    if (!existente) {
+      return NextResponse.json(
+        { success: false, error: 'Mesa no encontrada' },
+        { status: 404 }
+      )
+    }
+
     const mesa = await prisma.mesa.update({
-      where: { id: params.id },
+      where: { id: existente.id },
       data,
     })
 
@@ -73,8 +83,8 @@ export async function DELETE(
       )
     }
 
-    const mesa = await prisma.mesa.findUnique({
-      where: { id: params.id },
+    const mesa = await prisma.mesa.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       include: {
         comandas: {
           where: { estado: { notIn: ['PAGADO', 'CANCELADO'] } },
@@ -98,12 +108,13 @@ export async function DELETE(
     }
 
     await prisma.mesa.update({
-      where: { id: params.id },
+      where: { id: mesa.id },
       data: { activa: false },
     })
 
     await prisma.auditoria.create({
       data: {
+        restauranteId: user.restauranteId,
         usuarioId: user.id,
         accion: 'ELIMINAR_MESA',
         entidad: 'Mesa',

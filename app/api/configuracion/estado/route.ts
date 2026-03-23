@@ -16,8 +16,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const config = await obtenerConfiguracion()
-    const completa = await verificarConfiguracionCompleta()
+    const rid = user.restauranteId
+    const config = await obtenerConfiguracion(rid)
+    const completa = await verificarConfiguracionCompleta(rid)
 
     return NextResponse.json({
       success: true,

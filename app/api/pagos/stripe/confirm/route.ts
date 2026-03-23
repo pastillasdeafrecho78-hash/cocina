@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const comanda = await prisma.comanda.findUnique({
-      where: { id: comandaId },
+    const comanda = await prisma.comanda.findFirst({
+      where: { id: comandaId, restauranteId: user.restauranteId },
       include: { items: true },
     })
 

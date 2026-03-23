@@ -21,18 +21,20 @@ export function getDestinoFromCategoria(
 /**
  * Genera un número de comanda único
  */
-export async function generarNumeroComanda(): Promise<string> {
+export async function generarNumeroComanda(restauranteId: string): Promise<string> {
   const fecha = new Date()
   const año = fecha.getFullYear().toString().slice(-2)
   const mes = String(fecha.getMonth() + 1).padStart(2, '0')
   const dia = String(fecha.getDate()).padStart(2, '0')
 
-  // Contar comandas del día
-  const inicioDia = new Date(fecha.setHours(0, 0, 0, 0))
-  const finDia = new Date(fecha.setHours(23, 59, 59, 999))
+  const inicioDia = new Date(fecha)
+  inicioDia.setHours(0, 0, 0, 0)
+  const finDia = new Date(fecha)
+  finDia.setHours(23, 59, 59, 999)
 
   const count = await prisma.comanda.count({
     where: {
+      restauranteId,
       fechaCreacion: {
         gte: inicioDia,
         lte: finDia,

@@ -17,8 +17,8 @@ export async function POST(
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 
-    const comanda = await prisma.comanda.findUnique({
-      where: { id: params.id },
+    const comanda = await prisma.comanda.findFirst({
+      where: { id: params.id, restauranteId: user.restauranteId },
       include: {
         items: {
           where: { estado: 'LISTO' },

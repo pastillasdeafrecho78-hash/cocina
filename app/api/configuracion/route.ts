@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const config = await obtenerConfiguracion()
+    const config = await obtenerConfiguracion(user.restauranteId)
 
     // Solo quien tiene configuracion ve la configuración completa; el resto solo tiempos
     if (!tienePermiso(user, 'configuracion')) {
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
 
-    const config = await guardarConfiguracion({
+    const config = await guardarConfiguracion(user.restauranteId, {
       datosFiscales: body.datosFiscales,
       lugarExpedicion: body.lugarExpedicion,
       configuracionComprobante: body.configuracionComprobante,

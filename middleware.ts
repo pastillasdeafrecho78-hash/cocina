@@ -12,6 +12,9 @@ export async function middleware(request: NextRequest) {
   if (publicRoutes.some((route) => pathname.startsWith(route))) {
     return NextResponse.next()
   }
+  if (pathname.startsWith('/api/webhooks/')) {
+    return NextResponse.next()
+  }
 
   // Solo proteger rutas de API (las rutas del cliente manejan su propia autenticación)
   if (pathname.startsWith('/api/')) {

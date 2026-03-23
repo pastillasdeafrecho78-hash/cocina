@@ -54,11 +54,15 @@ export async function getUserFromToken(token: string | null) {
       nombre: true,
       apellido: true,
       rolId: true,
+      restauranteId: true,
       activo: true,
     },
   })
 
   if (!user?.activo) {
+    return null
+  }
+  if (payload.restauranteId && user.restauranteId !== payload.restauranteId) {
     return null
   }
 

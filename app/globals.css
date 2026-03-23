@@ -147,6 +147,10 @@ html.dark {
   }
 
   .app-header-shell {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    padding-top: env(safe-area-inset-top, 0);
     border-bottom: 1px solid rgb(var(--border) / 0.8);
     background:
       linear-gradient(120deg, rgb(var(--surface) / 0.84), rgb(var(--surface) / 0.76)),
