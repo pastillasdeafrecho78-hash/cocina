@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import { labelComandaEstado, labelItemEstado } from '@/lib/estado-labels'
 import { useParams, useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
@@ -58,8 +59,7 @@ export default function ComandaDetallePage() {
 
   useEffect(() => {
     if (metodoPago === 'efectivo') {
-      const token = localStorage.getItem('token')
-      fetch('/api/caja/turno', { headers: { Authorization: `Bearer ${token}` } })
+      apiFetch('/api/caja/turno', { headers: {} })
         .then((r) => r.json())
         .then((j) => {
           if (j.success && j.data?.abierto) {
@@ -76,11 +76,9 @@ export default function ComandaDetallePage() {
 
   const fetchComanda = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/comandas?numeroComanda=${numeroComanda}`, {
+      const response = await apiFetch(`/api/comandas?numeroComanda=${numeroComanda}`, {
         headers: {
-          Authorization: `Bearer ${token}`,
-        },
+                  },
       })
 
       const data = await response.json()
@@ -108,11 +106,9 @@ export default function ComandaDetallePage() {
     }
     setCobrandoEfectivo(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/pagos', {
+      const response = await apiFetch('/api/pagos', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -139,11 +135,9 @@ export default function ComandaDetallePage() {
     if (!comanda) return
     setMetodoPago('stripe')
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/pagos/stripe/create-payment-intent', {
+      const res = await apiFetch('/api/pagos/stripe/create-payment-intent', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ comandaId: comanda.id }),
@@ -177,10 +171,9 @@ export default function ComandaDetallePage() {
     if (!comanda || !hayItemsListos) return
     setConfirmandoEntrega(true)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/comandas/${comanda.id}/entregar`, {
+      const res = await apiFetch(`/api/comandas/${comanda.id}/entregar`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await res.json()
       if (data.success) {

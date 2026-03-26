@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
@@ -100,9 +101,8 @@ export function useReportesDashboard() {
   )
 
   const fetchViews = useCallback(async () => {
-    const token = localStorage.getItem('token')
-    const response = await fetch('/api/reportes/vistas', {
-      headers: { Authorization: `Bearer ${token}` },
+    const response = await apiFetch('/api/reportes/vistas', {
+      headers: {},
     })
     const data = await response.json()
 
@@ -171,16 +171,13 @@ export function useReportesDashboard() {
         setResults({})
         return
       }
-
-      const token = localStorage.getItem('token')
       const responses = await Promise.all(
         widgets.map(async (widget) => {
-          const response = await fetch('/api/reportes/query', {
+          const response = await apiFetch('/api/reportes/query', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
+                          },
             body: JSON.stringify({ filters, widget }),
           })
           const data = await response.json()
@@ -322,8 +319,6 @@ export function useReportesDashboard() {
           toast.error('Ponle nombre a la vista antes de guardar')
           return
         }
-
-        const token = localStorage.getItem('token')
         const payload = {
           nombre: viewName.trim(),
           descripcion: viewDescription.trim() || null,
@@ -337,12 +332,11 @@ export function useReportesDashboard() {
             ? `/api/reportes/vistas/${activeViewId}`
             : '/api/reportes/vistas'
 
-        const response = await fetch(url, {
+        const response = await apiFetch(url, {
           method: mode === 'update' && activeViewId ? 'PUT' : 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
+                      },
           body: JSON.stringify(payload),
         })
         const data = await response.json()
@@ -388,13 +382,10 @@ export function useReportesDashboard() {
 
     try {
       setSavingView(true)
-
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/reportes/vistas/${activeViewId}`, {
+      const response = await apiFetch(`/api/reportes/vistas/${activeViewId}`, {
         method: 'DELETE',
         headers: {
-          Authorization: `Bearer ${token}`,
-        },
+                  },
       })
       const data = await response.json()
 

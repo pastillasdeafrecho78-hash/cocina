@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodError } from 'zod'
-import { getTokenFromRequest, getUserFromToken } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 import { prisma } from '@/lib/prisma'
 import { tienePermiso } from '@/lib/permisos'
 import { dashboardVistaSchema } from '@/lib/reportes/schemas'
@@ -21,7 +21,7 @@ async function clearDefaultViews(usuarioId: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }

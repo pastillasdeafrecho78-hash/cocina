@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import toast from 'react-hot-toast'
@@ -151,11 +152,9 @@ export default function ConfiguracionPage() {
 
   const cargarConfiguracion = async () => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/configuracion', {
+      const response = await apiFetch('/api/configuracion', {
         headers: {
-          Authorization: `Bearer ${token}`,
-        },
+                  },
       })
 
       const data = await response.json()
@@ -178,7 +177,6 @@ export default function ConfiguracionPage() {
   const onSubmit = async (data: ConfiguracionData) => {
     setLoading(true)
     try {
-      const token = localStorage.getItem('token')
       const payload: any = {}
 
       if (modoFacil) {
@@ -317,12 +315,11 @@ export default function ConfiguracionPage() {
         }
       }
 
-      const response = await fetch('/api/configuracion', {
+      const response = await apiFetch('/api/configuracion', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+                  },
         body: JSON.stringify(payload),
       })
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { encryptSecret } from '@/lib/configuracion-restaurante'
 import { z } from 'zod'
@@ -13,7 +13,7 @@ const patchSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user || !tienePermiso(user, 'caja')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user || !tienePermiso(user, 'caja')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }

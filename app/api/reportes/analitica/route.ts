@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 
 export const dynamic = 'force-dynamic'
 import { tienePermiso } from '@/lib/permisos'
@@ -12,7 +12,7 @@ import { buildLegacyAnaliticaData, normalizeReportFilters } from '@/lib/reportes
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       tipoPedido: searchParams.getAll('tipoPedido'),
       metodoPago: searchParams.getAll('metodoPago'),
     })
-    const data = await buildLegacyAnaliticaData(filters)
+    const data = await buildLegacyAnaliticaData(filters, user.restauranteId)
 
     return NextResponse.json({
       success: true,

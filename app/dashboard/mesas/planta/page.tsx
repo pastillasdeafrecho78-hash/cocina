@@ -6,6 +6,7 @@ import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { quantize, dequantize, type Point } from '@/lib/utils/polygonUtils'
 import { useIMUTracking } from '@/lib/hooks/useIMUTracking'
+import { apiFetch } from '@/lib/auth-fetch'
 
 interface Mesa {
   id: string
@@ -115,14 +116,10 @@ export default function PlantaMesasPage() {
 
   const fetchMesas = async () => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) return
-      const response = await fetch('/api/mesas', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const response = await apiFetch('/api/mesas')
       if (response.status === 401) {
-        localStorage.removeItem('token')
         localStorage.removeItem('user')
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
         window.location.href = '/login'
         return
       }
@@ -165,14 +162,10 @@ export default function PlantaMesasPage() {
 
   const fetchPlanta = async () => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) return
-      const response = await fetch('/api/plantas', {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const response = await apiFetch('/api/plantas')
       if (response.status === 401) {
-        localStorage.removeItem('token')
         localStorage.removeItem('user')
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
         window.location.href = '/login'
         return
       }
@@ -193,12 +186,9 @@ export default function PlantaMesasPage() {
   // Guardar posición de una mesa
   const guardarPosicionMesa = async (mesaId: string, x: number, y: number, rotation: number) => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) return
-      const response = await fetch(`/api/mesas/${mesaId}`, {
+      const response = await apiFetch(`/api/mesas/${mesaId}`, {
         method: 'PATCH',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -208,8 +198,8 @@ export default function PlantaMesasPage() {
         }),
       })
       if (response.status === 401) {
-        localStorage.removeItem('token')
         localStorage.removeItem('user')
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
         window.location.href = '/login'
         return
       }

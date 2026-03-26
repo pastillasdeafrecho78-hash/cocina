@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { DevicePhoneMobileIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
+import { apiFetch } from '@/lib/auth-fetch'
 
 interface ComandaOpt {
   id: string
@@ -35,26 +36,24 @@ export default function ClipCajaSection() {
   const [espera, setEspera] = useState<{ pagoId: string; pinpadId: string } | null>(null)
   const [devicesClip, setDevicesClip] = useState<unknown>(null)
 
-  const token = () => localStorage.getItem('token')
-
   const loadCfg = useCallback(async () => {
-    const res = await fetch('/api/clip/config', { headers: { Authorization: `Bearer ${token()}` } })
+    const res = await apiFetch('/api/clip/config')
     const j = await res.json()
     if (j.success) setCfg(j.data)
   }, [])
 
   const loadTerminales = useCallback(async () => {
-    const res = await fetch('/api/clip/terminales', { headers: { Authorization: `Bearer ${token()}` } })
+    const res = await apiFetch('/api/clip/terminales')
     const j = await res.json()
     if (j.success) setTerminales(j.data.filter((t: TerminalRow) => t.activo))
   }, [])
 
   const loadComandas = useCallback(async () => {
-    const res = await fetch('/api/comandas?estado=LISTO', { headers: { Authorization: `Bearer ${token()}` } })
+    const res = await apiFetch('/api/comandas?estado=LISTO')
     const j = await res.json()
     if (!j.success) return
     const list = (j.data as ComandaOpt[]).filter((c) => c.estado !== 'PAGADO' && c.estado !== 'CANCELADO')
-    const r2 = await fetch('/api/comandas?estado=SERVIDO', { headers: { Authorization: `Bearer ${token()}` } })
+    const r2 = await apiFetch('/api/comandas?estado=SERVIDO')
     const j2 = await r2.json()
     const extra = j2.success ? (j2.data as ComandaOpt[]).filter((c) => c.estado !== 'PAGADO') : []
     const map = new Map<string, ComandaOpt>()
@@ -73,9 +72,9 @@ export default function ClipCajaSection() {
       const body: Record<string, unknown> = { activo: true }
       if (apiKeyInput.trim()) body.apiKey = apiKeyInput.trim()
       if (webhookSecretInput.trim()) body.webhookSecret = webhookSecretInput.trim()
-      const res = await fetch('/api/clip/config', {
+      const res = await apiFetch('/api/clip/config', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       const j = await res.json()
@@ -95,9 +94,9 @@ export default function ClipCajaSection() {
       toast.error('Ingresa el número de serie del PinPad')
       return
     }
-    const res = await fetch('/api/clip/terminales', {
+    const res = await apiFetch('/api/clip/terminales', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ serialNumber: newSerial.trim(), nombre: newNombre.trim() || undefined }),
     })
     const j = await res.json()
@@ -110,7 +109,7 @@ export default function ClipCajaSection() {
   }
 
   const refrescarDispositivosClip = async () => {
-    const res = await fetch('/api/clip/dispositivos', { headers: { Authorization: `Bearer ${token()}` } })
+    const res = await apiFetch('/api/clip/dispositivos')
     const j = await res.json()
     if (j.success) {
       setDevicesClip(j.data)
@@ -126,9 +125,9 @@ export default function ClipCajaSection() {
     setCobrando(true)
     try {
       const tip = tipExtra ? parseFloat(tipExtra.replace(',', '.')) : 0
-      const res = await fetch('/api/clip/crear-intencion', {
+      const res = await apiFetch('/api/clip/crear-intencion', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           comandaId,
           serialNumber: serialCobro.trim(),
@@ -158,9 +157,8 @@ export default function ClipCajaSection() {
   useEffect(() => {
     if (!espera) return
     const t = setInterval(async () => {
-      const res = await fetch(
-        `/api/clip/estado?pagoId=${encodeURIComponent(espera.pagoId)}&pinpadRequestId=${encodeURIComponent(espera.pinpadId)}`,
-        { headers: { Authorization: `Bearer ${token()}` } }
+      const res = await apiFetch(
+        `/api/clip/estado?pagoId=${encodeURIComponent(espera.pagoId)}&pinpadRequestId=${encodeURIComponent(espera.pinpadId)}`
       )
       const j = await res.json()
       if (j.success && j.data?.status === 'COMPLETADO') {

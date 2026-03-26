@@ -6,8 +6,11 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Conexión directa (p. ej. puerto 5432 en Supabase). Obligatoria para migrate deploy;
+  // el pooler :6543 no es compatible con migraciones y puede colgar el build en Vercel.
+  directUrl = env("DIRECT_URL")
 }
 
 enum EstadoMesa {
@@ -65,6 +68,20 @@ enum ScopeVistaDashboard {
   ROL
 }
 
+enum OAuthProvider {
+  google
+}
+
+model Organizacion {
+  id        String   @id @default(cuid())
+  nombre    String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurantes Restaurante[]
+}
+
 model Rol {
   id          String           @id @default(cuid())
   nombre      String
@@ -75,6 +92,7 @@ model Rol {
   updatedAt   DateTime         @updatedAt
   usuarios    Usuario[]
   dashboards  DashboardVista[]
+  invitaciones Invitacion[]
 }
 
 model Restaurante {
@@ -84,6 +102,9 @@ model Restaurante {
   activo    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  organizacionId String?
+  organizacion   Organizacion? @relation(fields: [organizacionId], references: [id], onDelete: SetNull)
 
   usuarios                 Usuario[]
   mesas                    Mesa[]
@@ -100,6 +121,9 @@ model Restaurante {
   integracionClip          IntegracionClip?
   terminalesClip           ClipTerminal[]
   turnosCaja               TurnoCaja[]
+  invitaciones             Invitacion[]
+
+  @@index([organizacionId])
 }
 
 model Usuario {
@@ -107,7 +131,7 @@ model Usuario {
   email        String
   nombre       String
   apellido     String
-  password     String
+  password     String?
   rolId        String
   restauranteId String
   activo       Boolean   @default(true)
@@ -117,6 +141,7 @@ model Usuario {
 
   rol               Rol                @relation(fields: [rolId], references: [id], onDelete: Restrict)
   restaurante       Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  cuentasOAuth      CuentaOAuth[]
   comandasCreadas   Comanda[]          @relation("ComandaCreadaPor")
   comandasAsignadas Comanda[]          @relation("ComandaAsignadaA")
   historialComandas ComandaHistorial[] @relation("ComandaHistorialUsuario")
@@ -129,6 +154,37 @@ model Usuario {
   @@unique([restauranteId, email])
   @@index([rolId])
   @@index([restauranteId])
+}
+
+model CuentaOAuth {
+  id                 String        @id @default(cuid())
+  usuarioId          String
+  provider           OAuthProvider
+  providerAccountId  String
+  createdAt          DateTime      @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([usuarioId])
+}
+
+model Invitacion {
+  id              String    @id @default(cuid())
+  restauranteId   String
+  email           String
+  rolId           String
+  tokenHash       String    @unique
+  expiraEn        DateTime
+  usadaEn         DateTime?
+  creadoPorId     String?
+  createdAt       DateTime  @default(now())
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  rol         Rol         @relation(fields: [rolId], references: [id], onDelete: Restrict)
+
+  @@index([restauranteId])
+  @@index([email])
 }
 
 model Mesa {

@@ -22,8 +22,14 @@ export async function POST(request: NextRequest) {
       /* ignore */
     }
     if (!restauranteId) {
-      const r = await prisma.restaurante.findFirst({ orderBy: { createdAt: 'asc' } })
-      restauranteId = r?.id ?? null
+      console.error('[webhook conekta] Evento sin metadata.restauranteId - rechazado')
+      return NextResponse.json(
+        {
+          error:
+            'Webhook rechazado: metadata.restauranteId es requerido. Asegúrate de incluir restauranteId en metadata al crear el pago.',
+        },
+        { status: 400 }
+      )
     }
     const config = restauranteId
       ? await obtenerConfiguracion(restauranteId)

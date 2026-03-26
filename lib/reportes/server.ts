@@ -156,7 +156,10 @@ export function normalizeReportFilters(input?: Partial<ReportFilters>): ReportFi
   }
 }
 
-export function buildReportWhere(filters: ReportFilters): Prisma.ComandaWhereInput {
+export function buildReportWhere(
+  filters: ReportFilters,
+  restauranteId?: string
+): Prisma.ComandaWhereInput {
   const fechaInicio = startOfDay(new Date(filters.fechaInicio))
   const fechaFin = endOfDay(new Date(filters.fechaFin))
 
@@ -166,6 +169,10 @@ export function buildReportWhere(filters: ReportFilters): Prisma.ComandaWhereInp
       { fechaCompletado: { gte: fechaInicio, lte: fechaFin } },
       { fechaCompletado: null, fechaCreacion: { gte: fechaInicio, lte: fechaFin } },
     ],
+  }
+
+  if (restauranteId) {
+    where.restauranteId = restauranteId
   }
 
   if (filters.tipoPedido.length > 0) {
@@ -186,11 +193,14 @@ function passesMetodoPagoFilter(comanda: ReportBaseComanda, filters: ReportFilte
   return metodos.some((metodo) => filters.metodoPago.includes(metodo))
 }
 
-export async function fetchReportBaseData(filtersInput?: Partial<ReportFilters>) {
+export async function fetchReportBaseData(
+  filtersInput?: Partial<ReportFilters>,
+  restauranteId?: string
+) {
   const filters = normalizeReportFilters(filtersInput)
 
   const comandas = await prisma.comanda.findMany({
-    where: buildReportWhere(filters),
+    where: buildReportWhere(filters, restauranteId),
     select: {
       id: true,
       numeroComanda: true,
@@ -426,9 +436,10 @@ export function aggregateWidgetData(
 }
 
 export async function buildLegacyAnaliticaData(
-  filtersInput?: Partial<ReportFilters>
+  filtersInput?: Partial<ReportFilters>,
+  restauranteId?: string
 ): Promise<LegacyAnaliticaData> {
-  const comandas = await fetchReportBaseData(filtersInput)
+  const comandas = await fetchReportBaseData(filtersInput, restauranteId)
 
   const ventasPorHora = aggregateWidgetData(comandas, {
     id: 'legacy-hora',

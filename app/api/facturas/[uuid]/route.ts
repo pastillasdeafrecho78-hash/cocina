@@ -1,35 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 
 /**
  * GET /api/facturas/[uuid]
- * Obtiene una factura por su UUID
+ * Obtiene una factura por su UUID (con scope de tenant)
  */
 export async function GET(
   request: NextRequest,
   { params }: { params: { uuid: string } }
 ) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
+    const user = await getSessionUser()
+    if (!user) {
       return NextResponse.json(
-        { success: false, error: 'Token requerido' },
+        { success: false, error: 'No autenticado' },
         { status: 401 }
       )
     }
 
-    const payload = verifyToken(token)
-    if (!payload) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
-        { status: 401 }
-      )
-    }
-
-    const factura = await prisma.factura.findUnique({
-      where: { uuid: params.uuid },
+    const factura = await prisma.factura.findFirst({
+      where: {
+        uuid: params.uuid,
+        comanda: { restauranteId: user.restauranteId },
+      },
       include: {
         comanda: {
           include: {

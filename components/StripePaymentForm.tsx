@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import { loadStripe } from '@stripe/stripe-js'
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js'
 import { useTheme } from '@/components/ThemeProvider'
@@ -51,11 +52,9 @@ function CheckoutForm({
     const { paymentIntent } = await stripe.retrievePaymentIntent(paymentIntentClientSecret)
 
     if (paymentIntent?.status === 'succeeded') {
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/pagos/stripe/confirm', {
+      const res = await apiFetch('/api/pagos/stripe/confirm', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

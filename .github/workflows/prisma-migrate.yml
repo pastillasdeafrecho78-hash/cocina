@@ -1,0 +1,27 @@
+# Ejecutar migraciones contra la base (session pooler / DIRECT_URL en secretos del repo).
+# Requiere: DATABASE_URL, DIRECT_URL, y acceso a la instancia PostgreSQL.
+
+name: prisma-migrate
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [master]
+    paths:
+      - 'prisma/**'
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: npx prisma migrate deploy

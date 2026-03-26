@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import {
@@ -49,9 +50,8 @@ export default function CajaPage() {
   const cargarReporte = async () => {
     try {
       setLoading(true)
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/caja/reporte', {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await apiFetch('/api/caja/reporte', {
+        headers: {},
       })
       const data = await res.json()
       if (data.success) {
@@ -77,10 +77,9 @@ export default function CajaPage() {
   const handleCorteX = async () => {
     setEjecutandoCorteX(true)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/caja/corte-x', {
+      const res = await apiFetch('/api/caja/corte-x', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await res.json()
       if (data.success) {
@@ -106,10 +105,9 @@ export default function CajaPage() {
     }
     setEjecutandoCorteZ(true)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/caja/corte-z', {
+      const res = await apiFetch('/api/caja/corte-z', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await res.json()
       if (data.success) {

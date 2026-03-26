@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ZodError } from 'zod'
-import { getTokenFromRequest, getUserFromToken } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { reportQuerySchema } from '@/lib/reportes/schemas'
 import { aggregateWidgetData, fetchReportBaseData } from '@/lib/reportes/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = reportQuerySchema.parse(body)
 
-    const comandas = await fetchReportBaseData(data.filters)
+    const comandas = await fetchReportBaseData(data.filters, user.restauranteId)
     const result = aggregateWidgetData(comandas, data.widget)
 
     return NextResponse.json({

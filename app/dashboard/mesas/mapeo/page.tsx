@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
@@ -174,11 +175,9 @@ export default function MapeoPage() {
     setGuardando(true)
 
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/plantas', {
+      const response = await apiFetch('/api/plantas', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

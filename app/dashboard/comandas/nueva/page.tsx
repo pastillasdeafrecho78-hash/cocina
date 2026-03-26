@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import { useRouter, useSearchParams } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
@@ -131,10 +132,9 @@ export default function NuevaComandaPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = localStorage.getItem('token')
         if (comandaIdParam) {
-          const comandaRes = await fetch(`/api/comandas/${comandaIdParam}`, {
-            headers: { Authorization: `Bearer ${token}` },
+          const comandaRes = await apiFetch(`/api/comandas/${comandaIdParam}`, {
+            headers: {},
           })
           const comandaData = await comandaRes.json()
           if (comandaData.success && comandaData.data?.mesaId) {
@@ -142,8 +142,8 @@ export default function NuevaComandaPage() {
           }
         }
         const [mesasRes, categoriasRes] = await Promise.all([
-          fetch('/api/mesas', { headers: { Authorization: `Bearer ${token}` } }),
-          fetch('/api/categorias', { headers: { Authorization: `Bearer ${token}` } }),
+          apiFetch('/api/mesas', { headers: {} }),
+          apiFetch('/api/categorias', { headers: {} }),
         ])
         const mesasData = await mesasRes.json()
         const categoriasData = await categoriasRes.json()
@@ -305,7 +305,6 @@ export default function NuevaComandaPage() {
     }
     setGuardando(true)
     try {
-      const token = localStorage.getItem('token')
       const itemsPayload = carrito.map((item) => ({
         productoId: item.productoId,
         tamanoId: item.tamanoId,
@@ -314,9 +313,9 @@ export default function NuevaComandaPage() {
         notas: item.notas,
       }))
       if (comandaIdParam) {
-        const response = await fetch(`/api/comandas/${comandaIdParam}/items`, {
+        const response = await apiFetch(`/api/comandas/${comandaIdParam}/items`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ items: itemsPayload }),
         })
         const data = await response.json()
@@ -327,9 +326,9 @@ export default function NuevaComandaPage() {
           toast.error(data.error || 'Error al agregar pedidos')
         }
       } else {
-        const response = await fetch('/api/comandas', {
+        const response = await apiFetch('/api/comandas', {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mesaId: mesaId || undefined,
             tipoPedido,

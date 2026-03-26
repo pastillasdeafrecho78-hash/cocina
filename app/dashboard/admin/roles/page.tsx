@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { apiFetch } from '@/lib/auth-fetch'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
@@ -108,9 +109,8 @@ export default function AdminRolesPage() {
   const cargarRoles = async () => {
     setCargandoRoles(true)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/roles', {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await apiFetch('/api/roles', {
+        headers: {},
       })
       if (res.status === 401 || res.status === 403) {
         router.push('/dashboard')
@@ -128,9 +128,8 @@ export default function AdminRolesPage() {
   const cargarUsuarios = async () => {
     setCargandoUsuarios(true)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch('/api/usuarios', {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await apiFetch('/api/usuarios', {
+        headers: {},
       })
       if (res.status === 401 || res.status === 403) {
         router.push('/dashboard')
@@ -187,7 +186,6 @@ export default function AdminRolesPage() {
     }
     setGuardandoRol(true)
     try {
-      const token = localStorage.getItem('token')
       const url = modalRol === 'editar' && rolEdicion
         ? `/api/roles/${rolEdicion.id}`
         : '/api/roles'
@@ -206,12 +204,11 @@ export default function AdminRolesPage() {
               descripcion: formRol.descripcion.trim() || null,
               permisos: formRol.permisos,
             }
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+                  },
         body: JSON.stringify(body),
       })
       const data = await res.json()
@@ -236,10 +233,9 @@ export default function AdminRolesPage() {
     }
     if (!confirm(`¿Eliminar rol "${r.nombre}"?`)) return
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/roles/${r.id}`, {
+      const res = await apiFetch(`/api/roles/${r.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await res.json()
       if (!data.success) {
@@ -302,7 +298,6 @@ export default function AdminRolesPage() {
     }
     setGuardandoUsuario(true)
     try {
-      const token = localStorage.getItem('token')
       const url =
         modalUsuario === 'editar' && usuarioEdicion
           ? `/api/usuarios/${usuarioEdicion.id}`
@@ -322,12 +317,11 @@ export default function AdminRolesPage() {
       if (modalUsuario === 'editar') {
         body.activo = formUsuario.activo
       }
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+                  },
         body: JSON.stringify(body),
       })
       const data = await res.json()
@@ -350,10 +344,9 @@ export default function AdminRolesPage() {
   const desactivarUsuario = async (u: Usuario) => {
     if (!confirm(`¿Desactivar a ${u.nombre} ${u.apellido}?`)) return
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/usuarios/${u.id}`, {
+      const res = await apiFetch(`/api/usuarios/${u.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await res.json()
       if (!data.success) {

@@ -1,13 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { getSessionUser } from '@/lib/auth-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const token = getTokenFromRequest(request)
-    const user = await getUserFromToken(token)
+    const user = await getSessionUser()
 
     if (!user) {
       return NextResponse.json(
@@ -28,11 +27,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-
-
-
-
-
-
-
-

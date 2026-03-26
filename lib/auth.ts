@@ -1,24 +1,15 @@
-import bcrypt from 'bcryptjs'
 import { prisma } from './prisma'
 import { tienePermiso } from './permisos'
 export {
   generateToken,
   getTokenFromRequest,
+  getAuthTokenFromRequest,
   verifyToken,
   type JWTPayload,
 } from './auth-jwt'
 import { verifyToken } from './auth-jwt'
 
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 12)
-}
-
-export async function verifyPassword(
-  password: string,
-  hashedPassword: string
-): Promise<boolean> {
-  return bcrypt.compare(password, hashedPassword)
-}
+export { hashPassword, verifyPassword } from './password'
 
 async function getRolById(rolId: string | null | undefined) {
   if (!rolId) {
@@ -40,6 +31,7 @@ async function getRolById(rolId: string | null | undefined) {
   }
 }
 
+/** @deprecated Preferir getSessionUser() con NextAuth. */
 export async function getUserFromToken(token: string | null) {
   if (!token) return null
 
@@ -73,17 +65,7 @@ export async function getUserFromToken(token: string | null) {
     rol,
   }
 }
-/**
- * Comprueba si el usuario tiene permiso de administración (usuarios_roles o *).
- */
+
 export function isAdmin(user: { rol?: { permisos?: unknown } } | null | undefined): boolean {
   return tienePermiso(user, 'usuarios_roles')
 }
-
-
-
-
-
-
-
-

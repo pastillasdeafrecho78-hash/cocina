@@ -16,6 +16,7 @@ import {
   BanknotesIcon,
 } from '@heroicons/react/24/outline'
 import { authFetch } from '@/lib/auth-fetch'
+import { signOut } from 'next-auth/react'
 
 interface EstadoConfiguracion {
   configuracionCompleta: boolean
@@ -39,12 +40,6 @@ export default function DashboardPage() {
   })
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      router.push('/login')
-      return
-    }
-
     const userStr = localStorage.getItem('user')
     if (userStr) {
       const userData = JSON.parse(userStr)
@@ -83,9 +78,8 @@ export default function DashboardPage() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('token')
     localStorage.removeItem('user')
-    router.push('/login')
+    void signOut({ redirect: false }).then(() => router.push('/login'))
   }
 
   if (loading || !user) {

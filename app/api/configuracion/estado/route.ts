@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verificarConfiguracionCompleta, obtenerConfiguracion } from '@/lib/configuracion-restaurante'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 
 /**
  * GET /api/configuracion/estado
@@ -8,7 +8,7 @@ import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Token inválido' },

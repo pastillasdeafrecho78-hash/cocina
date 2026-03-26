@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { obtenerConfiguracion, guardarConfiguracion } from '@/lib/configuracion-restaurante'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 
 /**
@@ -9,7 +9,7 @@ import { tienePermiso } from '@/lib/permisos'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'No autenticado' },
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user || !user.activo) {
       return NextResponse.json(
         { success: false, error: 'Token inválido o usuario no válido' },

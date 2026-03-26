@@ -6,7 +6,7 @@ import MesaCard from '@/components/MesaCard'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { formatWaitTime, minutosDesde, colorProgresivoPorMinutos } from '@/lib/mesa-utils'
-import { authFetch } from '@/lib/auth-fetch'
+import { authFetch, apiFetch } from '@/lib/auth-fetch'
 
 interface Mesa {
   id: string
@@ -110,11 +110,9 @@ export default function MesasStatusPage() {
     }
     setGuardandoTiempos(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/configuracion/tiempos', {
+      const response = await apiFetch('/api/configuracion/tiempos', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -158,11 +156,9 @@ export default function MesasStatusPage() {
     setGuardando(true)
 
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/mesas', {
+      const response = await apiFetch('/api/mesas', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -205,10 +201,9 @@ export default function MesasStatusPage() {
     if (!mesaAConfirmarBorrado) return
     setBorrando(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/mesas/${mesaAConfirmarBorrado.id}`, {
+      const response = await apiFetch(`/api/mesas/${mesaAConfirmarBorrado.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await response.json()
 

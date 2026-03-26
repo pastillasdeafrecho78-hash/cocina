@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKey } from '@/lib/clip-config'
 import { clipPinpadCreatePayment, extractPinpadRequestId } from '@/lib/clip-payclip'
@@ -28,7 +28,7 @@ function publicBaseUrl(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user || (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas'))) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }

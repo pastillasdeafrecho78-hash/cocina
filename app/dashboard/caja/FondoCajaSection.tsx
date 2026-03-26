@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import { CurrencyDollarIcon, BanknotesIcon } from '@heroicons/react/24/outline'
+import { apiFetch } from '@/lib/auth-fetch'
 
 interface ReporteData {
   fechaInicio: string
@@ -40,13 +41,9 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
   const [alertaInput, setAlertaInput] = useState('')
   const [guardandoAlerta, setGuardandoAlerta] = useState(false)
 
-  const token = () => localStorage.getItem('token')
-
   const cargarTurno = useCallback(async () => {
     try {
-      const res = await fetch('/api/caja/turno', {
-        headers: { Authorization: `Bearer ${token()}` },
-      })
+      const res = await apiFetch('/api/caja/turno')
       const j = await res.json()
       if (j.success) {
         setTurno(j.data)
@@ -70,11 +67,10 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
     }
     setGuardandoAlerta(true)
     try {
-      const res = await fetch('/api/configuracion/caja', {
+      const res = await apiFetch('/api/configuracion/caja', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token()}`,
         },
         body: JSON.stringify({
           alertaEfectivoMinimo: num,
@@ -106,11 +102,10 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
     }
     setAperturaEnProceso(true)
     try {
-      const res = await fetch('/api/caja/turno/apertura', {
+      const res = await apiFetch('/api/caja/turno/apertura', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token()}`,
         },
         body: JSON.stringify({ fondoInicial: monto }),
       })
@@ -141,11 +136,10 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
     }
     setCierreEnProceso(true)
     try {
-      const res = await fetch('/api/caja/turno/cierre', {
+      const res = await apiFetch('/api/caja/turno/cierre', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token()}`,
         },
         body: JSON.stringify({ fondoCierre: monto }),
       })

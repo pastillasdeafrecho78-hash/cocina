@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { signIn } from 'next-auth/react'
 import toast from 'react-hot-toast'
 import BrandLogo from '@/components/BrandLogo'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -11,7 +12,15 @@ export default function LoginPage() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
+    slug: 'principal',
   })
+
+  useEffect(() => {
+    const e = new URLSearchParams(window.location.search).get('error')
+    if (e === 'OAuthAccountNotLinked' || e === 'Configuration') {
+      toast.error('No se pudo completar el inicio con Google.')
+    }
+  }, [])
 
   useEffect(() => {
     const root = document.documentElement
@@ -48,32 +57,54 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+      const res = await signIn('credentials', {
+        email: formData.email.trim(),
+        password: formData.password,
+        slug: formData.slug.trim() || 'principal',
+        redirect: false,
       })
 
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Error al iniciar sesión')
+      if (res?.error) {
+        throw new Error('Credenciales inválidas o restaurante no encontrado')
       }
 
-      // Guardar token (sin espacios sobrantes)
-      localStorage.setItem('token', String(data.data.token).trim())
-      localStorage.setItem('user', JSON.stringify(data.data.user))
+      const sessionRes = await fetch('/api/auth/session', { credentials: 'same-origin' })
+      const session = await sessionRes.json()
+      if (session?.user) {
+        localStorage.setItem('user', JSON.stringify(session.user))
+      }
 
       toast.success('Sesión iniciada correctamente')
-      
-      // Usar window.location para forzar recarga completa
       window.location.href = '/dashboard'
-    } catch (error: any) {
-      toast.error(error.message || 'Error al iniciar sesión')
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : 'Error al iniciar sesión'
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
   }
+
+  const handleGoogle = async () => {
+    const slug = formData.slug.trim() || 'principal'
+    setLoading(true)
+    try {
+      await fetch('/api/auth/oauth-slug', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ slug }),
+      })
+      await signIn('google', { callbackUrl: '/dashboard' })
+    } catch {
+      toast.error('Error al iniciar con Google')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const googleEnabled =
+    typeof process !== 'undefined' &&
+    Boolean(process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED)
 
   return (
     <div className="app-login-shell px-4 py-7 lg:py-10">
@@ -120,69 +151,91 @@ export default function LoginPage() {
           </div>
 
           <div className="app-brand-panel mx-auto w-full max-w-md p-8">
-          <div>
-            <p className="app-kicker text-center">Acceso</p>
-            <p className="mt-2 text-center text-sm text-stone-600">
-              Inicia sesión para entrar al centro operativo de ServimOS.
-            </p>
-          </div>
-
-          <div className="app-brand-divider mt-6" />
-
-          <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-3">
-              <div>
-                <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-stone-700">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-                  style={themedInputStyle}
-                  placeholder="admin@restaurante.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-stone-700">
-                  Contraseña
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-                  style={themedInputStyle}
-                  placeholder="Tu contraseña"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                />
-              </div>
+            <div>
+              <p className="app-kicker text-center">Acceso</p>
+              <p className="mt-2 text-center text-sm text-stone-600">
+                Inicia sesión para entrar al centro operativo de ServimOS.
+              </p>
             </div>
 
-            <button type="submit" disabled={loading} className="app-btn-primary w-full">
-              {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
-            </button>
-          </form>
+            <div className="app-brand-divider mt-6" />
+
+            <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="slug" className="mb-1.5 block text-sm font-medium text-stone-700">
+                    Restaurante (slug)
+                  </label>
+                  <input
+                    id="slug"
+                    name="slug"
+                    type="text"
+                    autoComplete="organization"
+                    className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                    style={themedInputStyle}
+                    placeholder="principal"
+                    value={formData.slug}
+                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-stone-700">
+                    Email
+                  </label>
+                  <input
+                    id="email"
+                    name="email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                    style={themedInputStyle}
+                    placeholder="admin@restaurante.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-stone-700">
+                    Contraseña
+                  </label>
+                  <input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                    className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                    style={themedInputStyle}
+                    placeholder="Tu contraseña"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <button type="submit" disabled={loading} className="app-btn-primary w-full">
+                {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+              </button>
+
+              {googleEnabled && (
+                <>
+                  <div className="relative py-2 text-center text-xs text-stone-500">o</div>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => void handleGoogle()}
+                    className="app-btn-secondary w-full border-stone-300"
+                  >
+                    Continuar con Google
+                  </button>
+                </>
+              )}
+            </form>
           </div>
         </div>
       </div>
     </div>
   )
 }
-
-
-
-
-
-
-
-

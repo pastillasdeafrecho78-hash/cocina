@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
-import { authFetch } from '@/lib/auth-fetch'
+import { authFetch, apiFetch } from '@/lib/auth-fetch'
 import {
   PencilIcon,
   TrashIcon,
@@ -242,10 +242,9 @@ export default function CartaPage() {
 
     setCreandoCategoria(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/categorias', {
+      const response = await apiFetch('/api/categorias', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: nuevaCategoriaNombre.trim(), tipo: nuevaCategoriaTipo }),
       })
       const data = await response.json()
@@ -291,10 +290,9 @@ export default function CartaPage() {
     }
     setCreandoCategoria(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/categorias', {
+      const response = await apiFetch('/api/categorias', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: busquedaCategoria.trim(), tipo: nuevaCategoriaTipo }),
       })
       const data = await response.json()
@@ -331,10 +329,9 @@ export default function CartaPage() {
       return
     }
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/categorias/${editandoCategoria.id}`, {
+      const response = await apiFetch(`/api/categorias/${editandoCategoria.id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: formEditCategoria.nombre.trim(),
           descripcion: formEditCategoria.descripcion || undefined,
@@ -363,10 +360,9 @@ export default function CartaPage() {
     }
     setAsignandoExtraCategoria(categoriaId)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/categorias/${categoriaId}/modificadores`, {
+      const response = await apiFetch(`/api/categorias/${categoriaId}/modificadores`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modificadorId }),
       })
       const data = await response.json()
@@ -386,10 +382,9 @@ export default function CartaPage() {
 
   const handleQuitarExtraCategoria = async (categoriaId: string, modificadorId: string) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/categorias/${categoriaId}/modificadores`, {
+      const response = await apiFetch(`/api/categorias/${categoriaId}/modificadores`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modificadorId }),
       })
       const data = await response.json()
@@ -411,10 +406,9 @@ export default function CartaPage() {
 
   const handleToggleProductoActivo = async (producto: Producto) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/productos/${producto.id}`, {
+      const response = await apiFetch(`/api/productos/${producto.id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activo: !producto.activo }),
       })
       const data = await response.json()
@@ -431,11 +425,10 @@ export default function CartaPage() {
 
   const handleToggleListoPorDefault = async (producto: Producto) => {
     try {
-      const token = localStorage.getItem('token')
       const nuevoValor = !(producto.listoPorDefault ?? false)
-      const response = await fetch(`/api/productos/${producto.id}`, {
+      const response = await apiFetch(`/api/productos/${producto.id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ listoPorDefault: nuevoValor }),
       })
       const data = await response.json()
@@ -453,10 +446,9 @@ export default function CartaPage() {
   const handleEliminarCategoria = async (categoria: Categoria) => {
     if (!confirm(`¿Estás seguro de eliminar la categoría "${categoria.nombre}"?`)) return
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/categorias/${categoria.id}`, {
+      const response = await apiFetch(`/api/categorias/${categoria.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await response.json()
       if (data.success) {
@@ -486,10 +478,9 @@ export default function CartaPage() {
     }
     setGuardando(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/productos', {
+      const response = await apiFetch('/api/productos', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: formData.nombre,
           descripcion: formData.descripcion || undefined,
@@ -525,10 +516,9 @@ export default function CartaPage() {
     }
     setCreandoExtra(true)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch('/api/modificadores', {
+      const response = await apiFetch('/api/modificadores', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: nuevoExtraNombre.trim(),
           tipo: nuevoExtraTipo,
@@ -567,10 +557,9 @@ export default function CartaPage() {
       return
     }
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/modificadores/${editandoExtra.id}`, {
+      const response = await apiFetch(`/api/modificadores/${editandoExtra.id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nombre: formEditExtra.nombre.trim(),
           tipo: formEditExtra.tipo,
@@ -592,10 +581,9 @@ export default function CartaPage() {
 
   const handleToggleExtraActivo = async (modificador: Modificador) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/modificadores/${modificador.id}`, {
+      const response = await apiFetch(`/api/modificadores/${modificador.id}`, {
         method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ activo: !modificador.activo }),
       })
       const data = await response.json()
@@ -613,10 +601,9 @@ export default function CartaPage() {
   const handleEliminarExtra = async (modificador: Modificador) => {
     if (!confirm(`¿Estás seguro de eliminar el extra "${modificador.nombre}"?`)) return
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/modificadores/${modificador.id}`, {
+      const response = await apiFetch(`/api/modificadores/${modificador.id}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await response.json()
       if (data.success) {
@@ -641,10 +628,9 @@ export default function CartaPage() {
     }
     setAsignandoExtra(productoId)
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/productos/${productoId}/modificadores`, {
+      const response = await apiFetch(`/api/productos/${productoId}/modificadores`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modificadorId }),
       })
       const data = await response.json()
@@ -664,10 +650,9 @@ export default function CartaPage() {
 
   const handleQuitarExtra = async (productoId: string, modificadorId: string) => {
     try {
-      const token = localStorage.getItem('token')
-      const response = await fetch(`/api/productos/${productoId}/modificadores`, {
+      const response = await apiFetch(`/api/productos/${productoId}/modificadores`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ modificadorId }),
       })
       const data = await response.json()
@@ -700,10 +685,9 @@ export default function CartaPage() {
     }
     setAgregandoTamano(productoId)
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/productos/${productoId}/tamanos`, {
+      const res = await apiFetch(`/api/productos/${productoId}/tamanos`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nombre: nuevoTamanoNombre.trim(), precio, orden: 0 }),
       })
       const data = await res.json()
@@ -724,10 +708,9 @@ export default function CartaPage() {
 
   const handleEliminarTamano = async (productoId: string, tamanoId: string) => {
     try {
-      const token = localStorage.getItem('token')
-      const res = await fetch(`/api/productos/${productoId}/tamanos/${tamanoId}`, {
+      const res = await apiFetch(`/api/productos/${productoId}/tamanos/${tamanoId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {},
       })
       const data = await res.json()
       if (data.success) {

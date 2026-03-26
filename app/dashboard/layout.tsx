@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { signOut } from 'next-auth/react'
 import BrandLogo from '@/components/BrandLogo'
 import ThemeToggle from '@/components/ThemeToggle'
 import { tienePermiso } from '@/lib/permisos'
@@ -10,9 +11,9 @@ import { tienePermiso } from '@/lib/permisos'
 const MOBILE_BREAKPOINT = 768
 const SCROLL_THRESHOLD = 40
 
-function clearSession() {
-  localStorage.removeItem('token')
+async function clearSession() {
   localStorage.removeItem('user')
+  await signOut({ redirect: false })
 }
 
 export default function DashboardLayout({
@@ -75,24 +76,15 @@ export default function DashboardLayout({
   }, [checkScroll])
 
   useEffect(() => {
-    const token = localStorage.getItem('token')
-    if (!token) {
-      clearSession()
-      router.replace('/login')
-      setChecking(false)
-      return
-    }
-
     let cancelled = false
     fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token}` },
       cache: 'no-store',
       credentials: 'same-origin',
     })
       .then((res) => {
         if (cancelled) return
         if (res.status === 401) {
-          clearSession()
+          void clearSession()
           router.replace('/login')
           setChecking(false)
           return
@@ -102,14 +94,14 @@ export default function DashboardLayout({
       .then((data) => {
         if (cancelled || !data) return
         if (!data.success || !data.data) {
-          clearSession()
+          void clearSession()
           router.replace('/login')
           setChecking(false)
           return
         }
         const u = data.data
         if (!u.activo) {
-          clearSession()
+          void clearSession()
           router.replace('/login')
           setChecking(false)
           return
@@ -120,7 +112,7 @@ export default function DashboardLayout({
       })
       .catch(() => {
         if (!cancelled) {
-          clearSession()
+          void clearSession()
           router.replace('/login')
           setChecking(false)
         }
@@ -187,8 +179,7 @@ export default function DashboardLayout({
             <button
               type="button"
               onClick={() => {
-                clearSession()
-                router.push('/login')
+                void clearSession().then(() => router.push('/login'))
               }}
               className="app-btn-danger"
             >

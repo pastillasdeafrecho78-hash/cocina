@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 
 /** POST: Marca todos los items en estado LISTO como ENTREGADO (confirmación de recogida por mesero). */
@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }

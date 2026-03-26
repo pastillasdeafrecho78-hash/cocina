@@ -1,73 +1,42 @@
 import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
-import { verifyToken, getTokenFromRequest } from './lib/auth-jwt'
+import { auth } from './auth'
 
-// Rutas públicas que no requieren autenticación
-const publicRoutes = ['/login', '/api/auth/login', '/api/health']
-
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
-
-  // Permitir rutas públicas
-  if (publicRoutes.some((route) => pathname.startsWith(route))) {
-    return NextResponse.next()
-  }
-  if (pathname.startsWith('/api/webhooks/')) {
-    return NextResponse.next()
-  }
-
-  // Solo proteger rutas de API (las rutas del cliente manejan su propia autenticación)
-  if (pathname.startsWith('/api/')) {
-    // Verificar autenticación para rutas de API
-    const token = getTokenFromRequest(request)
-
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    const payload = await verifyToken(token)
-    if (!payload) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
-        { status: 401 }
-      )
-    }
-
-    // Agregar información del usuario a los headers
-    const requestHeaders = new Headers(request.headers)
-    requestHeaders.set('x-user-id', payload.userId)
-    requestHeaders.set('x-user-rol-id', payload.rolId)
-
-    return NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    })
-  }
-
-  // Permitir todas las demás rutas (el cliente maneja la autenticación)
-  return NextResponse.next()
+function isPublicApi(pathname: string): boolean {
+  if (pathname.startsWith('/api/auth/signin')) return true
+  if (pathname.startsWith('/api/auth/callback')) return true
+  if (pathname.startsWith('/api/auth/session')) return true
+  if (pathname === '/api/auth/csrf') return true
+  if (pathname === '/api/auth/providers') return true
+  if (pathname === '/api/auth/error') return true
+  if (pathname === '/api/auth/oauth-slug') return true
+  if (pathname === '/api/auth/register') return true
+  if (pathname === '/api/auth/invites/accept') return true
+  if (pathname === '/api/auth/signout') return true
+  if (pathname === '/api/health') return true
+  if (pathname.startsWith('/api/webhooks/')) return true
+  return false
 }
+
+export default auth((req) => {
+  const pathname = req.nextUrl.pathname
+  const isLoggedIn = !!req.auth
+
+  if (pathname.startsWith('/dashboard') && !isLoggedIn) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
+  }
+
+  if (pathname.startsWith('/api') && !isPublicApi(pathname) && !isLoggedIn) {
+    return NextResponse.json(
+      { success: false, error: 'No autenticado' },
+      { status: 401 }
+    )
+  }
+
+  return NextResponse.next()
+})
 
 export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!_next/static|_next/image|favicon.ico).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
 }
-
-
-
-
-
-
-
-

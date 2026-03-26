@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getUserFromToken, getTokenFromRequest } from '@/lib/auth'
+import { getSessionUser } from '@/lib/auth-server'
 
 export const dynamic = 'force-dynamic'
 import { tienePermiso } from '@/lib/permisos'
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getUserFromToken(getTokenFromRequest(request))
+    const user = await getSessionUser()
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'No autenticado' },
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
         estado: {
           in: ['PENDIENTE', 'EN_PREPARACION', 'LISTO'],
         },
+        comanda: { restauranteId: user.restauranteId },
       },
       include: {
         producto: {
