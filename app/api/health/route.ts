@@ -27,16 +27,29 @@ export async function GET() {
   } catch (e: unknown) {
     const err = e as Error
     const msg = err?.message ?? String(e)
+    const isSupabase = msg.includes('supabase.co')
+    const looksLikeDirect5432 =
+      msg.includes(':5432') || /supabase\.co:5432/.test(msg)
+
+    const hints: string[] = []
+
+    if (isSupabase && looksLikeDirect5432) {
+      hints.push(
+        'En Vercel/serverless no uses la conexión directa :5432 de Supabase. En Supabase → Settings → Database → copia la URI del "Transaction pooler" (puerto 6543) y ponla como DATABASE_URL en Vercel. El código añade pgbouncer=true automáticamente con :6543.'
+      )
+    }
+
+    hints.push(
+      'Local: verifica que PostgreSQL esté corriendo y que .env.local tenga DATABASE_URL correcta.',
+      'Si las tablas no existen: npm run db:push y npm run db:seed (con la misma URL que producción si aplica).'
+    )
+
     return NextResponse.json(
       {
         ok: false,
         error: 'No se pudo conectar a la base de datos',
         detail: msg,
-        hints: [
-          'Verifica que PostgreSQL esté corriendo (pgAdmin conectado no basta: el servidor debe estar activo).',
-          'Comprueba en .env.local: usuario, contraseña, host (localhost), puerto (5432) y nombre de BD (comandas_db).',
-          'Si las tablas no existen, ejecuta: npm run db:push y luego npm run db:seed',
-        ],
+        hints,
       },
       { status: 503 }
     )
