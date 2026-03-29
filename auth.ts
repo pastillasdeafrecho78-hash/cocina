@@ -1,3 +1,4 @@
+import type { Usuario } from '@prisma/client'
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import Google from 'next-auth/providers/google'
@@ -18,26 +19,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
-        slug: { label: 'Slug', type: 'text' },
+        restauranteId: { label: 'Restaurante', type: 'text' },
       },
       async authorize(credentials) {
         const { prisma } = await import('@/lib/prisma')
-        const email = String(credentials?.email ?? '').trim()
+        const email = String(credentials?.email ?? '').trim().toLowerCase()
         const password = String(credentials?.password ?? '')
-        const slug = String(credentials?.slug ?? 'principal').trim() || 'principal'
-        if (!email || !password) return null
+        const restauranteId = String(credentials?.restauranteId ?? '').trim()
+        if (!email || !password || !restauranteId) return null
 
-        const restaurante = await prisma.restaurante.findFirst({
-          where: { slug, activo: true },
-        })
-        if (!restaurante) return null
-
-        const user = await prisma.usuario.findUnique({
+        const user = await prisma.usuario.findFirst({
           where: {
-            restauranteId_email: { restauranteId: restaurante.id, email },
+            restauranteId,
+            email,
+            activo: true,
+            password: { not: null },
+            restaurante: { activo: true },
           },
         })
-        if (!user?.activo || !user.password) return null
+        if (!user?.password) return null
         const ok = await verifyPassword(password, user.password)
         if (!ok) return null
 
@@ -77,25 +77,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       : []),
   ],
   callbacks: {
+    /**
+     * Google sin slug/cookie de tenant:
+     * - Cuenta OAuth ya enlazada → entra como ese usuario.
+     * - Un solo usuario activo con ese email (restaurante activo) → enlazar OAuth a ese usuario.
+     * - Ningún usuario: si hay exactamente un Restaurante activo, crear usuario admin ahí; si hay varios, rechazar (registro/invitación).
+     * - Varios usuarios con el mismo email → rechazar; debe usar email/contraseña y elegir restaurante en login.
+     */
     async signIn({ account, profile }) {
       if (account?.provider !== 'google' || !account.providerAccountId || !profile?.email) {
         return true
       }
       const { prisma } = await import('@/lib/prisma')
-      const { cookies } = await import('next/headers')
       const email = String(profile.email).toLowerCase()
-      let slug = 'principal'
-      try {
-        const c = (await cookies()).get('oauth_slug')?.value?.trim()
-        if (c) slug = c
-      } catch {
-        /* ignore */
-      }
-
-      const restaurante = await prisma.restaurante.findFirst({
-        where: { slug, activo: true },
-      })
-      if (!restaurante) return false
 
       const existingLink = await prisma.cuentaOAuth.findUnique({
         where: {
@@ -122,28 +116,48 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return true
       }
 
-      let dbUser = await prisma.usuario.findUnique({
+      const sameEmail = await prisma.usuario.findMany({
         where: {
-          restauranteId_email: { restauranteId: restaurante.id, email },
+          email,
+          activo: true,
+          restaurante: { activo: true },
         },
       })
+
+      if (sameEmail.length > 1) {
+        return '/login?error=google_multi'
+      }
 
       const nombre =
         (profile as { given_name?: string }).given_name ?? email.split('@')[0]
       const apellido = (profile as { family_name?: string }).family_name ?? ''
 
-      if (!dbUser) {
+      let dbUser: Usuario
+
+      if (sameEmail.length === 1) {
+        dbUser = sameEmail[0]
+      } else {
+        const activos = await prisma.restaurante.count({ where: { activo: true } })
+        if (activos !== 1) {
+          return '/login?error=google_register'
+        }
+        const unico = await prisma.restaurante.findFirst({
+          where: { activo: true },
+        })
+        if (!unico) return '/login?error=google_register'
+
         const rol =
           (await prisma.rol.findFirst({ where: { codigo: 'admin' } })) ??
           (await prisma.rol.findFirst())
         if (!rol) return false
+
         dbUser = await prisma.usuario.create({
           data: {
             email,
             nombre,
             apellido,
             password: null,
-            restauranteId: restaurante.id,
+            restauranteId: unico.id,
             rolId: rol.id,
           },
         })

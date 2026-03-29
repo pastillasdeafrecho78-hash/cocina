@@ -8,7 +8,7 @@ function isPublicApi(pathname: string): boolean {
   if (pathname === '/api/auth/csrf') return true
   if (pathname === '/api/auth/providers') return true
   if (pathname === '/api/auth/error') return true
-  if (pathname === '/api/auth/oauth-slug') return true
+  if (pathname === '/api/auth/prelogin') return true
   if (pathname === '/api/auth/register') return true
   if (pathname === '/api/auth/invites/accept') return true
   if (pathname === '/api/auth/signout') return true

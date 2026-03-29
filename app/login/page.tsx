@@ -6,19 +6,33 @@ import toast from 'react-hot-toast'
 import BrandLogo from '@/components/BrandLogo'
 import ThemeToggle from '@/components/ThemeToggle'
 
+type ChooseOption = { restauranteId: string; nombre: string }
+
 export default function LoginPage() {
   const [activeTheme, setActiveTheme] = useState<'light' | 'dark'>('light')
   const [loading, setLoading] = useState(false)
+  const [step, setStep] = useState<'form' | 'choose'>('form')
+  const [chooseOptions, setChooseOptions] = useState<ChooseOption[]>([])
+  const [selectedRestauranteId, setSelectedRestauranteId] = useState('')
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    slug: 'principal',
   })
 
   useEffect(() => {
     const e = new URLSearchParams(window.location.search).get('error')
     if (e === 'OAuthAccountNotLinked' || e === 'Configuration') {
       toast.error('No se pudo completar el inicio con Google.')
+    }
+    if (e === 'google_multi') {
+      toast.error(
+        'Ese email está en varios restaurantes. Inicia sesión con contraseña y elige el local.'
+      )
+    }
+    if (e === 'google_register') {
+      toast.error(
+        'No hay cuenta con Google para este entorno. Regístrate o pide una invitación.'
+      )
     }
   }, [])
 
@@ -52,30 +66,83 @@ export default function LoginPage() {
           color: 'rgb(41 37 36)',
         }
 
+  const completeSignIn = async (restauranteId: string) => {
+    const res = await signIn('credentials', {
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+      restauranteId,
+      redirect: false,
+    })
+
+    if (res?.error) {
+      throw new Error('No se pudo iniciar sesión. Vuelve a intentarlo.')
+    }
+
+    const sessionRes = await fetch('/api/auth/session', { credentials: 'same-origin' })
+    const session = await sessionRes.json()
+    if (session?.user) {
+      localStorage.setItem('user', JSON.stringify(session.user))
+    }
+
+    toast.success('Sesión iniciada correctamente')
+    window.location.href = '/dashboard'
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (step === 'choose') {
+      if (!selectedRestauranteId) {
+        toast.error('Elige un restaurante')
+        return
+      }
+      setLoading(true)
+      try {
+        await completeSignIn(selectedRestauranteId)
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : 'Error al iniciar sesión'
+        toast.error(msg)
+      } finally {
+        setLoading(false)
+      }
+      return
+    }
+
     setLoading(true)
-
     try {
-      const res = await signIn('credentials', {
-        email: formData.email.trim(),
-        password: formData.password,
-        slug: formData.slug.trim() || 'principal',
-        redirect: false,
+      const pre = await fetch('/api/auth/prelogin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          email: formData.email.trim(),
+          password: formData.password,
+        }),
       })
-
-      if (res?.error) {
-        throw new Error('Credenciales inválidas o restaurante no encontrado')
+      const data = (await pre.json()) as {
+        ok?: boolean
+        mode?: string
+        restauranteId?: string
+        options?: ChooseOption[]
+        error?: string
       }
 
-      const sessionRes = await fetch('/api/auth/session', { credentials: 'same-origin' })
-      const session = await sessionRes.json()
-      if (session?.user) {
-        localStorage.setItem('user', JSON.stringify(session.user))
+      if (!pre.ok || !data.ok) {
+        throw new Error(data.error ?? 'Credenciales incorrectas')
       }
 
-      toast.success('Sesión iniciada correctamente')
-      window.location.href = '/dashboard'
+      if (data.mode === 'single' && data.restauranteId) {
+        await completeSignIn(data.restauranteId)
+        return
+      }
+
+      if (data.mode === 'choose' && data.options?.length) {
+        setChooseOptions(data.options)
+        setSelectedRestauranteId(data.options[0]?.restauranteId ?? '')
+        setStep('choose')
+        return
+      }
+
+      throw new Error('Respuesta inesperada del servidor')
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Error al iniciar sesión'
       toast.error(msg)
@@ -85,15 +152,8 @@ export default function LoginPage() {
   }
 
   const handleGoogle = async () => {
-    const slug = formData.slug.trim() || 'principal'
     setLoading(true)
     try {
-      await fetch('/api/auth/oauth-slug', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ slug }),
-      })
       await signIn('google', { callbackUrl: '/dashboard' })
     } catch {
       toast.error('Error al iniciar con Google')
@@ -154,72 +214,98 @@ export default function LoginPage() {
             <div>
               <p className="app-kicker text-center">Acceso</p>
               <p className="mt-2 text-center text-sm text-stone-600">
-                Inicia sesión para entrar al centro operativo de ServimOS.
+                Inicia sesión con tu email y contraseña.
               </p>
             </div>
 
             <div className="app-brand-divider mt-6" />
 
             <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-              <div className="space-y-3">
-                <div>
-                  <label htmlFor="slug" className="mb-1.5 block text-sm font-medium text-stone-700">
-                    Restaurante (slug)
-                  </label>
-                  <input
-                    id="slug"
-                    name="slug"
-                    type="text"
-                    autoComplete="organization"
-                    className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-                    style={themedInputStyle}
-                    placeholder="principal"
-                    value={formData.slug}
-                    onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  />
+              {step === 'choose' ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-stone-600">
+                    Tu cuenta existe en varios restaurantes. Elige dónde entrar:
+                  </p>
+                  <div className="space-y-2">
+                    {chooseOptions.map((opt) => (
+                      <label
+                        key={opt.restauranteId}
+                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-stone-200 p-3 dark:border-stone-700"
+                      >
+                        <input
+                          type="radio"
+                          name="restaurante"
+                          className="h-4 w-4"
+                          checked={selectedRestauranteId === opt.restauranteId}
+                          onChange={() => setSelectedRestauranteId(opt.restauranteId)}
+                        />
+                        <span className="font-medium text-stone-900 dark:text-stone-100">
+                          {opt.nombre}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="text-sm text-amber-800 underline dark:text-amber-400"
+                    onClick={() => {
+                      setStep('form')
+                      setChooseOptions([])
+                      setSelectedRestauranteId('')
+                    }}
+                  >
+                    Volver
+                  </button>
                 </div>
-                <div>
-                  <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-stone-700">
-                    Email
-                  </label>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-                    style={themedInputStyle}
-                    placeholder="admin@restaurante.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-stone-700">
+                      Email
+                    </label>
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      autoComplete="email"
+                      required
+                      className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                      style={themedInputStyle}
+                      placeholder="admin@restaurante.com"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    />
+                  </div>
 
-                <div>
-                  <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-stone-700">
-                    Contraseña
-                  </label>
-                  <input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                    className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
-                    style={themedInputStyle}
-                    placeholder="Tu contraseña"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  />
+                  <div>
+                    <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-stone-700">
+                      Contraseña
+                    </label>
+                    <input
+                      id="password"
+                      name="password"
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                      className="app-input border-stone-300 bg-white/95 text-stone-900 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100"
+                      style={themedInputStyle}
+                      placeholder="Tu contraseña"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <button type="submit" disabled={loading} className="app-btn-primary w-full">
-                {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+                {loading
+                  ? 'Iniciando sesión...'
+                  : step === 'choose'
+                    ? 'Continuar'
+                    : 'Iniciar sesión'}
               </button>
 
-              {googleEnabled && (
+              {step === 'form' && googleEnabled && (
                 <>
                   <div className="relative py-2 text-center text-xs text-stone-500">o</div>
                   <button

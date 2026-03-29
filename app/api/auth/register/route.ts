@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { hashPassword } from '@/lib/password'
-import { isValidRestaurantSlug } from '@/lib/slug'
+import { allocateUniqueRestaurantSlug, isValidRestaurantSlug } from '@/lib/slug'
 import { rateLimitAuth } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 const schema = z.object({
   organizacionNombre: z.string().min(2).max(120),
   restauranteNombre: z.string().min(2).max(120),
-  slug: z.string().min(2).max(64),
+  slug: z.string().max(64).optional(),
   email: z.string().email(),
   password: z.string().min(8).max(128),
   nombre: z.string().min(1).max(80),
@@ -31,36 +31,35 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const data = schema.parse(body)
-    const slug = data.slug.trim().toLowerCase()
-
-    if (!isValidRestaurantSlug(slug)) {
-      return NextResponse.json(
-        { success: false, error: 'Slug no válido o reservado' },
-        { status: 400 }
-      )
-    }
-
-    const exists = await prisma.restaurante.findFirst({ where: { slug } })
-    if (exists) {
-      return NextResponse.json(
-        { success: false, error: 'Ese identificador de restaurante ya está en uso' },
-        { status: 409 }
-      )
-    }
-
-    const rol =
-      (await prisma.rol.findFirst({ where: { codigo: 'admin' } })) ??
-      (await prisma.rol.findFirst())
-    if (!rol) {
-      return NextResponse.json(
-        { success: false, error: 'Configuración de roles incompleta' },
-        { status: 500 }
-      )
-    }
-
-    const passwordHash = await hashPassword(data.password)
 
     const result = await prisma.$transaction(async (tx) => {
+      const rawSlug = data.slug?.trim().toLowerCase()
+      let slug: string
+      if (rawSlug) {
+        if (!isValidRestaurantSlug(rawSlug)) {
+          throw Object.assign(new Error('SLUG_INVALID'), { code: 'SLUG_INVALID' })
+        }
+        const exists = await tx.restaurante.findFirst({ where: { slug: rawSlug } })
+        if (exists) {
+          throw Object.assign(new Error('SLUG_TAKEN'), { code: 'SLUG_TAKEN' })
+        }
+        slug = rawSlug
+      } else {
+        slug = await allocateUniqueRestaurantSlug(
+          (s) => tx.restaurante.findFirst({ where: { slug: s }, select: { slug: true } }),
+          data.restauranteNombre.trim()
+        )
+      }
+
+      const rol =
+        (await tx.rol.findFirst({ where: { codigo: 'admin' } })) ??
+        (await tx.rol.findFirst())
+      if (!rol) {
+        throw Object.assign(new Error('NO_ROL'), { code: 'NO_ROL' })
+      }
+
+      const passwordHash = await hashPassword(data.password)
+
       const org = await tx.organizacion.create({
         data: { nombre: data.organizacionNombre.trim() },
       })
@@ -101,11 +100,30 @@ export async function POST(request: NextRequest) {
         slug: result.restaurante.slug,
       },
     })
-  } catch (error) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: 'Datos inválidos', details: error.errors },
         { status: 400 }
+      )
+    }
+    const code = error && typeof error === 'object' && 'code' in error ? (error as { code: string }).code : ''
+    if (code === 'SLUG_INVALID') {
+      return NextResponse.json(
+        { success: false, error: 'Slug no válido o reservado' },
+        { status: 400 }
+      )
+    }
+    if (code === 'SLUG_TAKEN') {
+      return NextResponse.json(
+        { success: false, error: 'Ese identificador de restaurante ya está en uso' },
+        { status: 409 }
+      )
+    }
+    if (code === 'NO_ROL') {
+      return NextResponse.json(
+        { success: false, error: 'Configuración de roles incompleta' },
+        { status: 500 }
       )
     }
     console.error('register:', error)

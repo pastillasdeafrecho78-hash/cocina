@@ -12,7 +12,6 @@ export default function RegisterPage() {
   const [form, setForm] = useState({
     organizacionNombre: '',
     restauranteNombre: '',
-    slug: '',
     email: '',
     password: '',
     nombre: '',
@@ -33,7 +32,7 @@ export default function RegisterPage() {
         throw new Error(data.error || 'Error al registrar')
       }
       toast.success('Cuenta creada. Inicia sesión con tu email y contraseña.')
-      router.push(`/login?slug=${encodeURIComponent(form.slug.trim().toLowerCase())}`)
+      router.push('/login')
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Error al registrar')
     } finally {
@@ -50,8 +49,8 @@ export default function RegisterPage() {
         <div className="app-brand-panel p-8">
           <h1 className="text-xl font-semibold text-stone-900">Crear cuenta</h1>
           <p className="mt-4 text-sm text-stone-600">
-            Registra tu organización y un restaurante. El slug es la URL corta (ej.{' '}
-            <code className="rounded bg-stone-100 px-1">mi-local</code>).
+            Registra tu organización y tu restaurante. Solo necesitas email y contraseña para entrar
+            después del registro.
           </p>
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <input
@@ -67,18 +66,6 @@ export default function RegisterPage() {
               placeholder="Nombre del restaurante"
               value={form.restauranteNombre}
               onChange={(e) => setForm({ ...form, restauranteNombre: e.target.value })}
-            />
-            <input
-              required
-              className="app-input w-full"
-              placeholder="Slug (solo minúsculas, números y guiones)"
-              value={form.slug}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''),
-                })
-              }
             />
             <input
               required
