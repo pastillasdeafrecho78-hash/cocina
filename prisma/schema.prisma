@@ -6,11 +6,8 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  // Conexión directa (p. ej. puerto 5432 en Supabase). Obligatoria para migrate deploy;
-  // el pooler :6543 no es compatible con migraciones y puede colgar el build en Vercel.
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 enum EstadoMesa {

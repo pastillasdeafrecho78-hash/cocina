@@ -9,11 +9,7 @@ import { resolve } from 'path'
 // Cargar variables de entorno desde .env.local
 config({ path: resolve(process.cwd(), '.env.local') })
 
-const requiredEnvVars = [
-  'DATABASE_URL',
-  'DIRECT_URL',
-  'JWT_SECRET',
-]
+const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET']
 
 const optionalEnvVars: string[] = [
   // Variables opcionales - no son necesarias para empezar
@@ -42,7 +38,6 @@ function checkEnvVar(name: string, required: boolean = true): EnvCheck {
     // Validaciones específicas
     switch (name) {
       case 'DATABASE_URL':
-      case 'DIRECT_URL':
         if (!value.startsWith('postgresql://')) {
           isValid = false
           message = '❌ Formato incorrecto (debe empezar con postgresql://)'
@@ -136,7 +131,7 @@ function main() {
     console.log('❌ Hay problemas con la configuración\n')
     console.log('💡 Soluciones:')
     console.log('   1. Asegúrate de tener un archivo .env.local en la raíz del proyecto')
-    console.log('   2. Configura: DATABASE_URL, DIRECT_URL (misma URL que DB en local) y JWT_SECRET')
+    console.log('   2. Configura: DATABASE_URL y JWT_SECRET')
     console.log('   3. Genera JWT_SECRET con PowerShell o: https://generate-secret.vercel.app/32')
     process.exit(1)
   }

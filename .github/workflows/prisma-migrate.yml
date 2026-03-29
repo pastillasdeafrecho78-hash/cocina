@@ -1,5 +1,5 @@
-# Ejecutar migraciones contra la base (session pooler / DIRECT_URL en secretos del repo).
-# Requiere: DATABASE_URL, DIRECT_URL, y acceso a la instancia PostgreSQL.
+# Ejecutar migraciones contra la base.
+# Requiere el secret DATABASE_URL en GitHub (misma cadena que en Vercel / Supabase).
 
 name: prisma-migrate
 
@@ -23,5 +23,4 @@ jobs:
       - name: Prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: npx prisma migrate deploy
