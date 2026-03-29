@@ -11,6 +11,8 @@ const patchSchema = z.object({
   activo: z.boolean().optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()

@@ -6,6 +6,8 @@ import { getClipApiKey } from '@/lib/clip-config'
 import { clipPaymentDetail } from '@/lib/clip-payclip'
 import { finalizarComandaTrasPagoClip } from '@/lib/clip-finalize'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * Polling: consulta detalle en Clip y, si COMPLETED, finaliza pago/comanda (idempotente).
  */

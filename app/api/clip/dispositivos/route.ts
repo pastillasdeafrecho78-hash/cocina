@@ -4,6 +4,8 @@ import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKey } from '@/lib/clip-config'
 import { clipDevicesStatus } from '@/lib/clip-payclip'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()

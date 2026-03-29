@@ -12,6 +12,8 @@ const schema = z.object({
   tipAmount: z.number().min(0).optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 function montoComanda(comanda: { total: number; propina: number | null; descuento: number | null }) {
   const total = comanda.total || 0
   const propina = ((comanda.propina || 0) / 100) * total

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 
+export const dynamic = 'force-dynamic'
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }

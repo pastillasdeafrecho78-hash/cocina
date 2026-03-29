@@ -9,6 +9,8 @@ const postSchema = z.object({
   nombre: z.string().optional(),
 })
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()
