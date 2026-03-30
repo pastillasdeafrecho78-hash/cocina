@@ -149,8 +149,7 @@ export default function CajaPage() {
                 Cortes y resumen
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-stone-600 dark:text-stone-300 sm:text-base">
-                Corte X informativo y Corte Z como cierre definitivo del periodo. Misma línea visual
-                que el resto del panel ServimOS.
+                Consulta el resumen del turno y realiza cierres de caja cuando corresponda.
               </p>
             </div>
             <div className="app-note max-w-md px-4 py-3 text-sm dark:border-stone-600/50 dark:bg-stone-900/40">

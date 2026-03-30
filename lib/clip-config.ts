@@ -2,16 +2,28 @@ import * as crypto from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { decryptSecret } from '@/lib/configuracion-restaurante'
 
-export async function getClipApiKey(restauranteId: string): Promise<string | null> {
+export type ClipApiKeyStatus =
+  | { ok: true; apiKey: string }
+  | { ok: false; reason: 'INACTIVE' | 'MISSING_KEY' | 'DECRYPT_FAILED' }
+
+export async function getClipApiKeyStatus(restauranteId: string): Promise<ClipApiKeyStatus> {
   const row = await prisma.integracionClip.findUnique({
     where: { restauranteId },
   })
-  if (!row?.activo || !row.apiKeyEncrypted) return null
+  if (!row?.activo) return { ok: false, reason: 'INACTIVE' }
+  if (!row.apiKeyEncrypted) return { ok: false, reason: 'MISSING_KEY' }
   try {
-    return decryptSecret(row.apiKeyEncrypted)
+    const apiKey = decryptSecret(row.apiKeyEncrypted).trim()
+    if (!apiKey) return { ok: false, reason: 'MISSING_KEY' }
+    return { ok: true, apiKey }
   } catch {
-    return null
+    return { ok: false, reason: 'DECRYPT_FAILED' }
   }
+}
+
+export async function getClipApiKey(restauranteId: string): Promise<string | null> {
+  const status = await getClipApiKeyStatus(restauranteId)
+  return status.ok ? status.apiKey : null
 }
 
 export async function verifyClipWebhookToken(restauranteId: string, headerToken: string | null): Promise<boolean> {

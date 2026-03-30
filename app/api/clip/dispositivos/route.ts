@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
-import { getClipApiKey } from '@/lib/clip-config'
+import { getClipApiKeyStatus } from '@/lib/clip-config'
 import { clipDevicesStatus } from '@/lib/clip-payclip'
 
 export const dynamic = 'force-dynamic'
@@ -9,14 +9,22 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'caja')) {
+    if (!user || !tienePermiso(user, 'configuracion')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
-    const apiKey = await getClipApiKey(user.restauranteId)
-    if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'Clip no configurado' }, { status: 400 })
+    const status = await getClipApiKeyStatus(user.restauranteId)
+    if (!status.ok) {
+      const errorByReason: Record<string, string> = {
+        INACTIVE: 'Clip está inactivo. Actívalo desde Configuración.',
+        MISSING_KEY: 'Falta la API key de Clip. Guárdala en Configuración.',
+        DECRYPT_FAILED: 'La API key guardada no se puede leer. Guarda la API key nuevamente.',
+      }
+      return NextResponse.json(
+        { success: false, error: errorByReason[status.reason] || 'Clip no configurado' },
+        { status: 400 }
+      )
     }
-    const data = await clipDevicesStatus(apiKey)
+    const data = await clipDevicesStatus(status.apiKey)
     return NextResponse.json({ success: true, data })
   } catch (e: any) {
     console.error(e)

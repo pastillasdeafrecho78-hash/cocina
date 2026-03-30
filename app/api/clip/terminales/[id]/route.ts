@@ -11,7 +11,7 @@ export async function DELETE(
 ) {
   try {
     const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'caja')) {
+    if (!user || !tienePermiso(user, 'configuracion')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
     const t = await prisma.clipTerminal.findFirst({

@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'caja')) {
+    if (!user || !tienePermiso(user, 'configuracion')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
     const list = await prisma.clipTerminal.findMany({
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'caja')) {
+    if (!user || !tienePermiso(user, 'configuracion')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
     const body = postSchema.parse(await request.json())

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { encryptSecret } from '@/lib/configuracion-restaurante'
+import { getClipApiKeyStatus } from '@/lib/clip-config'
 import { z } from 'zod'
 
 const patchSchema = z.object({
@@ -16,18 +17,22 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'caja')) {
+    if (!user || !tienePermiso(user, 'configuracion')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
     const row = await prisma.integracionClip.findUnique({
       where: { restauranteId: user.restauranteId },
     })
+    const keyStatus = await getClipApiKeyStatus(user.restauranteId)
     const n = await prisma.clipTerminal.count({ where: { restauranteId: user.restauranteId, activo: true } })
     return NextResponse.json({
       success: true,
       data: {
         activo: row?.activo ?? false,
         hasApiKey: Boolean(row?.apiKeyEncrypted),
+        hasApiKeyDecrypted: keyStatus.ok,
+        apiKeyError: keyStatus.ok ? null : keyStatus.reason,
+        clipReady: keyStatus.ok && Boolean(row?.activo),
         hasWebhookSecret: Boolean(row?.webhookSecret),
         terminalesRegistradas: n,
       },
@@ -41,7 +46,7 @@ export async function GET(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'caja')) {
+    if (!user || !tienePermiso(user, 'configuracion')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
     const body = patchSchema.parse(await request.json())
@@ -51,7 +56,11 @@ export async function PATCH(request: NextRequest) {
       activo?: boolean
     } = {}
     if (body.apiKey !== undefined) {
-      data.apiKeyEncrypted = encryptSecret(body.apiKey)
+      const key = body.apiKey.trim()
+      if (!key) {
+        return NextResponse.json({ success: false, error: 'La API key no puede estar vacía' }, { status: 400 })
+      }
+      data.apiKeyEncrypted = encryptSecret(key)
     }
     if (body.webhookSecret !== undefined) {
       data.webhookSecret = body.webhookSecret ? encryptSecret(body.webhookSecret) : null

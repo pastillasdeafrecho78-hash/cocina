@@ -246,16 +246,15 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <h3 className="text-sm font-medium text-yellow-950 dark:text-amber-50">Clip no configurado</h3>
                 <div className="mt-2 text-sm text-yellow-900 dark:text-amber-100">
-                  <p>Para empezar pruebas solo necesitas configurar terminal Clip en caja:</p>
+                  <p>Para comenzar, configura tu integración de Clip:</p>
                   <ul className="mt-1 list-disc list-inside">
                     <li>Guardar API key de Clip</li>
                     <li>Registrar numero de serie de la terminal</li>
-                    <li>Enviar cobro desde la seccion Caja</li>
                   </ul>
                 </div>
                 <div className="mt-3">
-                  <Link href="/dashboard/caja" className="text-sm font-medium text-yellow-950 underline dark:text-amber-50">
-                    Ir a Caja →
+                  <Link href="/dashboard/configuracion" className="text-sm font-medium text-yellow-950 underline dark:text-amber-50">
+                    Ir a Configuración →
                   </Link>
                 </div>
               </div>
