@@ -1,8 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import * as crypto from 'crypto'
 
-// Clave para encriptar datos sensibles (en producción usar variable de entorno)
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex')
+// Clave para encriptar datos sensibles.
+// Debe ser estable entre reinicios; fallback fijo solo para desarrollo local.
+const DEV_FALLBACK_KEY = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || DEV_FALLBACK_KEY
 const ALGORITHM = 'aes-256-cbc'
 
 /**

@@ -5,11 +5,18 @@
 
 const BASE = process.env.CLIP_API_BASE || 'https://api.payclip.io'
 
+function clipAuthHeaderValue(apiKey: string): string {
+  const token = apiKey.trim()
+  if (/^(Basic|Bearer)\s+/i.test(token)) return token
+  // Clip PinPad documenta Basic para autenticación.
+  return `Basic ${token}`
+}
+
 function authHeaders(apiKey: string): HeadersInit {
   return {
     'Content-Type': 'application/json',
     Accept: 'application/json',
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: clipAuthHeaderValue(apiKey),
   }
 }
 
@@ -55,7 +62,7 @@ export async function clipDevicesStatus(apiKey: string): Promise<unknown> {
   const res = await fetch(`${BASE}/f2f/pinpad/v1/devices/status`, {
     headers: {
       Accept: 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: clipAuthHeaderValue(apiKey),
     },
   })
   const text = await res.text()
@@ -79,7 +86,7 @@ export async function clipPaymentDetail(
   const res = await fetch(url, {
     headers: {
       Accept: 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: clipAuthHeaderValue(apiKey),
     },
   })
   const text = await res.text()

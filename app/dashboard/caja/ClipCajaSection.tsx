@@ -192,7 +192,7 @@ export default function ClipCajaSection() {
           )}
           <input
             type="password"
-            placeholder="API key Clip (Bearer)"
+            placeholder="Token API Clip (se envia como Basic)"
             className="app-input app-field text-sm"
             value={apiKeyInput}
             onChange={(e) => setApiKeyInput(e.target.value)}
