@@ -1,21 +1,37 @@
 #!/usr/bin/env bash
-# Build usado por Vercel: migraciones deben ir por conexión directa a Postgres (Supabase :5432).
-# Si usas solo el pooler (:6543 / PgBouncer), migrate deploy puede colgarse o fallar.
-# Configura DIRECT_URL en Vercel (misma cadena que "Direct connection" en Supabase).
+# Build usado por Vercel: migraciones NO pueden usar el pooler transaccional de Supabase (:6543).
+# Usa DIRECT_URL = conexión directa db.*.supabase.co:5432 o Session pooler aws-*.pooler.supabase.com:5432.
 # En local, VERCEL no está definido: solo generate + next build (sin tocar la BD remota).
 set -euo pipefail
 
-# URL para migraciones: prioridad DIRECT_URL, luego nombres que usa la integración Supabase↔Vercel o plantillas.
-migrate_db_url() {
-  [ -n "${DIRECT_URL:-}" ] && printf '%s' "${DIRECT_URL}" && return
-  [ -n "${POSTGRES_URL_NON_POOLING:-}" ] && printf '%s' "${POSTGRES_URL_NON_POOLING}" && return
-  [ -n "${POSTGRES_PRISMA_URL:-}" ] && printf '%s' "${POSTGRES_PRISMA_URL}" && return
-  printf ''
+# El puerto 6543 en Supabase es PgBouncer modo transacción: Prisma migrate deploy falla o se cuelga.
+is_transaction_pooler_port() {
+  case "$1" in *:6543*) return 0 ;; esac
+  return 1
+}
+
+# Devuelve la primera URL candidata que NO sea :6543.
+pick_migrate_url() {
+  local val
+  for name in DIRECT_URL POSTGRES_URL_NON_POOLING POSTGRES_PRISMA_URL; do
+    val="${!name:-}"
+    [ -z "$val" ] && continue
+    if is_transaction_pooler_port "$val"; then
+      echo ">>> omitiendo ${name} (pooler transaccional :6543, no válido para migrate)"
+      continue
+    fi
+    printf '%s' "$val"
+    return 0
+  done
+  val="${DATABASE_URL:-}"
+  if [ -n "$val" ] && ! is_transaction_pooler_port "$val"; then
+    printf '%s' "$val"
+    return 0
+  fi
+  return 1
 }
 
 # Supabase exige TLS; sin ?sslmode=require Prisma puede fallar al conectar desde CI/Vercel.
-# Si sigue P1001 "Can't reach" hacia db.*.supabase.co, usa en DIRECT_URL la URI "Session pooler" :5432
-# (usuario postgres.PROJECT_REF en host aws-*.pooler.supabase.com) — ver env.example.
 ensure_supabase_sslmode() {
   local url="$1"
   case "$url" in
@@ -34,20 +50,17 @@ ensure_supabase_sslmode() {
 # Solo en deploy de producción (no en previews) para no exigir migraciones duplicadas ni tocar la BD equivocada.
 if [ "${VERCEL:-}" = "1" ] && [ "${VERCEL_ENV:-}" = "production" ]; then
   echo ">>> prisma migrate deploy (Vercel production)"
-  MU="$(migrate_db_url)"
-  if [ -n "$MU" ]; then
+  if MU="$(pick_migrate_url)"; then
     MU="$(ensure_supabase_sslmode "$MU")"
-    # No imprimir la URL; solo pista para depurar (6543 = pooler, suele colgar migrate).
-    case "$MU" in
-      *:6543*|*pooler*) echo "WARN: :6543 es pooler transaccional; migrate suele fallar. Usa db.*:5432 o session pooler :5432." ;;
-      *) echo "migrate: URL para migraciones (longitud ${#MU} caracteres)." ;;
-    esac
+    echo "migrate: URL elegida (longitud ${#MU} caracteres)."
     DATABASE_URL="$MU" npx prisma migrate deploy
   else
-    echo "WARN: sin DIRECT_URL (ni POSTGRES_URL_NON_POOLING / POSTGRES_PRISMA_URL). Vercel no está inyectando la variable en ESTE deploy."
-    echo "      En Vercel: revisa que exista para Production, guarda, luego Redeploy (ideal: Clear build cache)."
-    echo "      Usando DATABASE_URL (si es pooler :6543, migrate puede colgarse)."
-    npx prisma migrate deploy
+    echo "::error::No hay ninguna URL apta para migrar (todas apuntan a pooler :6543 o están vacías)."
+    echo "En Vercel → Environment Variables crea DIRECT_URL con una de estas:"
+    echo "  • Direct: postgresql://postgres:...@db.TUPROJECT.supabase.co:5432/postgres?sslmode=require"
+    echo "  • Session pooler (si direct falla): host aws-REGION.pooler.supabase.com puerto 5432, usuario postgres.PROJECT_REF"
+    echo "DATABASE_URL puede seguir siendo la de pooler :6543 solo para la app en runtime."
+    exit 1
   fi
 fi
 
