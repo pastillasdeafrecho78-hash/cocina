@@ -5,6 +5,17 @@
 
 const BASE = process.env.CLIP_API_BASE || 'https://api.payclip.io'
 
+export class ClipProviderError extends Error {
+  status: number
+  responseBody: string
+  constructor(message: string, status: number, responseBody: string) {
+    super(message)
+    this.name = 'ClipProviderError'
+    this.status = status
+    this.responseBody = responseBody
+  }
+}
+
 function clipAuthHeaderValue(apiKey: string, mode?: 'basic' | 'bearer'): string {
   const token = apiKey.trim()
   if (/^(Basic|Bearer)\s+/i.test(token)) return token
@@ -71,38 +82,36 @@ export async function clipPinpadCreatePayment(opts: {
 }
 
 export async function clipDevicesStatus(apiKey: string): Promise<unknown> {
-  const first = await fetch(`${BASE}/f2f/pinpad/v1/devices/status`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: clipAuthHeaderValue(apiKey, 'basic'),
-    },
-  })
-  let parsed = await parseResponse(first)
-  if (!first.ok && !/^(Basic|Bearer)\s+/i.test(apiKey.trim())) {
-    const second = await fetch(`${BASE}/f2f/pinpad/v1/devices/status`, {
-      headers: {
-        Accept: 'application/json',
-        Authorization: clipAuthHeaderValue(apiKey, 'bearer'),
-      },
-    })
-    parsed = await parseResponse(second)
-    if (!second.ok) {
-      throw new Error(
-        typeof parsed.json === 'object' && parsed.json && 'message' in parsed.json
-          ? String(parsed.json.message)
-          : parsed.text
-      )
-    }
-    return parsed.json
+  const token = apiKey.trim()
+  const attempts: HeadersInit[] = /^(Basic|Bearer)\s+/i.test(token)
+    ? [{ Accept: 'application/json', Authorization: token }]
+    : [
+        { Accept: 'application/json', Authorization: clipAuthHeaderValue(token, 'basic') },
+        { Accept: 'application/json', Authorization: clipAuthHeaderValue(token, 'bearer') },
+        { Accept: 'application/json', 'x-api-key': token },
+      ]
+
+  let lastStatus = 502
+  let lastBody = ''
+  for (const headers of attempts) {
+    const res = await fetch(`${BASE}/f2f/pinpad/v1/devices/status`, { headers })
+    const parsed = await parseResponse(res)
+    if (res.ok) return parsed.json
+    lastStatus = res.status
+    lastBody = parsed.text
   }
-  if (!first.ok) {
-    throw new Error(
-      typeof parsed.json === 'object' && parsed.json && 'message' in parsed.json
-        ? String(parsed.json.message)
-        : parsed.text
-    )
-  }
-  return parsed.json
+
+  let providerMsg = lastBody
+  try {
+    const parsed = JSON.parse(lastBody)
+    providerMsg =
+      parsed?.message ||
+      parsed?.error ||
+      parsed?.detail ||
+      lastBody
+  } catch {}
+
+  throw new ClipProviderError(providerMsg || 'Error consultando dispositivos en Clip', lastStatus, lastBody)
 }
 
 export async function clipPaymentDetail(

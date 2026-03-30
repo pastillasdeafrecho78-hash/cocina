@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKeyStatus } from '@/lib/clip-config'
-import { clipDevicesStatus } from '@/lib/clip-payclip'
+import { clipDevicesStatus, ClipProviderError } from '@/lib/clip-payclip'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,6 +28,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data })
   } catch (e: any) {
     console.error(e)
+    if (e instanceof ClipProviderError) {
+      return NextResponse.json(
+        { success: false, error: e.message || 'Error al consultar dispositivos Clip' },
+        { status: e.status >= 400 && e.status < 600 ? e.status : 502 }
+      )
+    }
     return NextResponse.json(
       { success: false, error: e?.message || 'Error al consultar dispositivos Clip' },
       { status: 502 }
