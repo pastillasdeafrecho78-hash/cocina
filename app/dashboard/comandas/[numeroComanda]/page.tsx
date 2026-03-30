@@ -38,6 +38,13 @@ interface Comanda {
   }>
 }
 
+interface ClipTerminal {
+  id: string
+  serialNumber: string
+  nombre: string | null
+  activo: boolean
+}
+
 export default function ComandaDetallePage() {
   const params = useParams()
   const router = useRouter()
@@ -49,6 +56,7 @@ export default function ComandaDetallePage() {
   const [cobrandoEfectivo, setCobrandoEfectivo] = useState(false)
   const [cobrandoClip, setCobrandoClip] = useState(false)
   const [serialClip, setSerialClip] = useState('')
+  const [terminalesClip, setTerminalesClip] = useState<ClipTerminal[]>([])
   const [propinaClip, setPropinaClip] = useState('')
   const [esperaClip, setEsperaClip] = useState<{ pagoId: string; pinpadId: string } | null>(null)
   const [montoRecibido, setMontoRecibido] = useState('')
@@ -58,6 +66,18 @@ export default function ComandaDetallePage() {
   useEffect(() => {
     fetchComanda()
   }, [numeroComanda])
+
+  useEffect(() => {
+    const loadTerminales = async () => {
+      const res = await apiFetch('/api/clip/terminales')
+      const data = await res.json()
+      if (!data.success) return
+      const active = (data.data as ClipTerminal[]).filter((t) => t.activo)
+      setTerminalesClip(active)
+      if (active.length === 1) setSerialClip(active[0].serialNumber)
+    }
+    loadTerminales().catch(() => undefined)
+  }, [])
 
   useEffect(() => {
     if (metodoPago === 'efectivo') {
@@ -136,7 +156,7 @@ export default function ComandaDetallePage() {
   const handleEnviarCobroClip = async () => {
     if (!comanda) return
     if (!serialClip.trim()) {
-      toast.error('Ingresa el número de serie de la terminal Clip')
+      toast.error('Selecciona una terminal para cobrar con tarjeta')
       return
     }
     setCobrandoClip(true)
@@ -399,14 +419,24 @@ export default function ComandaDetallePage() {
                 Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Número de serie de terminal</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-700 mb-1">Terminal</label>
+                <select
                   value={serialClip}
                   onChange={(e) => setSerialClip(e.target.value)}
-                  placeholder="Ej. ULTRA-XXXXXX"
                   className="app-input w-full"
-                />
+                >
+                  <option value="">Selecciona una terminal</option>
+                  {terminalesClip.map((t) => (
+                    <option key={t.id} value={t.serialNumber}>
+                      {t.nombre ? `${t.nombre} · ${t.serialNumber}` : t.serialNumber}
+                    </option>
+                  ))}
+                </select>
+                {terminalesClip.length === 0 && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    No hay terminales registradas. Agrégalas en Configuración para poder cobrar con tarjeta.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Propina extra en terminal (opcional)</label>
@@ -428,7 +458,7 @@ export default function ComandaDetallePage() {
                 <button
                   type="button"
                   onClick={handleEnviarCobroClip}
-                  disabled={cobrandoClip || !!esperaClip}
+                  disabled={cobrandoClip || !!esperaClip || !serialClip}
                   className="rounded-2xl bg-sky-600 px-6 py-2 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cobrandoClip ? 'Enviando...' : 'Enviar cobro con tarjeta'}

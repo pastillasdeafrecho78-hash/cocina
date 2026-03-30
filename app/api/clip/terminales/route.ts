@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'configuracion')) {
+    if (!user || (!tienePermiso(user, 'configuracion') && !tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas'))) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
     const list = await prisma.clipTerminal.findMany({
