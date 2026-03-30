@@ -47,8 +47,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Clip no configurado' }, { status: 400 })
     }
     const detail = await clipPaymentDetail(apiKey, pinpadRequestId)
-    const status = String(detail.status || detail.payment_status || '').toUpperCase()
-    const completed = status === 'COMPLETED' || status === 'APPROVED' || status === 'PAID'
+    const raw =
+      detail.status ??
+      detail.payment_status ??
+      (detail.payment as Record<string, unknown> | undefined)?.status ??
+      (detail.data as Record<string, unknown> | undefined)?.status
+    const status = String(raw ?? '').toUpperCase().trim()
+    // PinPad / Payclip puede usar nombres distintos según entorno o versión de API.
+    const completed =
+      status === 'COMPLETED' ||
+      status === 'COMPLETE' ||
+      status === 'APPROVED' ||
+      status === 'PAID' ||
+      status === 'SUCCESS' ||
+      status === 'SUCCESSFUL' ||
+      status === 'CAPTURED' ||
+      status === 'SETTLED' ||
+      status === 'PAYMENT_COMPLETED' ||
+      status === 'PAYMENT_APPROVED'
 
     if (completed) {
       await finalizarComandaTrasPagoClip({
