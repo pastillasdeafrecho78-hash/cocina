@@ -24,6 +24,7 @@ interface EstadoConfiguracion {
   tienePAC: boolean
   tieneConekta: boolean
   tieneCSD: boolean
+  clipListo?: boolean
 }
 
 export default function DashboardPage() {
@@ -164,9 +165,9 @@ export default function DashboardPage() {
       modulo: 'configuracion' as const,
       icon: Cog6ToothIcon,
       href: '/dashboard/configuracion',
-      estadistica: estadoConfig?.configuracionCompleta ? '✓' : '!',
-      descripcion: estadoConfig?.configuracionCompleta ? 'Completa' : 'Pendiente',
-      color: estadoConfig?.configuracionCompleta ? 'green' : 'yellow',
+      estadistica: estadoConfig?.clipListo ? '✓' : '!',
+      descripcion: estadoConfig?.clipListo ? 'Clip listo' : 'Clip pendiente',
+      color: estadoConfig?.clipListo ? 'green' : 'yellow',
     },
     {
       title: 'Roles y Permisos',
@@ -234,7 +235,7 @@ export default function DashboardPage() {
           </button>
         </section>
 
-        {estadoConfig && !estadoConfig.configuracionCompleta && (
+        {estadoConfig && !estadoConfig.clipListo && (
           <div className="rounded-[28px] border border-yellow-200 bg-yellow-50/90 p-5 shadow-sm dark:border-amber-400/40 dark:bg-amber-950/55">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 flex-shrink-0">
@@ -243,19 +244,18 @@ export default function DashboardPage() {
               </svg>
               </div>
               <div className="flex-1">
-                <h3 className="text-sm font-medium text-yellow-950 dark:text-amber-50">Configuración incompleta</h3>
+                <h3 className="text-sm font-medium text-yellow-950 dark:text-amber-50">Clip no configurado</h3>
                 <div className="mt-2 text-sm text-yellow-900 dark:text-amber-100">
-                  <p>Completa la configuración para habilitar facturación y pagos:</p>
+                  <p>Para empezar pruebas solo necesitas configurar terminal Clip en caja:</p>
                   <ul className="mt-1 list-disc list-inside">
-                    {!estadoConfig.tieneDatosFiscales && <li>Datos fiscales</li>}
-                    {!estadoConfig.tienePAC && <li>Configuración PAC (Facturación)</li>}
-                    {!estadoConfig.tieneConekta && <li>Configuración de pagos (Conekta)</li>}
-                    {!estadoConfig.tieneCSD && <li>Certificado de Sello Digital (CSD)</li>}
+                    <li>Guardar API key de Clip</li>
+                    <li>Registrar numero de serie de la terminal</li>
+                    <li>Enviar cobro desde la seccion Caja</li>
                   </ul>
                 </div>
                 <div className="mt-3">
-                  <Link href="/dashboard/configuracion" className="text-sm font-medium text-yellow-950 underline dark:text-amber-50">
-                    Ir a configuración →
+                  <Link href="/dashboard/caja" className="text-sm font-medium text-yellow-950 underline dark:text-amber-50">
+                    Ir a Caja →
                   </Link>
                 </div>
               </div>

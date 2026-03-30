@@ -4,6 +4,7 @@ import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKey } from '@/lib/clip-config'
 import { clipPinpadCreatePayment, extractPinpadRequestId } from '@/lib/clip-payclip'
+import { getPublicBaseUrl } from '@/lib/public-base-url'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -19,13 +20,6 @@ function montoComanda(comanda: { total: number; propina: number | null; descuent
   const propina = ((comanda.propina || 0) / 100) * total
   const descuento = comanda.descuento || 0
   return Math.max(0.01, total + propina - descuento)
-}
-
-function publicBaseUrl(): string {
-  const u = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL
-  if (!u) return 'http://localhost:3000'
-  if (u.startsWith('http')) return u.replace(/\/$/, '')
-  return `https://${u.replace(/\/$/, '')}`
 }
 
 export async function POST(request: NextRequest) {
@@ -107,7 +101,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const webhook_url = `${publicBaseUrl()}/api/webhooks/clip/${encodeURIComponent(slug)}`
+    const webhook_url = `${getPublicBaseUrl()}/api/webhooks/clip/${encodeURIComponent(slug)}`
 
     try {
       const clipRes = await clipPinpadCreatePayment({

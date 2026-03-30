@@ -24,7 +24,6 @@ export default function ClipCajaSection() {
     null
   )
   const [apiKeyInput, setApiKeyInput] = useState('')
-  const [webhookSecretInput, setWebhookSecretInput] = useState('')
   const [terminales, setTerminales] = useState<TerminalRow[]>([])
   const [newSerial, setNewSerial] = useState('')
   const [newNombre, setNewNombre] = useState('')
@@ -71,7 +70,6 @@ export default function ClipCajaSection() {
     try {
       const body: Record<string, unknown> = { activo: true }
       if (apiKeyInput.trim()) body.apiKey = apiKeyInput.trim()
-      if (webhookSecretInput.trim()) body.webhookSecret = webhookSecretInput.trim()
       const res = await apiFetch('/api/clip/config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -81,7 +79,6 @@ export default function ClipCajaSection() {
       if (j.success) {
         toast.success('Configuración Clip guardada')
         setApiKeyInput('')
-        setWebhookSecretInput('')
         loadCfg()
       } else toast.error(j.error || 'Error')
     } catch {
@@ -170,11 +167,6 @@ export default function ClipCajaSection() {
     return () => clearInterval(t)
   }, [espera, loadComandas])
 
-  const baseUrl =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/api/webhooks/clip/<slug-restaurante>`
-      : ''
-
   return (
     <div className="app-card">
       <div className="flex items-start gap-4">
@@ -184,14 +176,8 @@ export default function ClipCajaSection() {
         <div className="min-w-0 flex-1">
           <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-50">Cobro con Clip (PinPad)</h2>
           <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
-            Configura la API key de Clip, registra el número de serie de tu terminal y cobra desde la caja.
-            Webhook:{' '}
-            <code className="break-all rounded-md bg-stone-900/90 px-1.5 py-0.5 text-xs text-stone-100 dark:bg-stone-950">
-              {baseUrl}
-            </code>{' '}
-            (usa el slug de tu restaurante, ej.{' '}
-            <code className="rounded-md bg-stone-900/90 px-1.5 py-0.5 text-xs text-stone-100">principal</code>
-            ).
+            Configura tu API key de Clip, registra el número de serie de tu terminal y cobra desde caja.
+            El webhook se genera automáticamente en backend con tu URL pública de producción.
           </p>
         </div>
       </div>
@@ -201,8 +187,7 @@ export default function ClipCajaSection() {
           <h3 className="font-semibold text-stone-900 dark:text-stone-50">Configuración</h3>
           {cfg && (
             <p className="text-xs text-stone-600 dark:text-stone-400">
-              API key: {cfg.hasApiKey ? '✓ configurada' : '—'} · Webhook secret:{' '}
-              {cfg.hasWebhookSecret ? '✓' : 'opcional'} · Activo: {cfg.activo ? 'sí' : 'no'}
+              API key: {cfg.hasApiKey ? '✓ configurada' : '—'} · Activo: {cfg.activo ? 'sí' : 'no'}
             </p>
           )}
           <input
@@ -211,13 +196,6 @@ export default function ClipCajaSection() {
             className="app-input app-field text-sm"
             value={apiKeyInput}
             onChange={(e) => setApiKeyInput(e.target.value)}
-          />
-          <input
-            type="password"
-            placeholder="Secreto webhook (mismo valor en header x-clip-webhook-secret)"
-            className="app-input app-field text-sm"
-            value={webhookSecretInput}
-            onChange={(e) => setWebhookSecretInput(e.target.value)}
           />
           <button type="button" className="app-btn-secondary text-sm" onClick={guardarConfig}>
             Guardar credenciales

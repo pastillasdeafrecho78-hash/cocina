@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { timbrarCFDI, almacenarCFDI, generarPDFCFDI } from '@/lib/facturacion'
+import { obtenerConfiguracion } from '@/lib/configuracion-restaurante'
 
 /**
  * Tras pago Clip completado: idempotente. Marca pago, comanda PAGADO, mesa libre; timbra factura global si PAC configurado.
@@ -51,6 +52,12 @@ export async function finalizarComandaTrasPagoClip(params: {
   })
 
   try {
+    const config = await obtenerConfiguracion(pago.comanda.restauranteId)
+    const puedeTimbrar = Boolean(config?.pacApiKey && config?.csdCerPath && config?.rfc)
+    if (!puedeTimbrar) {
+      return { yaEstaba: false }
+    }
+
     const cfdi = await timbrarCFDI({
       comandaId: params.comandaId,
       formaPago: '04',

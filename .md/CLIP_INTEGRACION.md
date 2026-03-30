@@ -4,8 +4,7 @@
 
 | Variable | Uso |
 |----------|-----|
-| `NEXT_PUBLIC_APP_URL` | URL pública base para el webhook (ej. `https://tu-dominio.com`). En local, túnel (ngrok) o dejar vacío y usar polling desde caja. |
-| `VERCEL_URL` | En Vercel se usa automáticamente si no hay `NEXT_PUBLIC_APP_URL`. |
+| `PUBLIC_BACKEND_BASE_URL` | URL pública base para webhooks de Clip (ej. `https://api.tu-dominio.com`). |
 | `CLIP_API_BASE` | Opcional. Por defecto `https://api.payclip.io`. |
 | `ENCRYPTION_KEY` | Hex 64 chars — misma clave que encripta Conekta/PAC; necesaria para guardar API key Clip. |
 
@@ -13,7 +12,7 @@
 
 Registra la URL:
 
-`{NEXT_PUBLIC_APP_URL}/api/webhooks/clip/{slug}`
+`{PUBLIC_BACKEND_BASE_URL}/api/webhooks/clip/{slug}`
 
 Ejemplo: `https://app.ejemplo.com/api/webhooks/clip/principal`
 
@@ -30,6 +29,16 @@ Si configuraste **secreto webhook** en Caja → Clip, cada POST debe incluir el 
 - `GET /api/clip/dispositivos` — proxy estado dispositivos Clip
 - `GET /api/clip/estado?pagoId=&pinpadRequestId=` — polling si el webhook no llega
 
+## Contrato mínimo para pruebas (plug-and-play)
+
+Para empezar a cobrar con Clip, solo se requiere:
+
+1. API key de Clip (Caja → Clip)
+2. Número de serie de la terminal (`serialNumber`)
+3. Comanda lista para cobro (`comandaId`)
+
+No es necesario configurar PAC, CSD, Conekta ni datos fiscales para validar el cobro con terminal.
+
 ## Corte Z / fiscal
 
-Los pagos Clip (`tarjeta_clip`, procesador `clip`) se cuentan como **tarjeta** en el reporte de caja. Al completarse (webhook o polling) se marca comanda `PAGADO`, se libera mesa y se intenta timbrar **factura global** si el PAC está configurado.
+Los pagos Clip (`tarjeta_clip`, procesador `clip`) se cuentan como **tarjeta** en el reporte de caja. Al completarse (webhook o polling) se marca comanda `PAGADO` y se libera mesa. El timbrado fiscal queda opcional y no bloquea el cobro.

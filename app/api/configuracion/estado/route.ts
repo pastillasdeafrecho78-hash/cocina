@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verificarConfiguracionCompleta, obtenerConfiguracion } from '@/lib/configuracion-restaurante'
 import { getSessionUser } from '@/lib/auth-server'
+import { prisma } from '@/lib/prisma'
 
 /**
  * GET /api/configuracion/estado
@@ -19,6 +20,10 @@ export async function GET(request: NextRequest) {
     const rid = user.restauranteId
     const config = await obtenerConfiguracion(rid)
     const completa = await verificarConfiguracionCompleta(rid)
+    const clip = await prisma.integracionClip.findUnique({
+      where: { restauranteId: rid },
+      select: { activo: true, apiKeyEncrypted: true },
+    })
 
     return NextResponse.json({
       success: true,
@@ -28,6 +33,7 @@ export async function GET(request: NextRequest) {
         tienePAC: !!config?.pacApiKey,
         tieneConekta: !!config?.conektaPrivateKey,
         tieneCSD: !!config?.csdCerPath,
+        clipListo: Boolean(clip?.activo && clip?.apiKeyEncrypted),
       },
     })
   } catch (error: any) {
