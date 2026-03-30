@@ -1,5 +1,9 @@
 # Ejecutar migraciones contra la base.
-# Requiere el secret DATABASE_URL en GitHub (misma cadena que en Vercel / Supabase).
+#
+# OBLIGATORIO en GitHub: Settings → Secrets and variables → Actions
+#   Crear secret "DATABASE_URL" con la URL completa de Postgres (ej. Supabase:
+#   Project Settings → Database → Connection string → URI).
+# Si el secret no existe o está vacío, Prisma falla con P1012.
 
 name: prisma-migrate
 
@@ -20,6 +24,17 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+      - name: Comprobar DATABASE_URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL no está definida o está vacía en los secrets del repositorio."
+            echo "Ve a: Settings → Secrets and variables → Actions → New repository secret"
+            echo "Nombre: DATABASE_URL  Valor: cadena de conexión PostgreSQL (misma que en Vercel/Supabase)."
+            exit 1
+          fi
+          echo "DATABASE_URL está configurada (longitud: ${#DATABASE_URL} caracteres)."
       - name: Prisma migrate deploy
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
