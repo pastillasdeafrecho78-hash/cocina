@@ -80,15 +80,31 @@ export async function clipPinpadCreatePayment(opts: {
     json = { _raw: text }
   }
   if (!res.ok) {
-    const msg =
-      (json.message as string) ||
-      (json.error as string) ||
-      (json.detail as string) ||
-      text ||
-      `Clip ${res.status}`
+    const msg = extractClipErrorMessage(json, text, res.status)
     throw new Error(msg)
   }
   return json
+}
+
+function extractClipErrorMessage(json: Record<string, unknown>, rawText: string, status: number): string {
+  const pick = (v: unknown) => (typeof v === 'string' && v.trim() ? v.trim() : '')
+  let out =
+    pick(json.message) ||
+    pick(json.error) ||
+    pick(json.detail) ||
+    pick(json.description) ||
+    pick(json.title)
+  const errors = json.errors
+  if (!out && Array.isArray(errors) && errors.length > 0) {
+    const first = errors[0]
+    if (first && typeof first === 'object' && 'message' in first) {
+      out = pick((first as { message?: string }).message)
+    } else if (typeof first === 'string') {
+      out = pick(first)
+    }
+  }
+  if (!out && rawText.trim()) out = rawText.trim()
+  return out || `Clip respondió ${status}`
 }
 
 export async function clipDevicesStatus(apiKey: string): Promise<unknown> {

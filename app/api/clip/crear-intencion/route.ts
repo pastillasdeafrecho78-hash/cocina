@@ -6,6 +6,7 @@ import { getClipApiKey } from '@/lib/clip-config'
 import { clipPinpadCreatePayment, extractPinpadRequestId } from '@/lib/clip-payclip'
 import { getPublicBaseUrl } from '@/lib/public-base-url'
 import { listClipTerminals } from '@/lib/clip-terminal-compat'
+import { formatClipPaymentErrorForUser } from '@/lib/clip-error-messages'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -166,8 +167,9 @@ export async function POST(request: NextRequest) {
           } as object,
         },
       })
+      const raw = err?.message || String(err)
       return NextResponse.json(
-        { success: false, error: err?.message || 'Error al crear intención en Clip' },
+        { success: false, error: formatClipPaymentErrorForUser(raw) },
         { status: 502 }
       )
     }
