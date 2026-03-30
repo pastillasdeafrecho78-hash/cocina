@@ -176,6 +176,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
     }
     console.error(e)
-    return NextResponse.json({ success: false, error: 'Error interno' }, { status: 500 })
+    const msg = e instanceof Error ? e.message : 'Error interno'
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          msg.length < 280
+            ? msg
+            : 'Error al preparar el cobro. Revisa PUBLIC_BACKEND_BASE_URL o los logs del servidor.',
+      },
+      { status: 500 }
+    )
   }
 }
