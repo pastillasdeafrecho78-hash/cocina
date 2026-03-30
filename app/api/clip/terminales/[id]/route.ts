@@ -5,6 +5,15 @@ import { tienePermiso } from '@/lib/permisos'
 
 export const dynamic = 'force-dynamic'
 
+function isMissingIsDefaultColumnError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === 'P2022'
+  )
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -20,21 +29,29 @@ export async function DELETE(
     if (!t) {
       return NextResponse.json({ success: false, error: 'No encontrado' }, { status: 404 })
     }
-    await prisma.clipTerminal.update({
-      where: { id: t.id },
-      data: { activo: false, isDefault: false },
-    })
-    if (t.isDefault) {
-      const fallback = await prisma.clipTerminal.findFirst({
-        where: { restauranteId: user.restauranteId, activo: true, id: { not: t.id } },
-        orderBy: { createdAt: 'asc' },
+    try {
+      await prisma.clipTerminal.update({
+        where: { id: t.id },
+        data: { activo: false, isDefault: false },
       })
-      if (fallback) {
-        await prisma.clipTerminal.update({
-          where: { id: fallback.id },
-          data: { isDefault: true },
+      if (t.isDefault) {
+        const fallback = await prisma.clipTerminal.findFirst({
+          where: { restauranteId: user.restauranteId, activo: true, id: { not: t.id } },
+          orderBy: { createdAt: 'asc' },
         })
+        if (fallback) {
+          await prisma.clipTerminal.update({
+            where: { id: fallback.id },
+            data: { isDefault: true },
+          })
+        }
       }
+    } catch (error) {
+      if (!isMissingIsDefaultColumnError(error)) throw error
+      await prisma.clipTerminal.update({
+        where: { id: t.id },
+        data: { activo: false },
+      })
     }
     return NextResponse.json({ success: true })
   } catch (e) {

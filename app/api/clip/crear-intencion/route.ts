@@ -15,6 +15,15 @@ const schema = z.object({
 
 export const dynamic = 'force-dynamic'
 
+function isMissingIsDefaultColumnError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: string }).code === 'P2022'
+  )
+}
+
 function montoComanda(comanda: { total: number; propina: number | null; descuento: number | null }) {
   const total = comanda.total || 0
   const propina = ((comanda.propina || 0) / 100) * total
@@ -65,10 +74,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const terminalesActivas = await prisma.clipTerminal.findMany({
-      where: { restauranteId: rid, activo: true },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-    })
+    let terminalesActivas
+    try {
+      terminalesActivas = await prisma.clipTerminal.findMany({
+        where: { restauranteId: rid, activo: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      })
+    } catch (error) {
+      if (!isMissingIsDefaultColumnError(error)) throw error
+      terminalesActivas = await prisma.clipTerminal.findMany({
+        where: { restauranteId: rid, activo: true },
+        orderBy: [{ createdAt: 'asc' }],
+      })
+      terminalesActivas = terminalesActivas.map((terminal) => ({ ...terminal, isDefault: false }))
+    }
     if (terminalesActivas.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No hay terminales activas. Regístralas en Configuración.' },
