@@ -161,7 +161,7 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
 
   if (loading) {
     return (
-      <div className="app-card text-center text-stone-600 py-8">
+      <div className="app-card py-8 text-center text-stone-600 dark:text-stone-400">
         Cargando información de turno...
       </div>
     )
@@ -180,64 +180,68 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
   return (
     <div className="space-y-6">
       {hayAlertaEfectivoBajo && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
-          <div className="flex items-center gap-2 text-amber-800 font-medium">
-            <BanknotesIcon className="h-5 w-5" />
+        <div className="rounded-[28px] border border-amber-300/90 bg-amber-50/95 p-4 dark:border-amber-400/40 dark:bg-amber-950/55">
+          <div className="flex items-center gap-2 font-medium text-amber-950 dark:text-amber-50">
+            <BanknotesIcon className="h-5 w-5 shrink-0" />
             Efectivo bajo
           </div>
-          <p className="mt-1 text-sm text-amber-700">
+          <p className="mt-1 text-sm text-amber-900 dark:text-amber-100/90">
             Efectivo esperado en caja: ${efectivoEsperado.toFixed(2)}. El umbral configurado es $
             {alertaEfectivoMinimo.toFixed(2)}. Considera reforzar la caja.
           </p>
         </div>
       )}
 
-      <div className="app-card border-emerald-200 bg-emerald-50/40">
-        <div className="flex items-center gap-2 mb-2">
-          <CurrencyDollarIcon className="w-6 h-6 text-emerald-700" />
-          <h2 className="text-xl font-semibold text-emerald-950">Fondo de caja</h2>
+      <div className="app-card">
+        <div className="flex items-start gap-4">
+          <div className="app-icon-shell h-12 w-12 shrink-0">
+            <CurrencyDollarIcon className="h-6 w-6 text-[rgb(var(--brand))]" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-50">Fondo de caja</h2>
+            <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
+              Apertura con fondo inicial, operación durante el turno y cierre con arqueo.
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-emerald-900/80 mb-4">
-          Apertura con fondo inicial, operación durante el turno y cierre con arqueo.
-        </p>
 
         {turno?.abierto ? (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-emerald-200 bg-white/80 p-4">
-              <h3 className="font-semibold text-stone-900 mb-2">Turno abierto</h3>
-              <p className="text-sm text-stone-600">
+          <div className="mt-6 space-y-4">
+            <div className="app-card-muted p-4 sm:p-5">
+              <h3 className="mb-2 font-semibold text-stone-900 dark:text-stone-50">Turno abierto</h3>
+              <p className="text-sm text-stone-600 dark:text-stone-400">
                 Abierto el {turno.fechaApertura ? new Date(turno.fechaApertura).toLocaleString('es-MX') : '—'}
               </p>
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="rounded bg-stone-100 p-3">
-                  <div className="text-xs text-stone-500">Fondo inicial</div>
-                  <div className="text-lg font-bold text-stone-900">
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl bg-stone-100 p-3 dark:bg-stone-800/80">
+                  <div className="text-xs text-stone-500 dark:text-stone-400">Fondo inicial</div>
+                  <div className="text-lg font-bold text-stone-900 dark:text-stone-50">
                     ${(turno.fondoInicial ?? 0).toFixed(2)}
                   </div>
                 </div>
-                <div className="rounded bg-stone-100 p-3">
-                  <div className="text-xs text-stone-500">Ventas en efectivo (periodo)</div>
-                  <div className="text-lg font-bold text-stone-900">
+                <div className="rounded-2xl bg-stone-100 p-3 dark:bg-stone-800/80">
+                  <div className="text-xs text-stone-500 dark:text-stone-400">Ventas en efectivo (periodo)</div>
+                  <div className="text-lg font-bold text-stone-900 dark:text-stone-50">
                     ${(reporte?.totalEfectivo ?? 0).toFixed(2)}
                   </div>
                 </div>
-                <div className="rounded bg-emerald-100 p-3">
-                  <div className="text-xs text-emerald-700">Efectivo esperado en caja</div>
-                  <div className="text-lg font-bold text-emerald-800">
+                <div className="rounded-2xl border border-emerald-500/35 bg-emerald-50/90 p-3 dark:border-emerald-500/30 dark:bg-emerald-950/40">
+                  <div className="text-xs text-emerald-800 dark:text-emerald-300">Efectivo esperado en caja</div>
+                  <div className="text-lg font-bold text-emerald-900 dark:text-emerald-200">
                     ${efectivoEsperado.toFixed(2)}
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4">
-              <h3 className="font-semibold text-amber-900 mb-2">Cerrar turno (arqueo)</h3>
-              <p className="text-sm text-amber-800 mb-3">
+            <div className="app-note p-4 dark:border-amber-400/35">
+              <h3 className="mb-2 font-semibold text-stone-900 dark:text-stone-50">Cerrar turno (arqueo)</h3>
+              <p className="mb-3 text-sm text-stone-600 dark:text-stone-300">
                 Cuenta el efectivo físico en caja e ingresa el monto para cerrar el turno.
               </p>
-              <div className="flex flex-wrap gap-2 items-end">
+              <div className="flex flex-wrap items-end gap-2">
                 <div>
-                  <label className="block text-xs font-medium text-stone-700 mb-1">
+                  <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300">
                     Monto contado (arqueo)
                   </label>
                   <input
@@ -246,7 +250,7 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
                     placeholder="0.00"
                     value={fondoCierre}
                     onChange={(e) => setFondoCierre(e.target.value)}
-                    className="rounded border border-stone-300 px-3 py-2 text-sm w-40"
+                    className="app-input app-field w-40 text-sm"
                   />
                 </div>
                 <button
@@ -261,14 +265,14 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-emerald-200 bg-white/80 p-4">
-            <h3 className="font-semibold text-stone-900 mb-2">Abrir turno</h3>
-            <p className="text-sm text-stone-600 mb-3">
+          <div className="app-card-muted mt-6 p-4 sm:p-5">
+            <h3 className="mb-2 font-semibold text-stone-900 dark:text-stone-50">Abrir turno</h3>
+            <p className="mb-3 text-sm text-stone-600 dark:text-stone-400">
               Registra el efectivo inicial en caja para comenzar el turno.
             </p>
-            <div className="flex flex-wrap gap-2 items-end">
+            <div className="flex flex-wrap items-end gap-2">
               <div>
-                <label className="block text-xs font-medium text-stone-700 mb-1">
+                <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300">
                   Fondo inicial (MXN)
                 </label>
                 <input
@@ -277,7 +281,7 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
                   placeholder="0.00"
                   value={fondoInicial}
                   onChange={(e) => setFondoInicial(e.target.value)}
-                  className="rounded border border-stone-300 px-3 py-2 text-sm w-40"
+                  className="app-input app-field w-40 text-sm"
                 />
               </div>
               <button
@@ -293,22 +297,24 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
         )}
       </div>
 
-      <div className="app-card border-stone-200">
-        <h3 className="font-semibold text-stone-900 mb-2">Umbral de alerta de efectivo</h3>
-        <p className="text-sm text-stone-600 mb-3">
+      <div className="app-card">
+        <h3 className="mb-2 font-semibold text-stone-900 dark:text-stone-50">Umbral de alerta de efectivo</h3>
+        <p className="mb-3 text-sm text-stone-600 dark:text-stone-300">
           Se mostrará una alerta cuando el efectivo esperado en caja sea menor a este monto (MXN).
           Deja vacío para desactivar.
         </p>
-        <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex flex-wrap items-end gap-2">
           <div>
-            <label className="block text-xs font-medium text-stone-700 mb-1">Monto mínimo (MXN)</label>
+            <label className="mb-1 block text-xs font-medium text-stone-700 dark:text-stone-300">
+              Monto mínimo (MXN)
+            </label>
             <input
               type="text"
               inputMode="decimal"
               placeholder="Ej. 500"
               value={alertaInput}
               onChange={(e) => setAlertaInput(e.target.value)}
-              className="rounded border border-stone-300 px-3 py-2 text-sm w-32"
+              className="app-input app-field w-32 text-sm"
             />
           </div>
           <button

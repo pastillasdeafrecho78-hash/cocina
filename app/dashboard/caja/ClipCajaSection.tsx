@@ -176,22 +176,31 @@ export default function ClipCajaSection() {
       : ''
 
   return (
-    <div className="app-card border-violet-200 bg-violet-50/40">
-      <div className="flex items-center gap-2 mb-2">
-        <DevicePhoneMobileIcon className="w-6 h-6 text-violet-700" />
-        <h2 className="text-xl font-semibold text-violet-950">Cobro con Clip (PinPad)</h2>
+    <div className="app-card">
+      <div className="flex items-start gap-4">
+        <div className="app-icon-shell h-12 w-12 shrink-0">
+          <DevicePhoneMobileIcon className="h-6 w-6 text-[rgb(var(--brand))]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-50">Cobro con Clip (PinPad)</h2>
+          <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
+            Configura la API key de Clip, registra el número de serie de tu terminal y cobra desde la caja.
+            Webhook:{' '}
+            <code className="break-all rounded-md bg-stone-900/90 px-1.5 py-0.5 text-xs text-stone-100 dark:bg-stone-950">
+              {baseUrl}
+            </code>{' '}
+            (usa el slug de tu restaurante, ej.{' '}
+            <code className="rounded-md bg-stone-900/90 px-1.5 py-0.5 text-xs text-stone-100">principal</code>
+            ).
+          </p>
+        </div>
       </div>
-      <p className="text-sm text-violet-900/80 mb-4">
-        Configura la API key de Clip, registra el número de serie de tu terminal y cobra desde la caja. Webhook:{' '}
-        <code className="text-xs bg-white/80 px-1 rounded break-all">{baseUrl}</code>{' '}
-        (usa el slug de tu restaurante, ej. <code>principal</code>).
-      </p>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-3 rounded-lg border border-violet-200 bg-white/70 p-4">
-          <h3 className="font-semibold text-stone-900">Configuración</h3>
+      <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="app-card-muted space-y-3 p-4 sm:p-5">
+          <h3 className="font-semibold text-stone-900 dark:text-stone-50">Configuración</h3>
           {cfg && (
-            <p className="text-xs text-stone-600">
+            <p className="text-xs text-stone-600 dark:text-stone-400">
               API key: {cfg.hasApiKey ? '✓ configurada' : '—'} · Webhook secret:{' '}
               {cfg.hasWebhookSecret ? '✓' : 'opcional'} · Activo: {cfg.activo ? 'sí' : 'no'}
             </p>
@@ -199,42 +208,44 @@ export default function ClipCajaSection() {
           <input
             type="password"
             placeholder="API key Clip (Bearer)"
-            className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
+            className="app-input app-field text-sm"
             value={apiKeyInput}
             onChange={(e) => setApiKeyInput(e.target.value)}
           />
           <input
             type="password"
             placeholder="Secreto webhook (mismo valor en header x-clip-webhook-secret)"
-            className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
+            className="app-input app-field text-sm"
             value={webhookSecretInput}
             onChange={(e) => setWebhookSecretInput(e.target.value)}
           />
           <button type="button" className="app-btn-secondary text-sm" onClick={guardarConfig}>
             Guardar credenciales
           </button>
-          <div className="pt-2 border-t border-violet-100">
-            <p className="text-xs font-medium text-stone-700 mb-2">Terminales registradas</p>
-            <ul className="text-sm space-y-1 mb-2">
+          <div className="border-t border-stone-200/80 pt-4 dark:border-stone-600/50">
+            <p className="mb-2 text-xs font-medium text-stone-700 dark:text-stone-300">Terminales registradas</p>
+            <ul className="mb-2 space-y-1 text-sm text-stone-700 dark:text-stone-300">
               {terminales.map((t) => (
                 <li key={t.id}>
-                  <code>{t.serialNumber}</code>
+                  <code className="rounded bg-stone-200/80 px-1 text-xs dark:bg-stone-800">{t.serialNumber}</code>
                   {t.nombre ? ` · ${t.nombre}` : ''}
                 </li>
               ))}
               {terminales.length === 0 && (
-                <li className="text-stone-500">Ninguna — o deja vacío el registro y Clip validará solo en su cuenta.</li>
+                <li className="text-stone-500 dark:text-stone-400">
+                  Ninguna — o deja vacío el registro y Clip validará solo en su cuenta.
+                </li>
               )}
             </ul>
             <div className="flex flex-wrap gap-2">
               <input
-                className="flex-1 min-w-[140px] rounded border px-2 py-1 text-sm"
+                className="app-input app-field min-w-[140px] flex-1 py-2 text-sm"
                 placeholder="Número de serie PinPad"
                 value={newSerial}
                 onChange={(e) => setNewSerial(e.target.value)}
               />
               <input
-                className="flex-1 min-w-[100px] rounded border px-2 py-1 text-sm"
+                className="app-input app-field min-w-[100px] flex-1 py-2 text-sm"
                 placeholder="Nombre (opcional)"
                 value={newNombre}
                 onChange={(e) => setNewNombre(e.target.value)}
@@ -245,7 +256,7 @@ export default function ClipCajaSection() {
             </div>
             <button
               type="button"
-              className="mt-2 flex items-center gap-1 text-xs text-violet-700 hover:underline"
+              className="mt-2 flex items-center gap-1 text-xs text-[rgb(var(--brand))] hover:underline dark:text-amber-200/90"
               onClick={refrescarDispositivosClip}
             >
               <ArrowPathIcon className="w-4 h-4" />
@@ -259,11 +270,11 @@ export default function ClipCajaSection() {
           </div>
         </div>
 
-        <div className="space-y-3 rounded-lg border border-violet-200 bg-white/70 p-4">
-          <h3 className="font-semibold text-stone-900">Cobrar</h3>
-          <label className="block text-xs text-stone-600">Comanda</label>
+        <div className="app-card-muted space-y-3 p-4 sm:p-5">
+          <h3 className="font-semibold text-stone-900 dark:text-stone-50">Cobrar</h3>
+          <label className="block text-xs text-stone-600 dark:text-stone-400">Comanda</label>
           <select
-            className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
+            className="app-input app-field w-full py-2.5 text-sm"
             value={comandaId}
             onChange={(e) => setComandaId(e.target.value)}
           >
@@ -274,12 +285,16 @@ export default function ClipCajaSection() {
               </option>
             ))}
           </select>
-          <button type="button" className="text-xs text-violet-600 hover:underline" onClick={loadComandas}>
+          <button
+            type="button"
+            className="text-xs text-[rgb(var(--brand))] hover:underline dark:text-amber-200/90"
+            onClick={loadComandas}
+          >
             Actualizar lista
           </button>
-          <label className="block text-xs text-stone-600 mt-2">Terminal (número de serie)</label>
+          <label className="mt-2 block text-xs text-stone-600 dark:text-stone-400">Terminal (número de serie)</label>
           <select
-            className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
+            className="app-input app-field w-full py-2.5 text-sm"
             value={serialCobro}
             onChange={(e) => setSerialCobro(e.target.value)}
           >
@@ -291,22 +306,22 @@ export default function ClipCajaSection() {
             ))}
           </select>
           <input
-            className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
+            className="app-input app-field w-full text-sm"
             placeholder="O pega número de serie manualmente"
             value={serialCobro}
             onChange={(e) => setSerialCobro(e.target.value)}
           />
-          <label className="block text-xs text-stone-600">Propina extra en terminal (MXN, opcional)</label>
+          <label className="block text-xs text-stone-600 dark:text-stone-400">Propina extra en terminal (MXN, opcional)</label>
           <input
-            className="w-full rounded border border-stone-300 px-3 py-2 text-sm"
+            className="app-input app-field w-full text-sm"
             placeholder="0"
             value={tipExtra}
             onChange={(e) => setTipExtra(e.target.value)}
           />
           {espera && (
-            <div className="rounded bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+            <div className="rounded-2xl border border-amber-300/80 bg-amber-50/95 p-3 text-sm text-amber-950 dark:border-amber-400/40 dark:bg-amber-950/50 dark:text-amber-50">
               Esperando pago en terminal… (también puede cerrar el webhook automáticamente)
-              <div className="text-xs mt-1 font-mono">pinpad: {espera.pinpadId}</div>
+              <div className="mt-1 font-mono text-xs opacity-90">pinpad: {espera.pinpadId}</div>
             </div>
           )}
           <button
