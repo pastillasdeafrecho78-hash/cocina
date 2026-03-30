@@ -5,6 +5,18 @@ import toast from 'react-hot-toast'
 import { ArrowPathIcon, DevicePhoneMobileIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { apiFetch } from '@/lib/auth-fetch'
 
+async function safeResJson(res: Response): Promise<{ success?: boolean; error?: string; data?: unknown }> {
+  const text = await res.text()
+  if (!text.trim()) {
+    return { success: false, error: `El servidor respondió vacío (${res.status}). Revisa el deploy o los logs de Vercel.` }
+  }
+  try {
+    return JSON.parse(text) as { success?: boolean; error?: string; data?: unknown }
+  } catch {
+    return { success: false, error: `Respuesta no válida del servidor (${res.status}).` }
+  }
+}
+
 interface ClipConfigState {
   activo: boolean
   hasApiKey: boolean
@@ -32,9 +44,9 @@ export default function ClipConfigSection() {
 
   const loadCfg = useCallback(async () => {
     const res = await apiFetch('/api/clip/config')
-    const j = await res.json()
+    const j = await safeResJson(res)
     if (j.success) {
-      setCfg(j.data)
+      setCfg(j.data as ClipConfigState)
       return
     }
     toast.error(j.error || 'No se pudo cargar configuración de Clip')
@@ -42,7 +54,7 @@ export default function ClipConfigSection() {
 
   const loadTerminales = useCallback(async () => {
     const res = await apiFetch('/api/clip/terminales')
-    const j = await res.json()
+    const j = await safeResJson(res)
     if (j.success) {
       setTerminales((j.data as TerminalRow[]).filter((t) => t.activo))
       return
@@ -73,7 +85,7 @@ export default function ClipConfigSection() {
           clipSecretKey: secret,
         }),
       })
-      const j = await res.json()
+      const j = await safeResJson(res)
       if (!j.success) {
         toast.error(j.error || 'No se pudo guardar')
         return
@@ -93,7 +105,7 @@ export default function ClipConfigSection() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ clearApiKey: true }),
     })
-    const j = await res.json()
+    const j = await safeResJson(res)
     if (!j.success) {
       toast.error(j.error || 'No se pudo eliminar la API key')
       return
@@ -115,7 +127,7 @@ export default function ClipConfigSection() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ serialNumber: newSerial.trim(), nombre: newNombre.trim() || undefined }),
     })
-    const j = await res.json()
+    const j = await safeResJson(res)
     if (!j.success) {
       toast.error(j.error || 'No se pudo registrar terminal')
       return
@@ -130,7 +142,7 @@ export default function ClipConfigSection() {
     const res = await apiFetch(`/api/clip/terminales/${encodeURIComponent(id)}`, {
       method: 'DELETE',
     })
-    const j = await res.json()
+    const j = await safeResJson(res)
     if (!j.success) {
       toast.error(j.error || 'No se pudo desactivar terminal')
       return
@@ -145,7 +157,7 @@ export default function ClipConfigSection() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ terminalId }),
     })
-    const j = await res.json()
+    const j = await safeResJson(res)
     if (!j.success) {
       toast.error(j.error || 'No se pudo marcar terminal predeterminada')
       return
@@ -156,7 +168,7 @@ export default function ClipConfigSection() {
 
   const refrescarDispositivos = async () => {
     const res = await apiFetch('/api/clip/dispositivos')
-    const j = await res.json()
+    const j = await safeResJson(res)
     if (!j.success) {
       toast.error(j.error || 'No se pudieron consultar dispositivos')
       return
@@ -233,6 +245,11 @@ export default function ClipConfigSection() {
 
       <div className="app-card-muted p-4 space-y-3">
         <p className="text-sm font-medium text-stone-800 dark:text-stone-200">Terminales registradas</p>
+        <p className="text-xs text-stone-600 dark:text-stone-400">
+          <strong>Clave API + secreta</strong> conectan tu cuenta con Clip. Para enviar cobros al PinPad, Clip exige el{' '}
+          <strong>número de serie</strong> del terminal: regístralo aquí (suele estar en la caja o en la app Clip).
+          &quot;Ver terminales disponibles en Clip&quot; es solo una consulta al API; puede salir vacío aunque la Ultra esté bien.
+        </p>
         <ul className="space-y-2 text-sm text-stone-700 dark:text-stone-300">
           {terminales.map((t) => (
             <li key={t.id} className="flex items-center justify-between gap-3">

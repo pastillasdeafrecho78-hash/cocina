@@ -5,6 +5,7 @@ import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKey } from '@/lib/clip-config'
 import { clipPinpadCreatePayment, extractPinpadRequestId } from '@/lib/clip-payclip'
 import { getPublicBaseUrl } from '@/lib/public-base-url'
+import { listClipTerminals } from '@/lib/clip-terminal-compat'
 import { z } from 'zod'
 
 const schema = z.object({
@@ -14,15 +15,6 @@ const schema = z.object({
 })
 
 export const dynamic = 'force-dynamic'
-
-function isMissingIsDefaultColumnError(error: unknown) {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: string }).code === 'P2022'
-  )
-}
 
 function montoComanda(comanda: { total: number; propina: number | null; descuento: number | null }) {
   const total = comanda.total || 0
@@ -74,20 +66,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    let terminalesActivas
-    try {
-      terminalesActivas = await prisma.clipTerminal.findMany({
-        where: { restauranteId: rid, activo: true },
-        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+    const terminalesActivas = (await listClipTerminals(prisma, rid))
+      .filter((t) => t.activo)
+      .sort((a, b) => {
+        if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1
+        return a.createdAt.getTime() - b.createdAt.getTime()
       })
-    } catch (error) {
-      if (!isMissingIsDefaultColumnError(error)) throw error
-      terminalesActivas = await prisma.clipTerminal.findMany({
-        where: { restauranteId: rid, activo: true },
-        orderBy: [{ createdAt: 'asc' }],
-      })
-      terminalesActivas = terminalesActivas.map((terminal) => ({ ...terminal, isDefault: false }))
-    }
     if (terminalesActivas.length === 0) {
       return NextResponse.json(
         { success: false, error: 'No hay terminales activas. Regístralas en Configuración.' },
