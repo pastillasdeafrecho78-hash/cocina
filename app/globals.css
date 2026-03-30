@@ -31,7 +31,8 @@ html.dark {
   --border: 123 99 91;
   --foreground: 245 245 244;
   --foreground-strong: 250 250 249;
-  --muted: 171 163 161;
+  /* Un poco más claro que antes: subtítulos en tarjetas legibles */
+  --muted: 196 188 184;
   --brand: 248 113 113;
   --brand-soft: 251 146 60;
   --accent: 254 202 202;
@@ -198,6 +199,59 @@ html.dark {
     box-shadow: var(--shadow-card);
     backdrop-filter: blur(14px);
     border-radius: 28px;
+    color: rgb(var(--foreground));
+  }
+
+  /* Modo oscuro: sin doble degradado + “barro” en la parte superior */
+  html.dark .app-card {
+    background: rgb(var(--surface) / 0.94);
+    border-color: rgb(var(--border) / 0.48);
+    box-shadow: 0 14px 44px -28px rgba(0, 0, 0, 0.75);
+  }
+
+  html.dark body {
+    background: rgb(var(--background));
+  }
+
+  html.dark .app-shell {
+    background: transparent;
+  }
+
+  html.dark .app-header-shell {
+    background: rgb(var(--surface) / 0.88);
+    border-bottom-color: rgb(var(--border) / 0.42);
+    backdrop-filter: blur(14px);
+    border-bottom-width: 1px;
+    background-image: none;
+  }
+
+  html.dark .app-brand-panel {
+    background: linear-gradient(
+      160deg,
+      rgb(var(--surface) / 0.96) 0%,
+      rgb(var(--surface-muted) / 0.92) 100%
+    );
+    border-color: rgb(var(--border) / 0.48);
+    box-shadow: 0 16px 48px -32px rgba(0, 0, 0, 0.72);
+  }
+
+  html.dark .app-brand-panel::after {
+    opacity: 0.18;
+    width: 200px;
+    height: 200px;
+    right: -12%;
+    bottom: -28%;
+  }
+
+  html.dark .app-card-muted {
+    background: rgb(var(--surface-muted) / 0.88);
+    border-color: rgb(var(--border) / 0.42);
+    backdrop-filter: none;
+  }
+
+  html.dark .app-icon-shell {
+    background: rgb(var(--surface-muted) / 0.95);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
   }
 
   .app-card-muted {
@@ -315,6 +369,7 @@ html.dark {
   .app-brand-panel {
     position: relative;
     overflow: hidden;
+    isolation: isolate;
     border: 1px solid rgb(var(--border) / 0.68);
     background:
       radial-gradient(circle at 18% 20%, rgb(var(--brand-soft) / 0.18), transparent 24%),
@@ -328,12 +383,18 @@ html.dark {
   .app-brand-panel::after {
     content: '';
     position: absolute;
+    z-index: 0;
     inset: auto -18% -38% auto;
     width: 260px;
     height: 260px;
     border-radius: 9999px;
     background: radial-gradient(circle, rgb(var(--brand) / 0.14), transparent 68%);
     pointer-events: none;
+  }
+
+  .app-brand-panel > * {
+    position: relative;
+    z-index: 1;
   }
 
   .app-brand-divider {

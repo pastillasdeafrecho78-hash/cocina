@@ -189,13 +189,13 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4">
               <div className="flex flex-col">
                 <span className="app-kicker">Centro de operación</span>
-                <span className="mt-1 text-3xl font-semibold text-stone-900">
+                <span className="mt-1 text-3xl font-semibold text-stone-900 dark:text-stone-50">
                   {user.nombre} {user.apellido}
                 </span>
-                <span className="text-sm capitalize text-stone-500">
+                <span className="text-sm capitalize text-stone-500 dark:text-stone-400">
                   {user.rol?.nombre?.toLowerCase() ?? 'sin rol'}
                 </span>
-                <span className="mt-2 max-w-2xl text-sm text-stone-600">
+                <span className="mt-2 max-w-2xl text-sm text-stone-600 dark:text-stone-300">
                   Gestiona servicio, tiempos y flujo operativo con una interfaz inspirada en
                   el ritmo de sala, cocina y barra.
                 </span>
@@ -204,26 +204,26 @@ export default function DashboardPage() {
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <div className="app-card-muted min-w-[120px] p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Mesas</p>
-                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">Mesas</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-stone-50">
                   {estadisticas.mesasOcupadas}/{estadisticas.mesasTotal}
                 </p>
               </div>
               <div className="app-card-muted min-w-[120px] p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Comandas</p>
-                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">Comandas</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-stone-50">
                   {estadisticas.comandasActivas}
                 </p>
               </div>
               <div className="app-card-muted min-w-[120px] p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Cocina</p>
-                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">Cocina</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-stone-50">
                   {estadisticas.itemsCocina}
                 </p>
               </div>
               <div className="app-card-muted min-w-[120px] p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Barra</p>
-                <p className="mt-2 text-2xl font-semibold text-stone-900">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">Barra</p>
+                <p className="mt-2 text-2xl font-semibold text-stone-900 dark:text-stone-50">
                   {estadisticas.itemsBarra}
                 </p>
               </div>
@@ -263,24 +263,26 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {cards.map((card) => {
             const Icon = card.icon
             const colorClasses = {
-              green: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-              yellow: 'border-yellow-200 bg-yellow-50 text-yellow-800',
-              red: 'border-rose-200 bg-rose-50 text-rose-700',
-              blue: 'border-sky-200 bg-sky-50 text-sky-700',
+              green:
+                'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/35 dark:bg-emerald-950/55 dark:text-emerald-200',
+              yellow:
+                'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/50 dark:text-amber-100',
+              red: 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-500/35 dark:bg-rose-950/55 dark:text-rose-200',
+              blue: 'border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/35 dark:bg-sky-950/55 dark:text-sky-200',
             }
 
             return (
               <Link
                 key={card.href}
                 href={card.href}
-                className="app-card group p-6 hover:-translate-y-1 hover:border-amber-300 hover:shadow-warm"
+                className="app-card group relative z-0 p-6 transition hover:-translate-y-1 hover:border-amber-400/50 dark:hover:border-amber-400/35"
               >
                 <div className="mb-5 flex items-center justify-between">
-                  <div className="app-icon-shell h-14 w-14 transition group-hover:bg-amber-100 group-hover:text-amber-800">
+                  <div className="app-icon-shell h-14 w-14 transition group-hover:bg-amber-100 group-hover:text-amber-800 dark:group-hover:bg-amber-950/80 dark:group-hover:text-amber-200">
                     <Icon className="h-7 w-7" />
                   </div>
                   {card.estadistica && (
@@ -289,8 +291,8 @@ export default function DashboardPage() {
                     </span>
                   )}
                 </div>
-                <h3 className="text-xl font-semibold text-stone-900">{card.title}</h3>
-                <p className="mt-1 text-sm text-stone-600">{card.descripcion}</p>
+                <h3 className="text-xl font-semibold text-stone-900 dark:text-stone-50">{card.title}</h3>
+                <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">{card.descripcion}</p>
               </Link>
             )
           })}

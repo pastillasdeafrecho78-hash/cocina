@@ -147,9 +147,11 @@ export default function DashboardLayout({
   return (
     <div className="app-shell">
       <header className={`app-header-shell sticky top-0 z-20 transition-all duration-300 ease-out ${headerCompact ? 'xl:py-4' : ''}`}>
-        <div className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:items-center xl:justify-between transition-all duration-300 ${headerCompact ? 'gap-2 py-2 xl:gap-4 xl:py-4' : 'gap-4 py-4'}`}>
+        <div
+          className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:flex-wrap xl:items-center xl:justify-start xl:gap-x-6 xl:gap-y-3 transition-all duration-300 ${headerCompact ? 'gap-2 py-2 xl:gap-x-6 xl:gap-y-2 xl:py-4' : 'gap-4 py-4'}`}
+        >
           <div
-            className={`flex items-center gap-5 xl:min-w-[640px] transition-all duration-300 ${
+            className={`flex min-w-0 max-w-[min(100%,520px)] shrink-0 items-center gap-5 transition-all duration-300 ${
               headerCompact ? 'gap-2 xl:gap-5' : ''
             }`}
           >
@@ -157,19 +159,23 @@ export default function DashboardLayout({
               <BrandLogo
                 size={headerCompact ? 'sm' : 'lg'}
                 priority
-                className={headerCompact ? 'h-9 w-32 xl:h-[92px] xl:w-[420px] xl:max-w-[42vw]' : 'h-[92px] w-[420px] max-w-[42vw]'}
+                className={
+                  headerCompact
+                    ? 'h-9 w-32 xl:h-[72px] xl:w-[280px] xl:max-w-[min(38vw,300px)]'
+                    : 'h-[72px] w-[280px] max-w-[min(38vw,300px)] xl:h-[72px] xl:w-[280px]'
+                }
               />
             </div>
             <div className={`min-w-0 ${headerCompact ? 'hidden xl:block' : 'block'}`}>
               <p className="app-kicker">Operación y servicio inteligente</p>
-              <p className="text-lg font-semibold text-stone-900">
+              <p className="text-lg font-semibold text-stone-900 dark:text-stone-50">
                 {user.nombre} {user.apellido}
               </p>
-              <p className="text-sm text-stone-500">{user.rol?.nombre || 'Sin rol'}</p>
+              <p className="text-sm text-stone-500 dark:text-stone-400">{user.rol?.nombre || 'Sin rol'}</p>
             </div>
           </div>
 
-          <div className="flex min-h-[44px] flex-wrap items-center gap-2 shrink-0">
+          <div className="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center gap-2 justify-start">
             <ThemeToggle />
             {navItems.map((item) => (
               <Link key={item.href} href={item.href} className="app-chip hover:border-amber-300 hover:bg-amber-50">
