@@ -46,9 +46,13 @@ export default function ComandaDetallePage() {
 
   const [comanda, setComanda] = useState<Comanda | null>(null)
   const [loading, setLoading] = useState(true)
-  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'stripe' | null>(null)
+  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'stripe' | 'clip' | null>(null)
   const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null)
   const [cobrandoEfectivo, setCobrandoEfectivo] = useState(false)
+  const [cobrandoClip, setCobrandoClip] = useState(false)
+  const [serialClip, setSerialClip] = useState('')
+  const [propinaClip, setPropinaClip] = useState('')
+  const [esperaClip, setEsperaClip] = useState<{ pagoId: string; pinpadId: string } | null>(null)
   const [montoRecibido, setMontoRecibido] = useState('')
   const [confirmandoEntrega, setConfirmandoEntrega] = useState(false)
   const [efectivoEsperado, setEfectivoEsperado] = useState<number | null>(null)
@@ -166,6 +170,62 @@ export default function ComandaDetallePage() {
     setMetodoPago(null)
     setStripeClientSecret(null)
   }
+
+  const handleEnviarCobroClip = async () => {
+    if (!comanda) return
+    if (!serialClip.trim()) {
+      toast.error('Ingresa el número de serie de la terminal Clip')
+      return
+    }
+    setCobrandoClip(true)
+    try {
+      const tip = propinaClip ? parseFloat(propinaClip.replace(',', '.')) : 0
+      const res = await apiFetch('/api/clip/crear-intencion', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          comandaId: comanda.id,
+          serialNumber: serialClip.trim(),
+          tipAmount: Number.isFinite(tip) && tip > 0 ? tip : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!data.success) {
+        toast.error(data.error ?? 'No se pudo enviar el cobro a Clip')
+        return
+      }
+      const pin = data.data?.pinpadRequestId as string | null
+      if (!pin) {
+        toast.success('Cobro enviado. Espera confirmación desde la terminal.')
+        return
+      }
+      setEsperaClip({ pagoId: data.data.pagoId as string, pinpadId: pin })
+      toast.success('Cobro enviado a Clip. Esperando confirmación...')
+    } catch {
+      toast.error('Error al enviar cobro con Clip')
+    } finally {
+      setCobrandoClip(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!esperaClip) return
+    const t = setInterval(async () => {
+      const res = await apiFetch(
+        `/api/clip/estado?pagoId=${encodeURIComponent(esperaClip.pagoId)}&pinpadRequestId=${encodeURIComponent(esperaClip.pinpadId)}`
+      )
+      const data = await res.json()
+      if (data.success && data.data?.status === 'COMPLETADO') {
+        toast.success('Pago con Clip completado')
+        setEsperaClip(null)
+        setMetodoPago(null)
+        setSerialClip('')
+        setPropinaClip('')
+        fetchComanda()
+      }
+    }, 3500)
+    return () => clearInterval(t)
+  }, [esperaClip])
 
   const handleConfirmarEntrega = async () => {
     if (!comanda || !hayItemsListos) return
@@ -323,6 +383,14 @@ export default function ComandaDetallePage() {
                 <span className="text-2xl">💳</span>
                 Tarjeta / Apple Pay / Google Pay
               </button>
+              <button
+                type="button"
+                onClick={() => setMetodoPago('clip')}
+                className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-sky-500 hover:bg-sky-50"
+              >
+                <span className="text-2xl">📟</span>
+                Terminal Clip
+              </button>
             </div>
           ) : metodoPago === 'efectivo' ? (
             <div className="space-y-4">
@@ -365,6 +433,60 @@ export default function ComandaDetallePage() {
                 <button
                   type="button"
                   onClick={() => { setMetodoPago(null); setMontoRecibido('') }}
+                  className="app-btn-secondary rounded-2xl px-6 py-2"
+                >
+                  Cambiar método
+                </button>
+              </div>
+            </div>
+          ) : metodoPago === 'clip' ? (
+            <div className="space-y-4 max-w-md">
+              <p className="text-gray-600">
+                Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Número de serie de terminal Clip</label>
+                <input
+                  type="text"
+                  value={serialClip}
+                  onChange={(e) => setSerialClip(e.target.value)}
+                  placeholder="Ej. ULTRA-XXXXXX"
+                  className="app-input w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Propina extra en terminal (opcional)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={propinaClip}
+                  onChange={(e) => setPropinaClip(e.target.value)}
+                  placeholder="0.00"
+                  className="app-input w-full"
+                />
+              </div>
+              {esperaClip && (
+                <p className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Cobro enviado a terminal. Esperando confirmación...
+                </p>
+              )}
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleEnviarCobroClip}
+                  disabled={cobrandoClip || !!esperaClip}
+                  className="rounded-2xl bg-sky-600 px-6 py-2 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {cobrandoClip ? 'Enviando...' : 'Enviar a terminal Clip'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMetodoPago(null)
+                    setEsperaClip(null)
+                    setSerialClip('')
+                    setPropinaClip('')
+                  }}
                   className="app-btn-secondary rounded-2xl px-6 py-2"
                 >
                   Cambiar método
