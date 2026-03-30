@@ -7,10 +7,9 @@ export function formatClipPaymentErrorForUser(clipMessage: string): string {
 
   if (lower.includes('unable to connect to pinpad') || lower.includes('pinpad terminal')) {
     return (
-      'Clip no puede llegar a la terminal con ese número de serie. Revisa: (1) la Ultra encendida y con internet; ' +
-      '(2) que la terminal esté vinculada a la misma cuenta de Clip que las claves API; ' +
-      '(3) que el serial sea exactamente el que muestra el panel de Clip (Ajustes / dispositivos), no solo el de la etiqueta si difiere; ' +
-      '(4) credenciales Clave API + secreta guardadas de nuevo en Configuración.'
+      'Clip no puede llegar al PinPad con el serial que enviamos. Muy frecuente: el serial de la API no es el de la etiqueta ' +
+      '(suele ser uno que empieza por P8 y lo ves en el panel de Clip o en “Ver terminales disponibles”). ' +
+      'Revisa también Ultra con internet, misma cuenta que las claves API, y vuelve a guardar Clave API + secreta en Configuración.'
     )
   }
 

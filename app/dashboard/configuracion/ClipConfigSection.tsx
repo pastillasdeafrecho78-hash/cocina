@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import toast from 'react-hot-toast'
 import { ArrowPathIcon, DevicePhoneMobileIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { apiFetch } from '@/lib/auth-fetch'
+import { extractClipDeviceSerials } from '@/lib/clip-device-serials'
 
 async function safeResJson(res: Response): Promise<{ success?: boolean; error?: string; data?: unknown }> {
   const text = await res.text()
@@ -177,6 +178,11 @@ export default function ClipConfigSection() {
     toast.success('Dispositivos consultados')
   }
 
+  const serialesDetectados = useMemo(
+    () => (devicesClip != null ? extractClipDeviceSerials(devicesClip) : []),
+    [devicesClip]
+  )
+
   const estadoClave = (() => {
     if (!cfg) return 'Cargando...'
     if (cfg.clipReady) return 'Configurado'
@@ -246,9 +252,10 @@ export default function ClipConfigSection() {
       <div className="app-card-muted p-4 space-y-3">
         <p className="text-sm font-medium text-stone-800 dark:text-stone-200">Terminales registradas</p>
         <p className="text-xs text-stone-600 dark:text-stone-400">
-          <strong>Clave API + secreta</strong> conectan tu cuenta con Clip. Para enviar cobros al PinPad, Clip exige el{' '}
-          <strong>número de serie</strong> del terminal: regístralo aquí (suele estar en la caja o en la app Clip).
-          &quot;Ver terminales disponibles en Clip&quot; es solo una consulta al API; puede salir vacío aunque la Ultra esté bien.
+          <strong>Clave API + secreta</strong> autentican tu cuenta. Para cobrar, Clip necesita el{' '}
+          <strong>serial que usa la API PinPad</strong> (muchas veces empieza por <code className="text-[11px]">P8</code> y{' '}
+          <em>no</em> coincide con el de la etiqueta física). Pulsa &quot;Ver terminales disponibles&quot; y, si aparecen seriales
+          sugeridos abajo, regístralo <em>exactamente</em> así.
         </p>
         <ul className="space-y-2 text-sm text-stone-700 dark:text-stone-300">
           {terminales.map((t) => (
@@ -311,6 +318,28 @@ export default function ClipConfigSection() {
           <ArrowPathIcon className="h-4 w-4" />
           Ver terminales disponibles en Clip
         </button>
+        {serialesDetectados.length > 0 && (
+          <div className="rounded border border-sky-500/40 bg-sky-500/10 p-3 text-xs text-stone-800 dark:text-stone-200">
+            <p className="font-medium text-stone-900 dark:text-stone-50">Seriales detectados (úsalos al registrar)</p>
+            <ul className="mt-2 space-y-1">
+              {serialesDetectados.map((s) => (
+                <li key={s} className="flex flex-wrap items-center gap-2">
+                  <code className="rounded bg-stone-200/90 px-1.5 py-0.5 text-[11px] dark:bg-stone-800">{s}</code>
+                  <button
+                    type="button"
+                    className="text-sky-700 underline dark:text-sky-300"
+                    onClick={() => {
+                      setNewSerial(s)
+                      toast.success('Serial copiado al campo de registro')
+                    }}
+                  >
+                    Usar este serial
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {devicesClip != null && (
           <pre className="max-h-40 overflow-auto rounded bg-stone-900 p-2 text-[11px] text-stone-100">
             {JSON.stringify(devicesClip, null, 2)}
