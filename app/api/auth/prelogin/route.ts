@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
-import { verifyPassword } from '@/lib/password'
 import { rateLimitAuth } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
@@ -23,25 +21,33 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const json = await request.json()
+    let json: unknown
+    try {
+      json = await request.json()
+    } catch {
+      return NextResponse.json({ ok: false, error: 'Cuerpo JSON inválido' }, { status: 400 })
+    }
     const { email, password } = bodySchema.parse(json)
     const normalizedEmail = email.trim().toLowerCase()
 
+    const { prisma } = await import('@/lib/prisma')
+    const { verifyPassword } = await import('@/lib/password')
+
+    // Sin filtro anidado en `where` (mejor compatibilidad con PgBouncer / pooler Supabase).
     const candidates = await prisma.usuario.findMany({
       where: {
         email: normalizedEmail,
         activo: true,
         password: { not: null },
-        restaurante: { activo: true },
       },
       include: {
-        restaurante: { select: { id: true, nombre: true } },
+        restaurante: { select: { id: true, nombre: true, activo: true } },
       },
     })
 
     const matches: { restauranteId: string; nombre: string }[] = []
     for (const u of candidates) {
-      if (!u.password) continue
+      if (!u.restaurante?.activo || !u.password) continue
       const ok = await verifyPassword(password, u.password)
       if (ok) {
         matches.push({
@@ -75,7 +81,9 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ ok: false, error: 'Datos inválidos' }, { status: 400 })
     }
-    console.error('prelogin:', error)
+    const msg = error instanceof Error ? error.message : String(error)
+    const name = error instanceof Error ? error.name : 'unknown'
+    console.error('prelogin:', name, msg, error)
     return NextResponse.json({ ok: false, error: 'Error al iniciar sesión' }, { status: 500 })
   }
 }
