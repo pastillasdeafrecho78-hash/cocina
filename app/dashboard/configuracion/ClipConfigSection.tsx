@@ -22,7 +22,8 @@ interface TerminalRow {
 
 export default function ClipConfigSection() {
   const [cfg, setCfg] = useState<ClipConfigState | null>(null)
-  const [apiKeyInput, setApiKeyInput] = useState('')
+  const [clipApiKeyInput, setClipApiKeyInput] = useState('')
+  const [clipSecretInput, setClipSecretInput] = useState('')
   const [terminales, setTerminales] = useState<TerminalRow[]>([])
   const [newSerial, setNewSerial] = useState('')
   const [newNombre, setNewNombre] = useState('')
@@ -55,25 +56,30 @@ export default function ClipConfigSection() {
 
   const guardarConfig = async () => {
     try {
-      const body: Record<string, unknown> = { activo: true }
-      if (apiKeyInput.trim()) body.apiKey = apiKeyInput.trim()
-      if (!apiKeyInput.trim()) {
-        toast.error('Pega una API key nueva para guardar')
+      const api = clipApiKeyInput.trim()
+      const secret = clipSecretInput.trim()
+      if (!api || !secret) {
+        toast.error('Pega Clave API y Clave secreta del dashboard de Clip (ambas)')
         return
       }
 
       const res = await apiFetch('/api/clip/config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          activo: true,
+          clipApiKey: api,
+          clipSecretKey: secret,
+        }),
       })
       const j = await res.json()
       if (!j.success) {
         toast.error(j.error || 'No se pudo guardar')
         return
       }
-      toast.success('Configuración de Clip guardada')
-      setApiKeyInput('')
+      toast.success('Credenciales de Clip guardadas')
+      setClipApiKeyInput('')
+      setClipSecretInput('')
       loadCfg()
     } catch {
       toast.error('Error al guardar configuración de Clip')
@@ -91,8 +97,9 @@ export default function ClipConfigSection() {
       toast.error(j.error || 'No se pudo eliminar la API key')
       return
     }
-    toast.success('API key eliminada')
-    setApiKeyInput('')
+    toast.success('Credenciales eliminadas')
+    setClipApiKeyInput('')
+    setClipSecretInput('')
     setDevicesClip(null)
     loadCfg()
   }
@@ -171,23 +178,38 @@ export default function ClipConfigSection() {
         </p>
         {cfg?.apiKeyError === 'DECRYPT_FAILED' && (
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            La clave guardada no se puede leer. Pega una API key nueva y guarda para corregirlo.
+            La clave guardada no se puede leer. Vuelve a guardar Clave API y Clave secreta.
           </p>
         )}
+        <p className="text-xs text-stone-600 dark:text-stone-400">
+          En el panel de Clip obtienes dos valores: <strong>Clave API</strong> y <strong>Clave secreta</strong>.
+          Ambos son obligatorios; el servidor arma el header Basic correcto para PinPad.
+        </p>
+        <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">Clave API</label>
         <input
           type="password"
-          placeholder="Pega la credencial Clip (token o Authorization: Basic ...)"
+          autoComplete="off"
+          placeholder="Ej. UUID de Clave API"
           className="app-input app-field text-sm"
-          value={apiKeyInput}
-          onChange={(e) => setApiKeyInput(e.target.value)}
+          value={clipApiKeyInput}
+          onChange={(e) => setClipApiKeyInput(e.target.value)}
+        />
+        <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">Clave secreta</label>
+        <input
+          type="password"
+          autoComplete="off"
+          placeholder="Clave secreta (mostrarla solo una vez en el dashboard de Clip)"
+          className="app-input app-field text-sm"
+          value={clipSecretInput}
+          onChange={(e) => setClipSecretInput(e.target.value)}
         />
         <div className="flex flex-wrap gap-2">
           <button type="button" className="app-btn-secondary text-sm" onClick={guardarConfig}>
-            Guardar API key
+            Guardar credenciales
           </button>
           {cfg?.hasApiKey && (
             <button type="button" className="app-btn-danger text-sm" onClick={eliminarApiKey}>
-              Eliminar API key
+              Eliminar credenciales
             </button>
           )}
         </div>

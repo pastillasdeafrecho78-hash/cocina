@@ -7,7 +7,12 @@ import { getClipApiKeyStatus } from '@/lib/clip-config'
 import { z } from 'zod'
 
 const patchSchema = z.object({
+  /** Credencial completa (Basic/Bearer) o token ya armado — alternativa a clipApiKey+clipSecretKey */
   apiKey: z.string().min(1).optional(),
+  /** Desde dashboard Clip: Clave API (UUID) */
+  clipApiKey: z.string().optional(),
+  /** Desde dashboard Clip: Clave secreta (solo visible al crear; si no la tienes, crea credencial nueva) */
+  clipSecretKey: z.string().optional(),
   clearApiKey: z.boolean().optional(),
   webhookSecret: z.string().optional(),
   activo: z.boolean().optional(),
@@ -66,6 +71,21 @@ export async function PATCH(request: NextRequest) {
     if (body.clearApiKey) {
       data.apiKeyEncrypted = null
       data.activo = false
+    } else if (body.clipApiKey !== undefined || body.clipSecretKey !== undefined) {
+      const api = (body.clipApiKey ?? '').trim()
+      const secret = (body.clipSecretKey ?? '').trim()
+      if (!api || !secret) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              'Indica Clave API y Clave secreta del panel de Clip (ambas). Si no ves la secreta, crea una credencial nueva en el dashboard.',
+          },
+          { status: 400 }
+        )
+      }
+      const basic = Buffer.from(`${api}:${secret}`, 'utf8').toString('base64')
+      data.apiKeyEncrypted = encryptSecret(`Basic ${basic}`)
     } else if (body.apiKey !== undefined) {
       const key = normalizeCredentialInput(body.apiKey)
       if (!key) {
