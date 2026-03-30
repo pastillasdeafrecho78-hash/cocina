@@ -98,15 +98,6 @@ export async function POST(request: NextRequest) {
     const msg = error instanceof Error ? error.message : String(error)
     const name = error instanceof Error ? error.name : 'unknown'
     console.error('prelogin:', name, msg, error)
-    const expose =
-      process.env.PRELOGIN_EXPOSE_ERROR === '1' || process.env.NODE_ENV !== 'production'
-    return NextResponse.json(
-      {
-        ok: false,
-        error: 'Error al iniciar sesión',
-        ...(expose ? { debug: `${name}: ${msg}` } : {}),
-      },
-      { status: 500 }
-    )
+    return NextResponse.json({ ok: false, error: 'Error al iniciar sesión' }, { status: 500 })
   }
 }
