@@ -6,7 +6,6 @@ import { labelComandaEstado, labelItemEstado } from '@/lib/estado-labels'
 import { useParams, useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
-import StripePaymentForm from '@/components/StripePaymentForm'
 
 interface Comanda {
   id: string
@@ -46,8 +45,7 @@ export default function ComandaDetallePage() {
 
   const [comanda, setComanda] = useState<Comanda | null>(null)
   const [loading, setLoading] = useState(true)
-  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'stripe' | 'clip' | null>(null)
-  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null)
+  const [metodoPago, setMetodoPago] = useState<'efectivo' | 'tarjeta' | null>(null)
   const [cobrandoEfectivo, setCobrandoEfectivo] = useState(false)
   const [cobrandoClip, setCobrandoClip] = useState(false)
   const [serialClip, setSerialClip] = useState('')
@@ -133,42 +131,6 @@ export default function ComandaDetallePage() {
     } finally {
       setCobrandoEfectivo(false)
     }
-  }
-
-  const handleSeleccionarStripe = async () => {
-    if (!comanda) return
-    setMetodoPago('stripe')
-    try {
-      const res = await apiFetch('/api/pagos/stripe/create-payment-intent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ comandaId: comanda.id }),
-      })
-      const data = await res.json()
-      if (data.success && data.data?.clientSecret) {
-        setStripeClientSecret(data.data.clientSecret)
-      } else {
-        toast.error(data.error ?? 'Error al preparar pago')
-        setMetodoPago(null)
-      }
-    } catch (error) {
-      toast.error('Error al preparar pago con tarjeta')
-      setMetodoPago(null)
-    }
-  }
-
-  const handleStripeSuccess = () => {
-    toast.success('Pago con tarjeta/Apple Pay registrado')
-    setMetodoPago(null)
-    setStripeClientSecret(null)
-    fetchComanda()
-  }
-
-  const handleStripeCancel = () => {
-    setMetodoPago(null)
-    setStripeClientSecret(null)
   }
 
   const handleEnviarCobroClip = async () => {
@@ -377,19 +339,11 @@ export default function ComandaDetallePage() {
               </button>
               <button
                 type="button"
-                onClick={handleSeleccionarStripe}
-                className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-indigo-500 hover:bg-indigo-50"
-              >
-                <span className="text-2xl">💳</span>
-                Tarjeta / Apple Pay / Google Pay
-              </button>
-              <button
-                type="button"
-                onClick={() => setMetodoPago('clip')}
+                onClick={() => setMetodoPago('tarjeta')}
                 className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-sky-500 hover:bg-sky-50"
               >
-                <span className="text-2xl">📟</span>
-                Terminal Clip
+                <span className="text-2xl">💳</span>
+                Tarjeta
               </button>
             </div>
           ) : metodoPago === 'efectivo' ? (
@@ -439,13 +393,13 @@ export default function ComandaDetallePage() {
                 </button>
               </div>
             </div>
-          ) : metodoPago === 'clip' ? (
+          ) : metodoPago === 'tarjeta' ? (
             <div className="space-y-4 max-w-md">
               <p className="text-gray-600">
                 Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Número de serie de terminal Clip</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Número de serie de terminal</label>
                 <input
                   type="text"
                   value={serialClip}
@@ -477,7 +431,7 @@ export default function ComandaDetallePage() {
                   disabled={cobrandoClip || !!esperaClip}
                   className="rounded-2xl bg-sky-600 px-6 py-2 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {cobrandoClip ? 'Enviando...' : 'Enviar a terminal Clip'}
+                  {cobrandoClip ? 'Enviando...' : 'Enviar cobro con tarjeta'}
                 </button>
                 <button
                   type="button"
@@ -493,18 +447,6 @@ export default function ComandaDetallePage() {
                 </button>
               </div>
             </div>
-          ) : metodoPago === 'stripe' && stripeClientSecret ? (
-            <div className="max-w-md">
-              <StripePaymentForm
-                clientSecret={stripeClientSecret}
-                comandaId={comanda.id}
-                total={totalFinal}
-                onSuccess={handleStripeSuccess}
-                onCancel={handleStripeCancel}
-              />
-            </div>
-          ) : metodoPago === 'stripe' ? (
-            <div className="text-gray-500">Preparando formulario de pago…</div>
           ) : null}
         </div>
       )}

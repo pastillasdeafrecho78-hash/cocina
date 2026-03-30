@@ -40,7 +40,7 @@ interface Item {
 export default function CocinaPage() {
   const [items, setItems] = useState<Item[]>([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState<'all' | 'pendiente' | 'preparacion' | 'listo'>('all')
+  const [filter, setFilter] = useState<'all' | 'pendiente' | 'listo'>('all')
   const [confirmando, setConfirmando] = useState<{ itemId: string; nuevoEstado: string; label: string } | null>(null)
   const [confirmandoGrupo, setConfirmandoGrupo] = useState<{ numeroComanda: string; accion: 'alistar' | 'entregar' } | null>(null)
 
@@ -161,8 +161,7 @@ export default function CocinaPage() {
   }
 
   const filteredItems = items.filter((item) => {
-    if (filter === 'pendiente') return item.estado === 'PENDIENTE'
-    if (filter === 'preparacion') return item.estado === 'EN_PREPARACION'
+    if (filter === 'pendiente') return item.estado === 'PENDIENTE' || item.estado === 'EN_PREPARACION'
     if (filter === 'listo') return item.estado === 'LISTO'
     return true
   })
@@ -187,7 +186,7 @@ export default function CocinaPage() {
 
   const ESTADO_LABELS: Record<string, string> = {
     PENDIENTE: 'Por preparar',
-    EN_PREPARACION: 'Preparando',
+    EN_PREPARACION: 'Por preparar',
     LISTO: 'Listo para entregar',
     ENTREGADO: 'Entregado',
   }
@@ -230,12 +229,6 @@ export default function CocinaPage() {
             className={filter === 'pendiente' ? 'app-btn-primary' : 'app-btn-secondary'}
           >
             Por preparar
-          </button>
-          <button
-            onClick={() => setFilter('preparacion')}
-            className={filter === 'preparacion' ? 'app-btn-primary' : 'app-btn-secondary'}
-          >
-            Preparando
           </button>
           <button
             onClick={() => setFilter('listo')}
@@ -300,15 +293,7 @@ export default function CocinaPage() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {item.estado === 'PENDIENTE' && (
-                        <button
-                          onClick={() => abrirConfirmacion(item.id, 'EN_PREPARACION', 'Preparando')}
-                          className="app-btn-secondary flex-1 border-amber-300 bg-amber-50 text-amber-900 text-sm py-1.5"
-                        >
-                          Preparando
-                        </button>
-                      )}
-                      {item.estado === 'EN_PREPARACION' && (
+                      {(item.estado === 'PENDIENTE' || item.estado === 'EN_PREPARACION') && (
                         <button
                           onClick={() => abrirConfirmacion(item.id, 'LISTO', 'Listo para entregar')}
                           className="app-btn-primary flex-1 bg-emerald-700 hover:bg-emerald-800 text-sm py-1.5"

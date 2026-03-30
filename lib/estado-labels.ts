@@ -1,7 +1,7 @@
 /** Etiquetas unificadas de estado para comandas, cocina y barra */
 export const ESTADOS_ITEM = {
   PENDIENTE: 'Por preparar',
-  EN_PREPARACION: 'Preparando',
+  EN_PREPARACION: 'Por preparar',
   LISTO: 'Listo para entregar',
   ENTREGADO: 'Entregado',
 } as const
