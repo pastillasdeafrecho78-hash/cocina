@@ -17,11 +17,21 @@ export class ClipProviderError extends Error {
 }
 
 function clipAuthHeaderValue(apiKey: string, mode?: 'basic' | 'bearer'): string {
-  const token = apiKey.trim()
+  const token = normalizeClipCredential(apiKey)
   if (/^(Basic|Bearer)\s+/i.test(token)) return token
   if (mode === 'bearer') return `Bearer ${token}`
   // Clip PinPad documenta Basic para autenticación.
   return `Basic ${token}`
+}
+
+function normalizeClipCredential(raw: string): string {
+  let token = String(raw || '').trim()
+  // Soporta pegar "Authorization: Basic xxx"
+  const headerMatch = token.match(/^authorization\s*:\s*(.+)$/i)
+  if (headerMatch) token = headerMatch[1].trim()
+  // Quita comillas envolventes y saltos de línea
+  token = token.replace(/^["']+|["']+$/g, '').replace(/\s+/g, ' ').trim()
+  return token
 }
 
 function authHeaders(apiKey: string): HeadersInit {
@@ -82,7 +92,7 @@ export async function clipPinpadCreatePayment(opts: {
 }
 
 export async function clipDevicesStatus(apiKey: string): Promise<unknown> {
-  const token = apiKey.trim()
+  const token = normalizeClipCredential(apiKey)
   const attempts: HeadersInit[] = /^(Basic|Bearer)\s+/i.test(token)
     ? [{ Accept: 'application/json', Authorization: token }]
     : [

@@ -176,7 +176,7 @@ export default function ClipConfigSection() {
         )}
         <input
           type="password"
-          placeholder="Pega aquí la API key de Clip"
+          placeholder="Pega la credencial Clip (token o Authorization: Basic ...)"
           className="app-input app-field text-sm"
           value={apiKeyInput}
           onChange={(e) => setApiKeyInput(e.target.value)}

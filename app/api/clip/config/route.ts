@@ -15,6 +15,13 @@ const patchSchema = z.object({
 
 export const dynamic = 'force-dynamic'
 
+function normalizeCredentialInput(raw: string): string {
+  let token = String(raw || '').trim()
+  const headerMatch = token.match(/^authorization\s*:\s*(.+)$/i)
+  if (headerMatch) token = headerMatch[1].trim()
+  return token.replace(/^["']+|["']+$/g, '').replace(/\s+/g, ' ').trim()
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getSessionUser()
@@ -60,7 +67,7 @@ export async function PATCH(request: NextRequest) {
       data.apiKeyEncrypted = null
       data.activo = false
     } else if (body.apiKey !== undefined) {
-      const key = body.apiKey.trim()
+      const key = normalizeCredentialInput(body.apiKey)
       if (!key) {
         return NextResponse.json({ success: false, error: 'La API key no puede estar vacía' }, { status: 400 })
       }
