@@ -33,26 +33,40 @@ export async function POST(request: NextRequest) {
     const { prisma } = await import('@/lib/prisma')
     const { verifyPassword } = await import('@/lib/password')
 
-    // Sin filtro anidado en `where` (mejor compatibilidad con PgBouncer / pooler Supabase).
-    const candidates = await prisma.usuario.findMany({
+    // Dos consultas simples (sin JOIN/include): algunos despliegues con PgBouncer fallan
+    // con relaciones en una sola query aunque health y count() funcionen.
+    const usuarios = await prisma.usuario.findMany({
       where: {
         email: normalizedEmail,
         activo: true,
         password: { not: null },
       },
-      include: {
-        restaurante: { select: { id: true, nombre: true, activo: true } },
-      },
+      select: { restauranteId: true, password: true },
     })
 
+    if (usuarios.length === 0) {
+      return NextResponse.json(
+        { ok: false, error: 'Credenciales incorrectas' },
+        { status: 401 }
+      )
+    }
+
+    const restauranteIds = [...new Set(usuarios.map((u) => u.restauranteId))]
+    const restaurantes = await prisma.restaurante.findMany({
+      where: { id: { in: restauranteIds }, activo: true },
+      select: { id: true, nombre: true },
+    })
+    const nombrePorRestaurante = new Map(restaurantes.map((r) => [r.id, r.nombre]))
+
     const matches: { restauranteId: string; nombre: string }[] = []
-    for (const u of candidates) {
-      if (!u.restaurante?.activo || !u.password) continue
+    for (const u of usuarios) {
+      const nombre = nombrePorRestaurante.get(u.restauranteId)
+      if (!nombre || !u.password) continue
       const ok = await verifyPassword(password, u.password)
       if (ok) {
         matches.push({
           restauranteId: u.restauranteId,
-          nombre: u.restaurante.nombre,
+          nombre,
         })
       }
     }
@@ -84,6 +98,15 @@ export async function POST(request: NextRequest) {
     const msg = error instanceof Error ? error.message : String(error)
     const name = error instanceof Error ? error.name : 'unknown'
     console.error('prelogin:', name, msg, error)
-    return NextResponse.json({ ok: false, error: 'Error al iniciar sesión' }, { status: 500 })
+    const expose =
+      process.env.PRELOGIN_EXPOSE_ERROR === '1' || process.env.NODE_ENV !== 'production'
+    return NextResponse.json(
+      {
+        ok: false,
+        error: 'Error al iniciar sesión',
+        ...(expose ? { debug: `${name}: ${msg}` } : {}),
+      },
+      { status: 500 }
+    )
   }
 }

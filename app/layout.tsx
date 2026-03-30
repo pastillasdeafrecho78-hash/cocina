@@ -16,6 +16,9 @@ const cormorant = Cormorant_Garamond({
 export const metadata: Metadata = {
   title: 'ServimOS',
   description: 'Suite operativa para restaurantes, comandas y servicio.',
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export const viewport = {
