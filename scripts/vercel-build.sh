@@ -13,15 +13,34 @@ migrate_db_url() {
   printf ''
 }
 
+# Supabase exige TLS; sin ?sslmode=require Prisma puede fallar al conectar desde CI/Vercel.
+# Si sigue P1001 "Can't reach" hacia db.*.supabase.co, usa en DIRECT_URL la URI "Session pooler" :5432
+# (usuario postgres.PROJECT_REF en host aws-*.pooler.supabase.com) — ver env.example.
+ensure_supabase_sslmode() {
+  local url="$1"
+  case "$url" in
+    *supabase.co*|*supabase.com*) ;;
+    *) printf '%s' "$url"; return ;;
+  esac
+  case "$url" in
+    *sslmode=*|*ssl=* ) printf '%s' "$url"; return ;;
+  esac
+  case "$url" in
+    *\?*) printf '%s' "${url}&sslmode=require" ;;
+    *) printf '%s' "${url}?sslmode=require" ;;
+  esac
+}
+
 # Solo en deploy de producción (no en previews) para no exigir migraciones duplicadas ni tocar la BD equivocada.
 if [ "${VERCEL:-}" = "1" ] && [ "${VERCEL_ENV:-}" = "production" ]; then
   echo ">>> prisma migrate deploy (Vercel production)"
   MU="$(migrate_db_url)"
   if [ -n "$MU" ]; then
+    MU="$(ensure_supabase_sslmode "$MU")"
     # No imprimir la URL; solo pista para depurar (6543 = pooler, suele colgar migrate).
     case "$MU" in
-      *:6543*|*pooler*) echo "WARN: la URL de migrate apunta a :6543/pooler; usa URI directa :5432 (db.*.supabase.co)." ;;
-      *) echo "migrate: URL directa detectada (longitud ${#MU} caracteres)." ;;
+      *:6543*|*pooler*) echo "WARN: :6543 es pooler transaccional; migrate suele fallar. Usa db.*:5432 o session pooler :5432." ;;
+      *) echo "migrate: URL para migraciones (longitud ${#MU} caracteres)." ;;
     esac
     DATABASE_URL="$MU" npx prisma migrate deploy
   else
