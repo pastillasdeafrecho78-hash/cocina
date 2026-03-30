@@ -18,6 +18,7 @@ interface TerminalRow {
   serialNumber: string
   nombre: string | null
   activo: boolean
+  isDefault?: boolean
 }
 
 export default function ClipConfigSection() {
@@ -138,6 +139,21 @@ export default function ClipConfigSection() {
     loadTerminales()
   }
 
+  const marcarDefault = async (terminalId: string) => {
+    const res = await apiFetch('/api/clip/terminales', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ terminalId }),
+    })
+    const j = await res.json()
+    if (!j.success) {
+      toast.error(j.error || 'No se pudo marcar terminal predeterminada')
+      return
+    }
+    toast.success('Terminal predeterminada actualizada')
+    loadTerminales()
+  }
+
   const refrescarDispositivos = async () => {
     const res = await apiFetch('/api/clip/dispositivos')
     const j = await res.json()
@@ -223,15 +239,27 @@ export default function ClipConfigSection() {
               <span>
                 <code className="rounded bg-stone-200/80 px-1 text-xs dark:bg-stone-800">{t.serialNumber}</code>
                 {t.nombre ? ` · ${t.nombre}` : ''}
+                {t.isDefault ? ' · Predeterminada' : ''}
               </span>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-xs text-rose-700 hover:underline dark:text-rose-300"
-                onClick={() => eliminarTerminal(t.id)}
-              >
-                <TrashIcon className="h-4 w-4" />
-                Quitar
-              </button>
+              <div className="flex items-center gap-3">
+                {!t.isDefault && (
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-xs text-sky-700 hover:underline dark:text-sky-300"
+                    onClick={() => marcarDefault(t.id)}
+                  >
+                    Marcar predeterminada
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:underline dark:text-rose-300"
+                  onClick={() => eliminarTerminal(t.id)}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  Quitar
+                </button>
+              </div>
             </li>
           ))}
           {terminales.length === 0 && (

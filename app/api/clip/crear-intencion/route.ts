@@ -9,7 +9,7 @@ import { z } from 'zod'
 
 const schema = z.object({
   comandaId: z.string().min(1),
-  serialNumber: z.string().min(1),
+  serialNumber: z.string().min(1).optional(),
   tipAmount: z.number().min(0).optional(),
 })
 
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const apiKey = await getClipApiKey(rid)
     if (!apiKey) {
       return NextResponse.json(
-        { success: false, error: 'Clip no configurado o inactivo. Configura la API key en Caja → Clip.' },
+        { success: false, error: 'Clip no configurado o inactivo. Configura la API key en Configuración.' },
         { status: 400 }
       )
     }
@@ -65,23 +65,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const terminales = await prisma.clipTerminal.count({
+    const terminalesActivas = await prisma.clipTerminal.findMany({
       where: { restauranteId: rid, activo: true },
+      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
     })
-    if (terminales > 0) {
-      const ok = await prisma.clipTerminal.findFirst({
-        where: {
-          restauranteId: rid,
-          activo: true,
-          serialNumber: body.serialNumber,
-        },
-      })
-      if (!ok) {
-        return NextResponse.json(
-          { success: false, error: 'Número de serie no registrado para este restaurante.' },
-          { status: 400 }
-        )
+    if (terminalesActivas.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'No hay terminales activas. Regístralas en Configuración.' },
+        { status: 400 }
+      )
+    }
+
+    let serialSeleccionado = body.serialNumber?.trim() || ''
+    if (!serialSeleccionado) {
+      if (terminalesActivas.length === 1) {
+        serialSeleccionado = terminalesActivas[0].serialNumber
+      } else {
+        const defaultTerminal = terminalesActivas.find((t) => t.isDefault)
+        if (defaultTerminal) {
+          serialSeleccionado = defaultTerminal.serialNumber
+        } else {
+          return NextResponse.json(
+            { success: false, error: 'Selecciona una terminal para cobrar con tarjeta.' },
+            { status: 400 }
+          )
+        }
       }
+    }
+
+    const ok = terminalesActivas.find((t) => t.serialNumber === serialSeleccionado)
+    if (!ok) {
+      return NextResponse.json(
+        { success: false, error: 'La terminal seleccionada no está activa para este restaurante.' },
+        { status: 400 }
+      )
     }
 
     const amount = montoComanda(comanda)
@@ -95,7 +112,7 @@ export async function POST(request: NextRequest) {
         procesador: 'clip',
         estado: 'PENDIENTE',
         detalles: {
-          serialNumber: body.serialNumber,
+          serialNumber: serialSeleccionado,
           intentCreatedAt: new Date().toISOString(),
         } as object,
       },
@@ -109,7 +126,7 @@ export async function POST(request: NextRequest) {
         amount,
         tip_amount: tip,
         reference: comanda.id,
-        serial_number_pos: body.serialNumber,
+        serial_number_pos: serialSeleccionado,
         webhook_url,
       })
       const pinpadId = extractPinpadRequestId(clipRes)
@@ -130,6 +147,7 @@ export async function POST(request: NextRequest) {
         data: {
           pagoId: pago.id,
           pinpadRequestId: pinpadId,
+          serialNumber: serialSeleccionado,
           monto: amount + tip,
           webhook_url,
           clip: clipRes,

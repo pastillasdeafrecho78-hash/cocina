@@ -43,6 +43,7 @@ interface ClipTerminal {
   serialNumber: string
   nombre: string | null
   activo: boolean
+  isDefault?: boolean
 }
 
 export default function ComandaDetallePage() {
@@ -67,16 +68,28 @@ export default function ComandaDetallePage() {
     fetchComanda()
   }, [numeroComanda])
 
-  useEffect(() => {
-    const loadTerminales = async () => {
-      const res = await apiFetch('/api/clip/terminales')
-      const data = await res.json()
-      if (!data.success) return
-      const active = (data.data as ClipTerminal[]).filter((t) => t.activo)
-      setTerminalesClip(active)
-      if (active.length === 1) setSerialClip(active[0].serialNumber)
+  const loadTerminalesClip = async () => {
+    const res = await apiFetch('/api/clip/terminales')
+    const data = await res.json()
+    if (!data.success) return [] as ClipTerminal[]
+    const active = (data.data as ClipTerminal[]).filter((t) => t.activo)
+    setTerminalesClip(active)
+    return active
+  }
+
+  const resolverSerialInicial = (terminales: ClipTerminal[]) => {
+    if (terminales.length === 1) return terminales[0].serialNumber
+    if (terminales.length > 1) {
+      const defaultTerminal = terminales.find((t) => t.isDefault)
+      if (defaultTerminal) return defaultTerminal.serialNumber
     }
-    loadTerminales().catch(() => undefined)
+    return ''
+  }
+
+  useEffect(() => {
+    loadTerminalesClip()
+      .then((active) => setSerialClip(resolverSerialInicial(active)))
+      .catch(() => undefined)
   }, [])
 
   useEffect(() => {
@@ -188,6 +201,26 @@ export default function ComandaDetallePage() {
     } finally {
       setCobrandoClip(false)
     }
+  }
+
+  const handleSeleccionarTarjeta = async () => {
+    const active = await loadTerminalesClip()
+    if (active.length === 0) {
+      toast.error('No hay terminales activas. Configura Clip antes de cobrar con tarjeta.')
+      router.push('/dashboard/configuracion')
+      return
+    }
+    const resolvedSerial = resolverSerialInicial(active)
+    setSerialClip(resolvedSerial)
+    if (active.length > 1 && !resolvedSerial) {
+      toast('Selecciona una terminal para continuar')
+    } else if (active.length > 1 && resolvedSerial) {
+      const defaultTerminal = active.find((t) => t.serialNumber === resolvedSerial)
+      if (defaultTerminal) {
+        toast.success(`Usando terminal predeterminada${defaultTerminal.nombre ? `: ${defaultTerminal.nombre}` : ''}`)
+      }
+    }
+    setMetodoPago('tarjeta')
   }
 
   useEffect(() => {
@@ -359,7 +392,7 @@ export default function ComandaDetallePage() {
               </button>
               <button
                 type="button"
-                onClick={() => setMetodoPago('tarjeta')}
+                onClick={handleSeleccionarTarjeta}
                 className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-sky-500 hover:bg-sky-50"
               >
                 <span className="text-2xl">💳</span>
@@ -429,12 +462,18 @@ export default function ComandaDetallePage() {
                   {terminalesClip.map((t) => (
                     <option key={t.id} value={t.serialNumber}>
                       {t.nombre ? `${t.nombre} · ${t.serialNumber}` : t.serialNumber}
+                      {t.isDefault ? ' (Predeterminada)' : ''}
                     </option>
                   ))}
                 </select>
                 {terminalesClip.length === 0 && (
                   <p className="mt-1 text-xs text-amber-700">
                     No hay terminales registradas. Agrégalas en Configuración para poder cobrar con tarjeta.
+                  </p>
+                )}
+                {terminalesClip.length > 1 && !serialClip && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    Selecciona una terminal para continuar con el cobro.
                   </p>
                 )}
               </div>

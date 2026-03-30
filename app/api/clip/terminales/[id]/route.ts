@@ -22,8 +22,20 @@ export async function DELETE(
     }
     await prisma.clipTerminal.update({
       where: { id: t.id },
-      data: { activo: false },
+      data: { activo: false, isDefault: false },
     })
+    if (t.isDefault) {
+      const fallback = await prisma.clipTerminal.findFirst({
+        where: { restauranteId: user.restauranteId, activo: true, id: { not: t.id } },
+        orderBy: { createdAt: 'asc' },
+      })
+      if (fallback) {
+        await prisma.clipTerminal.update({
+          where: { id: fallback.id },
+          data: { isDefault: true },
+        })
+      }
+    }
     return NextResponse.json({ success: true })
   } catch (e) {
     console.error(e)
