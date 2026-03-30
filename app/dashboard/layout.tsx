@@ -10,6 +10,10 @@ import { tienePermiso } from '@/lib/permisos'
 
 const MOBILE_BREAKPOINT = 768
 const SCROLL_THRESHOLD = 40
+const COMPACT_ENTER_THRESHOLD = 64
+const COMPACT_EXIT_THRESHOLD = 28
+const SCROLL_JITTER_PX = 4
+const TOGGLE_COOLDOWN_MS = 180
 
 async function clearSession() {
   localStorage.removeItem('user')
@@ -26,13 +30,19 @@ export default function DashboardLayout({
   const [checking, setChecking] = useState(true)
   const [headerCompact, setHeaderCompact] = useState(false)
   const lastScrollYRef = useRef(0)
+  const headerCompactRef = useRef(false)
+  const lastToggleAtRef = useRef(0)
+
+  useEffect(() => {
+    headerCompactRef.current = headerCompact
+  }, [headerCompact])
 
   const checkScroll = useCallback(() => {
     if (typeof window === 'undefined') return
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT
     if (!isMobile) {
       setHeaderCompact(false)
-      lastScrollYRef.current = 0
+      lastScrollYRef.current = window.scrollY ?? 0
       return
     }
     const scrollTop =
@@ -45,14 +55,23 @@ export default function DashboardLayout({
     const prev = lastScrollYRef.current
     lastScrollYRef.current = scrollTop
     const diff = scrollTop - prev
-    const direction = diff > 0 ? 'down' : diff < 0 ? 'up' : null
+    const now = Date.now()
+    const isCompact = headerCompactRef.current
 
-    if (scrollTop <= SCROLL_THRESHOLD) {
-      setHeaderCompact(false)
-    } else if (direction === 'down') {
+    if (Math.abs(diff) < SCROLL_JITTER_PX) return
+    if (now - lastToggleAtRef.current < TOGGLE_COOLDOWN_MS) return
+
+    if (scrollTop <= SCROLL_THRESHOLD || (isCompact && (scrollTop <= COMPACT_EXIT_THRESHOLD || diff < -SCROLL_JITTER_PX))) {
+      if (isCompact) {
+        setHeaderCompact(false)
+        lastToggleAtRef.current = now
+      }
+      return
+    }
+
+    if (!isCompact && scrollTop >= COMPACT_ENTER_THRESHOLD && diff > SCROLL_JITTER_PX) {
       setHeaderCompact(true)
-    } else if (direction === 'up') {
-      setHeaderCompact(false)
+      lastToggleAtRef.current = now
     }
   }, [])
 
