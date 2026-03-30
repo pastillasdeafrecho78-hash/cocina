@@ -2,7 +2,6 @@ import type { Usuario } from '@prisma/client'
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import Google from 'next-auth/providers/google'
-import { verifyPassword } from '@/lib/password'
 
 const secret =
   process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? process.env.JWT_SECRET
@@ -22,6 +21,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         restauranteId: { label: 'Restaurante', type: 'text' },
       },
       async authorize(credentials) {
+        const { verifyPassword } = await import('@/lib/password')
         const { prisma } = await import('@/lib/prisma')
         const email = String(credentials?.email ?? '').trim().toLowerCase()
         const password = String(credentials?.password ?? '')

@@ -129,7 +129,7 @@ export default function LoginPage() {
       if (!pre.ok || !data.ok) {
         if (pre.status >= 500) {
           throw new Error(
-            'El servidor no puede validar el acceso (suele ser la base de datos). Abre /api/health en este sitio; en Vercel + Supabase usa DATABASE_URL del pooler (puerto 6543), no :5432.'
+            'Error del servidor al validar el acceso. Si /api/health está bien, recarga e inténtalo de nuevo; si persiste, revisa los logs de Vercel en la ruta /api/auth/prelogin.'
           )
         }
         throw new Error(data.error ?? 'Credenciales incorrectas')

@@ -8,5 +8,9 @@ export async function verifyPassword(
   password: string,
   hashedPassword: string
 ): Promise<boolean> {
-  return bcrypt.compare(password, hashedPassword)
+  try {
+    return await bcrypt.compare(password, hashedPassword)
+  } catch {
+    return false
+  }
 }

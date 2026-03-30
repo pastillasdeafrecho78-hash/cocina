@@ -37,6 +37,15 @@ export default auth((req) => {
   return NextResponse.next()
 })
 
+/**
+ * Importante: no ejecutar el wrapper `auth()` de NextAuth sobre `/api/auth/*`.
+ * Ese wrapper llama a `getSession()` en cada request; en POST a prelogin/signin
+ * puede devolver 500 (p. ej. cookies / secuencia interna) antes del route handler.
+ * Las rutas bajo `/api/auth/` quedan sin este middleware; siguen protegidas por su propia lógica.
+ */
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/dashboard/:path*',
+    '/((?!api/auth(?:/|$)|_next/static|_next/image|favicon.ico).*)',
+  ],
 }
