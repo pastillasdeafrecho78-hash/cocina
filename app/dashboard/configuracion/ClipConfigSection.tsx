@@ -57,6 +57,10 @@ export default function ClipConfigSection() {
     try {
       const body: Record<string, unknown> = { activo: true }
       if (apiKeyInput.trim()) body.apiKey = apiKeyInput.trim()
+      if (!apiKeyInput.trim()) {
+        toast.error('Pega una API key nueva para guardar')
+        return
+      }
 
       const res = await apiFetch('/api/clip/config', {
         method: 'PATCH',
@@ -74,6 +78,23 @@ export default function ClipConfigSection() {
     } catch {
       toast.error('Error al guardar configuración de Clip')
     }
+  }
+
+  const eliminarApiKey = async () => {
+    const res = await apiFetch('/api/clip/config', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clearApiKey: true }),
+    })
+    const j = await res.json()
+    if (!j.success) {
+      toast.error(j.error || 'No se pudo eliminar la API key')
+      return
+    }
+    toast.success('API key eliminada')
+    setApiKeyInput('')
+    setDevicesClip(null)
+    loadCfg()
   }
 
   const agregarTerminal = async () => {
@@ -148,6 +169,11 @@ export default function ClipConfigSection() {
         <p className="text-sm text-stone-700 dark:text-stone-300">
           Estado: <strong>{estadoClave}</strong>
         </p>
+        {cfg?.apiKeyError === 'DECRYPT_FAILED' && (
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            La clave guardada no se puede leer. Pega una API key nueva y guarda para corregirlo.
+          </p>
+        )}
         <input
           type="password"
           placeholder="Pega aquí la API key de Clip"
@@ -155,9 +181,16 @@ export default function ClipConfigSection() {
           value={apiKeyInput}
           onChange={(e) => setApiKeyInput(e.target.value)}
         />
-        <button type="button" className="app-btn-secondary text-sm" onClick={guardarConfig}>
-          Guardar API key
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="app-btn-secondary text-sm" onClick={guardarConfig}>
+            Guardar API key
+          </button>
+          {cfg?.hasApiKey && (
+            <button type="button" className="app-btn-danger text-sm" onClick={eliminarApiKey}>
+              Eliminar API key
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="app-card-muted p-4 space-y-3">

@@ -8,6 +8,7 @@ import { z } from 'zod'
 
 const patchSchema = z.object({
   apiKey: z.string().min(1).optional(),
+  clearApiKey: z.boolean().optional(),
   webhookSecret: z.string().optional(),
   activo: z.boolean().optional(),
 })
@@ -51,11 +52,14 @@ export async function PATCH(request: NextRequest) {
     }
     const body = patchSchema.parse(await request.json())
     const data: {
-      apiKeyEncrypted?: string
+      apiKeyEncrypted?: string | null
       webhookSecret?: string | null
       activo?: boolean
     } = {}
-    if (body.apiKey !== undefined) {
+    if (body.clearApiKey) {
+      data.apiKeyEncrypted = null
+      data.activo = false
+    } else if (body.apiKey !== undefined) {
       const key = body.apiKey.trim()
       if (!key) {
         return NextResponse.json({ success: false, error: 'La API key no puede estar vacía' }, { status: 400 })

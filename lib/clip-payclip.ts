@@ -5,9 +5,10 @@
 
 const BASE = process.env.CLIP_API_BASE || 'https://api.payclip.io'
 
-function clipAuthHeaderValue(apiKey: string): string {
+function clipAuthHeaderValue(apiKey: string, mode?: 'basic' | 'bearer'): string {
   const token = apiKey.trim()
   if (/^(Basic|Bearer)\s+/i.test(token)) return token
+  if (mode === 'bearer') return `Bearer ${token}`
   // Clip PinPad documenta Basic para autenticación.
   return `Basic ${token}`
 }
@@ -18,6 +19,17 @@ function authHeaders(apiKey: string): HeadersInit {
     Accept: 'application/json',
     Authorization: clipAuthHeaderValue(apiKey),
   }
+}
+
+async function parseResponse(res: Response): Promise<{ text: string; json: any }> {
+  const text = await res.text()
+  let json: any
+  try {
+    json = JSON.parse(text)
+  } catch {
+    json = { _raw: text }
+  }
+  return { text, json }
 }
 
 export async function clipPinpadCreatePayment(opts: {
@@ -59,23 +71,38 @@ export async function clipPinpadCreatePayment(opts: {
 }
 
 export async function clipDevicesStatus(apiKey: string): Promise<unknown> {
-  const res = await fetch(`${BASE}/f2f/pinpad/v1/devices/status`, {
+  const first = await fetch(`${BASE}/f2f/pinpad/v1/devices/status`, {
     headers: {
       Accept: 'application/json',
-      Authorization: clipAuthHeaderValue(apiKey),
+      Authorization: clipAuthHeaderValue(apiKey, 'basic'),
     },
   })
-  const text = await res.text()
-  let json: unknown
-  try {
-    json = JSON.parse(text)
-  } catch {
-    json = { _raw: text }
+  let parsed = await parseResponse(first)
+  if (!first.ok && !/^(Basic|Bearer)\s+/i.test(apiKey.trim())) {
+    const second = await fetch(`${BASE}/f2f/pinpad/v1/devices/status`, {
+      headers: {
+        Accept: 'application/json',
+        Authorization: clipAuthHeaderValue(apiKey, 'bearer'),
+      },
+    })
+    parsed = await parseResponse(second)
+    if (!second.ok) {
+      throw new Error(
+        typeof parsed.json === 'object' && parsed.json && 'message' in parsed.json
+          ? String(parsed.json.message)
+          : parsed.text
+      )
+    }
+    return parsed.json
   }
-  if (!res.ok) {
-    throw new Error(typeof json === 'object' && json && 'message' in json ? String((json as any).message) : text)
+  if (!first.ok) {
+    throw new Error(
+      typeof parsed.json === 'object' && parsed.json && 'message' in parsed.json
+        ? String(parsed.json.message)
+        : parsed.text
+    )
   }
-  return json
+  return parsed.json
 }
 
 export async function clipPaymentDetail(
