@@ -29,6 +29,25 @@ export default function DashboardLayout({
   const [user, setUser] = useState<any>(null)
   const [checking, setChecking] = useState(true)
   const [headerCompact, setHeaderCompact] = useState(false)
+  const [tenantData, setTenantData] = useState<{
+    current: {
+      restauranteId: string
+      restauranteNombre: string
+      restauranteSlug: string | null
+      organizacionId: string | null
+      organizacionNombre: string | null
+    } | null
+    branches: Array<{
+      restauranteId: string
+      restauranteNombre: string
+      restauranteSlug: string | null
+      organizacionId: string | null
+      organizacionNombre: string | null
+      esPrincipal: boolean
+      isActive: boolean
+    }>
+  } | null>(null)
+  const [switchingBranch, setSwitchingBranch] = useState(false)
   const lastScrollYRef = useRef(0)
   const headerCompactRef = useRef(false)
   const lastToggleAtRef = useRef(0)
@@ -95,6 +114,41 @@ export default function DashboardLayout({
   }, [checkScroll])
 
   useEffect(() => {
+    const loadTenantData = async () => {
+      try {
+        const res = await fetch('/api/auth/tenancy', {
+          cache: 'no-store',
+          credentials: 'same-origin',
+        })
+        const data = (await res.json()) as {
+          success?: boolean
+          data?: {
+            current: {
+              restauranteId: string
+              restauranteNombre: string
+              restauranteSlug: string | null
+              organizacionId: string | null
+              organizacionNombre: string | null
+            } | null
+            branches: Array<{
+              restauranteId: string
+              restauranteNombre: string
+              restauranteSlug: string | null
+              organizacionId: string | null
+              organizacionNombre: string | null
+              esPrincipal: boolean
+              isActive: boolean
+            }>
+          }
+        }
+        if (data.success && data.data) {
+          setTenantData(data.data)
+        }
+      } catch {
+        // no-op: no bloquea la operación principal del layout
+      }
+    }
+
     let cancelled = false
     fetch('/api/auth/me', {
       cache: 'no-store',
@@ -127,6 +181,7 @@ export default function DashboardLayout({
         }
         localStorage.setItem('user', JSON.stringify(u))
         setUser(u)
+        void loadTenantData()
         setChecking(false)
       })
       .catch(() => {
@@ -141,6 +196,41 @@ export default function DashboardLayout({
       cancelled = true
     }
   }, [router])
+
+  const handleSwitchBranch = async (restauranteId: string) => {
+    if (!tenantData || switchingBranch) return
+    const currentId = tenantData.current?.restauranteId
+    if (!restauranteId || restauranteId === currentId) return
+    setSwitchingBranch(true)
+    try {
+      const res = await fetch('/api/auth/context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ restauranteId }),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string }
+      if (!res.ok || !data.success) {
+        throw new Error(data.error ?? 'No se pudo cambiar de sucursal')
+      }
+
+      const meRes = await fetch('/api/auth/me', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      })
+      const meData = (await meRes.json()) as { success?: boolean; data?: unknown }
+      if (meData.success && meData.data) {
+        localStorage.setItem('user', JSON.stringify(meData.data))
+      }
+
+      router.refresh()
+      router.replace('/dashboard')
+    } catch (error) {
+      console.error('switch branch:', error)
+    } finally {
+      setSwitchingBranch(false)
+    }
+  }
 
   if (checking || !user) {
     return (
@@ -191,11 +281,40 @@ export default function DashboardLayout({
                 {user.nombre} {user.apellido}
               </p>
               <p className="text-sm text-stone-500 dark:text-stone-400">{user.rol?.nombre || 'Sin rol'}</p>
+              {tenantData?.current && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="app-badge border border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/35 dark:bg-sky-950/55 dark:text-sky-200">
+                    Org: {tenantData.current.organizacionNombre ?? 'Sin organización'}
+                  </span>
+                  <span className="app-badge border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/50 dark:text-amber-100">
+                    Sucursal: {tenantData.current.restauranteNombre}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center gap-2 justify-start">
             <ThemeToggle />
+            {tenantData && tenantData.branches.length > 1 && (
+              <label className="flex items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs text-stone-700 shadow-sm dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-200">
+                <span className="font-semibold">Sucursal activa</span>
+                <select
+                  className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-800 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
+                  value={tenantData.current?.restauranteId ?? ''}
+                  disabled={switchingBranch}
+                  onChange={(e) => void handleSwitchBranch(e.target.value)}
+                >
+                  {tenantData.branches.map((branch) => (
+                    <option key={branch.restauranteId} value={branch.restauranteId}>
+                      {branch.restauranteNombre}
+                      {branch.organizacionNombre ? ` · ${branch.organizacionNombre}` : ''}
+                      {branch.esPrincipal ? ' (principal)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             {navItems.map((item) => (
               <Link key={item.href} href={item.href} className="app-chip hover:border-amber-300 hover:bg-amber-50">
                 {item.label}

@@ -24,6 +24,20 @@ export async function getSessionUser() {
       activeRestauranteId: true,
       activeOrganizacionId: true,
       activo: true,
+      restaurante: {
+        select: {
+          id: true,
+          nombre: true,
+          slug: true,
+          organizacionId: true,
+          organizacion: {
+            select: {
+              id: true,
+              nombre: true,
+            },
+          },
+        },
+      },
       sucursales: {
         where: { activo: true, restaurante: { activo: true } },
         select: {
@@ -31,7 +45,16 @@ export async function getSessionUser() {
           esPrincipal: true,
           restaurante: {
             select: {
+              id: true,
+              nombre: true,
+              slug: true,
               organizacionId: true,
+              organizacion: {
+                select: {
+                  id: true,
+                  nombre: true,
+                },
+              },
             },
           },
         },
@@ -88,6 +111,10 @@ export async function getSessionUser() {
     restauranteId: ctx.restauranteId,
     activeRestauranteId: ctx.activeRestauranteId,
     activeOrganizacionId: ctx.activeOrganizacionId,
+    restauranteNombre: user.restaurante.nombre,
+    restauranteSlug: user.restaurante.slug,
+    organizacionId: user.restaurante.organizacionId,
+    organizacionNombre: user.restaurante.organizacion?.nombre ?? null,
     rol,
   }
 }

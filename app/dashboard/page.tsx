@@ -39,6 +39,15 @@ export default function DashboardPage() {
     itemsCocina: 0,
     itemsBarra: 0,
   })
+  const [tenantContext, setTenantContext] = useState<{
+    current?: {
+      restauranteNombre: string
+      restauranteSlug: string | null
+      organizacionNombre: string | null
+    } | null
+    branches?: Array<{ restauranteId: string }>
+    organizations?: Array<{ organizacionId: string; esOwner: boolean }>
+  } | null>(null)
 
   useEffect(() => {
     const userStr = localStorage.getItem('user')
@@ -47,6 +56,7 @@ export default function DashboardPage() {
       setUser(userData)
       if (tienePermiso(userData, 'configuracion')) verificarConfiguracion()
       cargarEstadisticas()
+      cargarTenantContext()
     }
     setLoading(false)
   }, [router])
@@ -75,6 +85,19 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error cargando estadísticas:', error)
+    }
+  }
+
+  const cargarTenantContext = async () => {
+    try {
+      const res = await authFetch('/api/auth/tenancy')
+      if (res.status === 401) return
+      const data = await res.json()
+      if (data.success && data.data) {
+        setTenantContext(data.data)
+      }
+    } catch (error) {
+      console.error('Error cargando contexto multitenant:', error)
     }
   }
 
@@ -230,6 +253,24 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+          {tenantContext?.current && (
+            <div className="mt-5 rounded-2xl border border-stone-200 bg-white/80 p-4 dark:border-stone-700 dark:bg-stone-900/60">
+              <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">
+                Contexto multitenant activo
+              </p>
+              <p className="mt-2 text-sm text-stone-700 dark:text-stone-200">
+                Organización: <strong>{tenantContext.current.organizacionNombre ?? 'Sin organización'}</strong>
+              </p>
+              <p className="text-sm text-stone-700 dark:text-stone-200">
+                Sucursal: <strong>{tenantContext.current.restauranteNombre}</strong>
+                {tenantContext.current.restauranteSlug ? ` (${tenantContext.current.restauranteSlug})` : ''}
+              </p>
+              <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+                Accesos detectados: {tenantContext.branches?.length ?? 0} sucursal(es),{' '}
+                {tenantContext.organizations?.length ?? 0} organización(es).
+              </p>
+            </div>
+          )}
           <button onClick={handleLogout} className="mt-5 app-btn-danger">
             Cerrar sesión
           </button>

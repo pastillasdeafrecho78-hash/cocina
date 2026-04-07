@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import BackButton from '@/components/BackButton'
 import ClipConfigSection from './ClipConfigSection'
+import TenantIdentitySection from './TenantIdentitySection'
 
 export default function ConfiguracionPage() {
   return (
@@ -18,6 +19,7 @@ export default function ConfiguracionPage() {
           </p>
 
           <ClipConfigSection />
+          <TenantIdentitySection />
 
           <div className="flex flex-wrap gap-3">
             <Link
