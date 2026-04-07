@@ -21,6 +21,9 @@ export const reportWidgetSchema = z.object({
     'envio',
     'mesa',
     'usuario',
+    'usuarioCreador',
+    'usuarioCancelador',
+    'motivoCancelacion',
   ]),
   metric: z.enum([
     'ventas',

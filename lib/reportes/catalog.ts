@@ -78,8 +78,23 @@ export const REPORT_DIMENSIONS: Array<{
   },
   {
     value: 'usuario',
-    label: 'Por usuario',
+    label: 'Por mesero creador',
     supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+  },
+  {
+    value: 'usuarioCreador',
+    label: 'Por mesero creador',
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+  },
+  {
+    value: 'usuarioCancelador',
+    label: 'Por mesero cancelador',
+    supportedMetrics: ['comandasCanceladas'],
+  },
+  {
+    value: 'motivoCancelacion',
+    label: 'Por motivo de cancelación',
+    supportedMetrics: ['comandasCanceladas'],
   },
 ]
 

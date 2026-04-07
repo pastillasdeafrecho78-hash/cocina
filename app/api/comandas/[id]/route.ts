@@ -65,6 +65,13 @@ export async function GET(
             apellido: true,
           },
         },
+        canceladoPor: {
+          select: {
+            id: true,
+            nombre: true,
+            apellido: true,
+          },
+        },
         historial: {
           orderBy: { fechaAccion: 'desc' },
           include: {
@@ -174,6 +181,7 @@ export async function PATCH(
 
         updateData.motivoCancelacion = data.motivoCancelacion
         updateData.fechaCancelacion = new Date()
+        updateData.canceladoPorId = user.id
       }
 
       updateData.estado = data.estado
@@ -189,6 +197,10 @@ export async function PATCH(
 
       if (data.estado === 'LISTO') {
         updateData.fechaCompletado = new Date()
+      }
+
+      if (data.estado !== 'CANCELADO' && comanda.estado === 'CANCELADO') {
+        updateData.canceladoPorId = null
       }
     }
 
@@ -235,6 +247,23 @@ export async function PATCH(
           usuarioId: user.id,
         },
       })
+
+      if (data.estado === 'CANCELADO') {
+        await prisma.auditoria.create({
+          data: {
+            restauranteId: user.restauranteId,
+            usuarioId: user.id,
+            accion: 'CANCELAR_COMANDA',
+            entidad: 'Comanda',
+            entidadId: params.id,
+            detalles: {
+              motivoCancelacion: data.motivoCancelacion,
+              estadoAnterior: comanda.estado,
+              estadoNuevo: data.estado,
+            },
+          },
+        })
+      }
     }
 
     return NextResponse.json({

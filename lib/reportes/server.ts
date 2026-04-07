@@ -27,6 +27,7 @@ type ReportBaseComanda = Prisma.ComandaGetPayload<{
     total: true
     propina: true
     descuento: true
+    motivoCancelacion: true
     fechaCreacion: true
     fechaCompletado: true
     mesa: {
@@ -41,6 +42,13 @@ type ReportBaseComanda = Prisma.ComandaGetPayload<{
       }
     }
     creadoPor: {
+      select: {
+        id: true
+        nombre: true
+        apellido: true
+      }
+    }
+    canceladoPor: {
       select: {
         id: true
         nombre: true
@@ -211,6 +219,7 @@ export async function fetchReportBaseData(
       total: true,
       propina: true,
       descuento: true,
+      motivoCancelacion: true,
       fechaCreacion: true,
       fechaCompletado: true,
       mesa: {
@@ -225,6 +234,13 @@ export async function fetchReportBaseData(
         },
       },
       creadoPor: {
+        select: {
+          id: true,
+          nombre: true,
+          apellido: true,
+        },
+      },
+      canceladoPor: {
         select: {
           id: true,
           nombre: true,
@@ -308,6 +324,7 @@ export async function fetchCancelledReportBaseData(
       total: true,
       propina: true,
       descuento: true,
+      motivoCancelacion: true,
       fechaCreacion: true,
       fechaCompletado: true,
       fechaCancelacion: true,
@@ -323,6 +340,13 @@ export async function fetchCancelledReportBaseData(
         },
       },
       creadoPor: {
+        select: {
+          id: true,
+          nombre: true,
+          apellido: true,
+        },
+      },
+      canceladoPor: {
         select: {
           id: true,
           nombre: true,
@@ -403,9 +427,21 @@ function getCancelledDimensionSeeds(
       const label = comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Sin mesa'
       return [{ key, label, metrics }]
     }
-    case 'usuario': {
+    case 'usuario':
+    case 'usuarioCreador': {
       const nombre = `${comanda.creadoPor.nombre} ${comanda.creadoPor.apellido}`.trim()
       return [{ key: comanda.creadoPor.id, label: nombre, metrics }]
+    }
+    case 'usuarioCancelador': {
+      if (!comanda.canceladoPor) {
+        return [{ key: 'sin_cancelador', label: 'Sin registro de cancelador', metrics }]
+      }
+      const nombre = `${comanda.canceladoPor.nombre} ${comanda.canceladoPor.apellido}`.trim()
+      return [{ key: comanda.canceladoPor.id, label: nombre, metrics }]
+    }
+    case 'motivoCancelacion': {
+      const motivo = comanda.motivoCancelacion?.trim() || 'Sin motivo especificado'
+      return [{ key: motivo.toLowerCase(), label: motivo, metrics }]
     }
     default:
       return [{ key: 'total', label: 'Total', metrics }]
@@ -453,7 +489,8 @@ function getDimensionSeeds(comanda: ReportBaseComanda, dimension: ReportDimensio
       const label = comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Sin mesa'
       return [{ key, label, metrics: baseMetrics }]
     }
-    case 'usuario': {
+    case 'usuario':
+    case 'usuarioCreador': {
       const nombre = `${comanda.creadoPor.nombre} ${comanda.creadoPor.apellido}`.trim()
       return [{ key: comanda.creadoPor.id, label: nombre, metrics: baseMetrics }]
     }

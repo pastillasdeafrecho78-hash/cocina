@@ -14,6 +14,14 @@ interface Comanda {
   total: number
   fechaCreacion: string
   motivoCancelacion?: string | null
+  creadoPor?: {
+    nombre: string
+    apellido: string
+  } | null
+  canceladoPor?: {
+    nombre: string
+    apellido: string
+  } | null
   mesa?: { numero: number } | null
   cliente?: { nombre: string } | null
   items?: Array< { estado: string } >
@@ -227,9 +235,19 @@ export default function ComandasPage() {
                     {comanda.mesa
                       ? `Mesa ${comanda.mesa.numero}`
                       : comanda.cliente?.nombre || 'Para llevar'}
+                    {comanda.creadoPor && (
+                      <div className="mt-1 text-xs text-stone-500">
+                        Creada por: {`${comanda.creadoPor.nombre} ${comanda.creadoPor.apellido}`.trim()}
+                      </div>
+                    )}
                     {comanda.estado === 'CANCELADO' && comanda.motivoCancelacion && (
                       <div className="mt-1 max-w-[320px] truncate text-xs text-rose-700" title={comanda.motivoCancelacion}>
                         Motivo: {comanda.motivoCancelacion}
+                      </div>
+                    )}
+                    {comanda.estado === 'CANCELADO' && comanda.canceladoPor && (
+                      <div className="mt-1 text-xs text-rose-700">
+                        Cancelada por: {`${comanda.canceladoPor.nombre} ${comanda.canceladoPor.apellido}`.trim()}
                       </div>
                     )}
                   </td>

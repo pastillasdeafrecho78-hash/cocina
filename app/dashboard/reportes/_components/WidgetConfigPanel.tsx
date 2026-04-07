@@ -27,8 +27,8 @@ export default function WidgetConfigPanel({
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold text-stone-900">Constructor de widgets</h2>
-          <p className="text-sm text-stone-600">
-            Diseña cada bloque paso a paso: que medir, como dividir y como mostrarlo.
+          <p className="text-sm text-stone-700">
+            Diseña cada bloque paso a paso: qué medir, cómo dividir y cómo mostrarlo.
           </p>
         </div>
         <button
@@ -50,10 +50,10 @@ export default function WidgetConfigPanel({
         </div>
       ) : (
         <div className="mt-6 grid gap-4">
-          <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">1. Que medir</p>
-            <p className="mt-1 text-xs text-stone-500">
-              Selecciona la metrica principal del widget.
+          <div className="app-card-muted rounded-2xl !p-4">
+            <p className="app-kicker tracking-[0.2em]">1. Qué medir</p>
+            <p className="mt-1 text-xs text-stone-700">
+              Selecciona la métrica principal del widget.
             </p>
           </div>
 
@@ -100,10 +100,10 @@ export default function WidgetConfigPanel({
             </p>
           </label>
 
-          <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">2. Como partir</p>
-            <p className="mt-1 text-xs text-stone-500">
-              Define el eje de analisis: dia, hora, usuario, mesa o envio.
+          <div className="app-card-muted rounded-2xl !p-4">
+            <p className="app-kicker tracking-[0.2em]">2. Cómo partir</p>
+            <p className="mt-1 text-xs text-stone-700">
+              Define el eje de análisis: día, hora, mesero, mesa, método o motivo.
             </p>
           </div>
 
@@ -130,12 +130,12 @@ export default function WidgetConfigPanel({
             </select>
           </label>
 
-          <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">
-              3. Como visualizar
+          <div className="app-card-muted rounded-2xl !p-4">
+            <p className="app-kicker tracking-[0.2em]">
+              3. Cómo visualizar
             </p>
-            <p className="mt-1 text-xs text-stone-500">
-              Ajusta grafica, limite y orden para que el widget sea claro.
+            <p className="mt-1 text-xs text-stone-700">
+              Ajusta gráfica, límite y orden para que el widget sea claro.
             </p>
           </div>
 

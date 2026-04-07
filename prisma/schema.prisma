@@ -141,6 +141,7 @@ model Usuario {
   cuentasOAuth      CuentaOAuth[]
   comandasCreadas   Comanda[]          @relation("ComandaCreadaPor")
   comandasAsignadas Comanda[]          @relation("ComandaAsignadaA")
+  comandasCanceladas Comanda[]         @relation("ComandaCanceladaPor")
   historialComandas ComandaHistorial[] @relation("ComandaHistorialUsuario")
   auditoria         Auditoria[]        @relation("AuditoriaUsuario")
   cortesX           CorteX[]
@@ -254,6 +255,7 @@ model Comanda {
   fechaEntrega    DateTime?
   creadoPorId     String
   asignadoAId     String?
+  canceladoPorId  String?
 
   restaurante Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
   mesa        Mesa?              @relation(fields: [mesaId], references: [id])
@@ -261,6 +263,7 @@ model Comanda {
   items     ComandaItem[]
   creadoPor Usuario            @relation("ComandaCreadaPor", fields: [creadoPorId], references: [id])
   asignadoA Usuario?           @relation("ComandaAsignadaA", fields: [asignadoAId], references: [id])
+  canceladoPor Usuario?        @relation("ComandaCanceladaPor", fields: [canceladoPorId], references: [id], onDelete: SetNull)
   historial ComandaHistorial[]
   pagos     Pago[]
   facturas  Factura[]
@@ -273,6 +276,7 @@ model Comanda {
   @@index([tipoPedido])
   @@index([clienteId])
   @@index([creadoPorId])
+  @@index([canceladoPorId])
   @@unique([restauranteId, numeroComanda])
   @@index([estado, fechaCreacion])
   @@index([estado, fechaCompletado])

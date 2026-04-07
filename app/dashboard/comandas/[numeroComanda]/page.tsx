@@ -15,6 +15,14 @@ interface Comanda {
   propina: number
   descuento: number
   motivoCancelacion?: string | null
+  creadoPor?: {
+    nombre: string
+    apellido: string
+  } | null
+  canceladoPor?: {
+    nombre: string
+    apellido: string
+  } | null
   fechaCreacion: string
   mesa?: {
     numero: number
@@ -343,10 +351,21 @@ export default function ComandaDetallePage() {
             {comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Para llevar'}
           </span>
           <span>Estado: {labelComandaEstado(comanda.estado)}</span>
+          {comanda.creadoPor && (
+            <span>
+              Creada por: {`${comanda.creadoPor.nombre} ${comanda.creadoPor.apellido}`.trim()}
+            </span>
+          )}
         </div>
         {comanda.estado === 'CANCELADO' && comanda.motivoCancelacion && (
           <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             <strong>Motivo de cancelación:</strong> {comanda.motivoCancelacion}
+            {comanda.canceladoPor && (
+              <div className="mt-1">
+                <strong>Cancelada por:</strong>{' '}
+                {`${comanda.canceladoPor.nombre} ${comanda.canceladoPor.apellido}`.trim()}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -110,6 +110,13 @@ export async function GET(request: NextRequest) {
               apellido: true,
             },
           },
+          canceladoPor: {
+            select: {
+              id: true,
+              nombre: true,
+              apellido: true,
+            },
+          },
         },
         orderBy: { fechaCreacion: 'desc' },
         skip: (page - 1) * limit,

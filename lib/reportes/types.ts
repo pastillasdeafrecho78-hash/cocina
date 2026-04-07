@@ -9,6 +9,9 @@ export type ReportDimension =
   | 'envio'
   | 'mesa'
   | 'usuario'
+  | 'usuarioCreador'
+  | 'usuarioCancelador'
+  | 'motivoCancelacion'
 
 export type ReportMetric =
   | 'ventas'
