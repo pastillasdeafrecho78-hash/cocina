@@ -28,7 +28,7 @@ export default function WidgetConfigPanel({
         <div>
           <h2 className="text-lg font-semibold text-stone-900">Constructor de widgets</h2>
           <p className="text-sm text-stone-600">
-            Ajusta cada bloque como si fuera una pequeña consulta BI.
+            Diseña cada bloque paso a paso: que medir, como dividir y como mostrarlo.
           </p>
         </div>
         <button
@@ -50,6 +50,13 @@ export default function WidgetConfigPanel({
         </div>
       ) : (
         <div className="mt-6 grid gap-4">
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">1. Que medir</p>
+            <p className="mt-1 text-xs text-stone-500">
+              Selecciona la metrica principal del widget.
+            </p>
+          </div>
+
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-stone-700">Título</span>
             <input
@@ -60,29 +67,6 @@ export default function WidgetConfigPanel({
               }
               className="app-input app-field"
             />
-          </label>
-
-          <label className="block">
-            <span className="mb-1.5 block text-sm font-medium text-stone-700">Dimensión</span>
-            <select
-              value={selectedWidget.dimension}
-              onChange={(event) =>
-                onChange(selectedWidget.id, {
-                  dimension: event.target.value as ReportWidgetConfig['dimension'],
-                  title: buildWidgetTitle(
-                    event.target.value as ReportWidgetConfig['dimension'],
-                    selectedWidget.metric
-                  ),
-                })
-              }
-              className="app-input app-field"
-            >
-              {REPORT_DIMENSIONS.map((dimension) => (
-                <option key={dimension.value} value={dimension.value}>
-                  {dimension.label}
-                </option>
-              ))}
-            </select>
           </label>
 
           <label className="block">
@@ -111,7 +95,49 @@ export default function WidgetConfigPanel({
                 )
               })}
             </select>
+            <p className="mt-1 text-xs text-stone-500">
+              Ejemplo: ventas para dinero, comandas canceladas para seguimiento operativo.
+            </p>
           </label>
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">2. Como partir</p>
+            <p className="mt-1 text-xs text-stone-500">
+              Define el eje de analisis: dia, hora, usuario, mesa o envio.
+            </p>
+          </div>
+
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-stone-700">Dimensión</span>
+            <select
+              value={selectedWidget.dimension}
+              onChange={(event) =>
+                onChange(selectedWidget.id, {
+                  dimension: event.target.value as ReportWidgetConfig['dimension'],
+                  title: buildWidgetTitle(
+                    event.target.value as ReportWidgetConfig['dimension'],
+                    selectedWidget.metric
+                  ),
+                })
+              }
+              className="app-input app-field"
+            >
+              {REPORT_DIMENSIONS.map((dimension) => (
+                <option key={dimension.value} value={dimension.value}>
+                  {dimension.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="rounded-2xl border border-stone-200 bg-stone-50/60 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">
+              3. Como visualizar
+            </p>
+            <p className="mt-1 text-xs text-stone-500">
+              Ajusta grafica, limite y orden para que el widget sea claro.
+            </p>
+          </div>
 
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium text-stone-700">

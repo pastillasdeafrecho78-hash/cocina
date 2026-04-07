@@ -14,6 +14,7 @@ interface Comanda {
   total: number
   propina: number
   descuento: number
+  motivoCancelacion?: string | null
   fechaCreacion: string
   mesa?: {
     numero: number
@@ -35,6 +36,7 @@ interface Comanda {
     subtotal: number
     notas?: string
     estado: string
+    numeroRonda?: number
   }>
 }
 
@@ -63,6 +65,8 @@ export default function ComandaDetallePage() {
   const [montoRecibido, setMontoRecibido] = useState('')
   const [confirmandoEntrega, setConfirmandoEntrega] = useState(false)
   const [efectivoEsperado, setEfectivoEsperado] = useState<number | null>(null)
+  const [motivoCancelacion, setMotivoCancelacion] = useState('')
+  const [cancelandoComanda, setCancelandoComanda] = useState(false)
 
   useEffect(() => {
     fetchComanda()
@@ -264,6 +268,42 @@ export default function ComandaDetallePage() {
     }
   }
 
+  const handleCancelarComanda = async () => {
+    if (!comanda) return
+    const motivo = motivoCancelacion.trim()
+    if (!motivo) {
+      toast.error('Escribe el motivo de la cancelación')
+      return
+    }
+
+    setCancelandoComanda(true)
+    try {
+      const response = await apiFetch(`/api/comandas/${comanda.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          estado: 'CANCELADO',
+          motivoCancelacion: motivo,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) {
+        toast.error(data.error || 'No se pudo cancelar la comanda')
+        return
+      }
+
+      toast.success('Comanda cancelada y mesa liberada')
+      setMotivoCancelacion('')
+      fetchComanda()
+    } catch {
+      toast.error('Error al cancelar la comanda')
+    } finally {
+      setCancelandoComanda(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="app-loading-shell">
@@ -276,6 +316,15 @@ export default function ComandaDetallePage() {
 
   const itemsListos = comanda.items.filter((i) => i.estado === 'LISTO')
   const hayItemsListos = itemsListos.length > 0
+  const itemsPorRonda = comanda.items.reduce<Record<number, Comanda['items']>>((acc, item) => {
+    const ronda = item.numeroRonda || 1
+    if (!acc[ronda]) acc[ronda] = []
+    acc[ronda].push(item)
+    return acc
+  }, {})
+  const rondasOrdenadas = Object.entries(itemsPorRonda)
+    .map(([ronda, items]) => ({ ronda: Number(ronda), items }))
+    .sort((a, b) => a.ronda - b.ronda)
 
   const totalConPropina = comanda.total * (1 + (comanda.propina || 0) / 100)
   const totalFinal = totalConPropina - (comanda.descuento || 0)
@@ -295,6 +344,11 @@ export default function ComandaDetallePage() {
           </span>
           <span>Estado: {labelComandaEstado(comanda.estado)}</span>
         </div>
+        {comanda.estado === 'CANCELADO' && comanda.motivoCancelacion && (
+          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <strong>Motivo de cancelación:</strong> {comanda.motivoCancelacion}
+          </div>
+        )}
       </div>
 
       {hayItemsListos && (
@@ -316,31 +370,34 @@ export default function ComandaDetallePage() {
 
       <div className="app-card mb-6 p-6">
         <h2 className="text-xl font-bold mb-4">Items</h2>
-        <div className="space-y-3">
-          {comanda.items.map((item) => (
-            <div key={item.id} className="flex justify-between items-start border-b pb-3">
-              <div className="flex-1">
-                <div className="font-semibold">
-                  {item.cantidad}x {item.producto.nombre}
-                  {item.tamano && (
-                    <span className="font-normal text-gray-600"> — {item.tamano.nombre}</span>
-                  )}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {item.producto.categoria.nombre}
-                </div>
-                {item.notas && (
-                  <div className="text-sm text-red-600 mt-1">📝 {item.notas}</div>
-                )}
-                <div className="text-sm text-gray-500 mt-1">
-                  Estado: {labelItemEstado(item.estado)}
-                </div>
+        <div className="space-y-5">
+          {rondasOrdenadas.map(({ ronda, items }) => (
+            <div key={ronda} className="rounded-xl border border-stone-200 p-4">
+              <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-stone-600">
+                Envio {ronda}
               </div>
-              <div className="text-right">
-                <div className="font-semibold">${item.subtotal.toFixed(2)}</div>
-                <div className="text-sm text-gray-600">
-                  ${item.precioUnitario.toFixed(2)} c/u
-                </div>
+              <div className="space-y-3">
+                {items.map((item) => (
+                  <div key={item.id} className="flex justify-between items-start border-b pb-3 last:border-b-0 last:pb-0">
+                    <div className="flex-1">
+                      <div className="font-semibold">
+                        {item.cantidad}x {item.producto.nombre}
+                        {item.tamano && (
+                          <span className="font-normal text-gray-600"> - {item.tamano.nombre}</span>
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-600">{item.producto.categoria.nombre}</div>
+                      {item.notas && <div className="text-sm text-red-600 mt-1">Nota: {item.notas}</div>}
+                      <div className="text-sm text-gray-500 mt-1">
+                        Estado: {labelItemEstado(item.estado)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-semibold">${item.subtotal.toFixed(2)}</div>
+                      <div className="text-sm text-gray-600">${item.precioUnitario.toFixed(2)} c/u</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -517,6 +574,34 @@ export default function ComandaDetallePage() {
               </div>
             </div>
           ) : null}
+        </div>
+      )}
+
+      {comanda.estado !== 'PAGADO' && comanda.estado !== 'CANCELADO' && (
+        <div className="app-card mb-6 border-rose-200 bg-rose-50/40 p-6">
+          <h2 className="text-xl font-bold text-rose-900 mb-2">Cancelar comanda</h2>
+          <p className="text-sm text-rose-800 mb-4">
+            Usa esta opción cuando el cliente se retira antes de preparar los productos.
+            El motivo quedará registrado en historial y reportes.
+          </p>
+          <label className="block text-sm font-medium text-rose-900 mb-1">Motivo de cancelación</label>
+          <textarea
+            value={motivoCancelacion}
+            onChange={(event) => setMotivoCancelacion(event.target.value)}
+            rows={3}
+            className="app-input w-full"
+            placeholder="Ej. Cliente se retiró por espera prolongada. No iniciar preparación."
+          />
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={handleCancelarComanda}
+              disabled={cancelandoComanda || !motivoCancelacion.trim()}
+              className="rounded-lg bg-rose-600 px-5 py-2 font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              {cancelandoComanda ? 'Cancelando...' : 'Cancelar comanda'}
+            </button>
+          </div>
         </div>
       )}
 

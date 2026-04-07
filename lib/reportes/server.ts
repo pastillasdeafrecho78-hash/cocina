@@ -61,6 +61,7 @@ type ReportBaseComanda = Prisma.ComandaGetPayload<{
       select: {
         cantidad: true
         subtotal: true
+        numeroRonda: true
         productoId: true
         producto: {
           select: {
@@ -88,6 +89,7 @@ function emptyTotals(): ReportMetricTotals {
   return {
     ventas: 0,
     comandas: 0,
+    comandasCanceladas: 0,
     ticketPromedio: 0,
     productosVendidos: 0,
     propina: 0,
@@ -109,6 +111,7 @@ function finalizeTotals(metrics: ReportMetricTotals): ReportMetricTotals {
 function mergeTotals(target: ReportMetricTotals, source: ReportMetricTotals) {
   target.ventas += source.ventas
   target.comandas += source.comandas
+  target.comandasCanceladas += source.comandasCanceladas
   target.productosVendidos += source.productosVendidos
   target.propina += source.propina
   target.descuento += source.descuento
@@ -242,6 +245,7 @@ export async function fetchReportBaseData(
         select: {
           cantidad: true,
           subtotal: true,
+          numeroRonda: true,
           productoId: true,
           producto: {
             select: {
@@ -261,6 +265,151 @@ export async function fetchReportBaseData(
   })
 
   return comandas.filter((comanda) => passesMetodoPagoFilter(comanda, filters))
+}
+
+export function buildCancelledReportWhere(
+  filters: ReportFilters,
+  restauranteId?: string
+): Prisma.ComandaWhereInput {
+  const fechaInicio = startOfDay(new Date(filters.fechaInicio))
+  const fechaFin = endOfDay(new Date(filters.fechaFin))
+
+  const where: Prisma.ComandaWhereInput = {
+    estado: 'CANCELADO',
+    OR: [
+      { fechaCancelacion: { gte: fechaInicio, lte: fechaFin } },
+      { fechaCancelacion: null, fechaCreacion: { gte: fechaInicio, lte: fechaFin } },
+    ],
+  }
+
+  if (restauranteId) {
+    where.restauranteId = restauranteId
+  }
+
+  if (filters.tipoPedido.length > 0) {
+    where.tipoPedido = { in: filters.tipoPedido as any[] }
+  }
+
+  return where
+}
+
+export async function fetchCancelledReportBaseData(
+  filtersInput?: Partial<ReportFilters>,
+  restauranteId?: string
+) {
+  const filters = normalizeReportFilters(filtersInput)
+
+  return prisma.comanda.findMany({
+    where: buildCancelledReportWhere(filters, restauranteId),
+    select: {
+      id: true,
+      numeroComanda: true,
+      tipoPedido: true,
+      total: true,
+      propina: true,
+      descuento: true,
+      fechaCreacion: true,
+      fechaCompletado: true,
+      fechaCancelacion: true,
+      mesa: {
+        select: {
+          id: true,
+          numero: true,
+        },
+      },
+      cliente: {
+        select: {
+          nombre: true,
+        },
+      },
+      creadoPor: {
+        select: {
+          id: true,
+          nombre: true,
+          apellido: true,
+        },
+      },
+      pagos: {
+        where: {
+          estado: 'COMPLETADO',
+        },
+        select: {
+          id: true,
+          monto: true,
+          metodoPago: true,
+        },
+      },
+      items: {
+        select: {
+          cantidad: true,
+          subtotal: true,
+          numeroRonda: true,
+          productoId: true,
+          producto: {
+            select: {
+              nombre: true,
+              categoria: {
+                select: {
+                  id: true,
+                  nombre: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    orderBy: [{ fechaCancelacion: 'desc' }, { fechaCreacion: 'desc' }],
+  })
+}
+
+function fechaCanceladaComanda(
+  comanda: ReportBaseComanda & { fechaCancelacion?: Date | null }
+) {
+  return comanda.fechaCancelacion
+    ? new Date(comanda.fechaCancelacion)
+    : new Date(comanda.fechaCreacion)
+}
+
+function getCancelledDimensionSeeds(
+  comanda: ReportBaseComanda & { fechaCancelacion?: Date | null },
+  dimension: ReportDimension
+): AggregationSeed[] {
+  const baseDate = fechaCanceladaComanda(comanda)
+  const metrics = emptyTotals()
+  metrics.comandasCanceladas = 1
+
+  switch (dimension) {
+    case 'none':
+      return [{ key: 'total', label: 'Total', metrics }]
+    case 'dia': {
+      const rawKey = format(baseDate, 'yyyy-MM-dd')
+      return [{ key: rawKey, label: format(parseISO(rawKey), 'EEE d MMM', { locale: es }), metrics }]
+    }
+    case 'hora': {
+      const hour = getHours(baseDate)
+      return [{ key: String(hour), label: `${String(hour).padStart(2, '0')}:00`, metrics }]
+    }
+    case 'tipoPedido':
+      return [
+        {
+          key: comanda.tipoPedido,
+          label: TIPO_PEDIDO_LABELS[comanda.tipoPedido] || comanda.tipoPedido,
+          metrics,
+        },
+      ]
+    case 'mesa': {
+      const key = comanda.mesa?.id || 'sin_mesa'
+      const label = comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Sin mesa'
+      return [{ key, label, metrics }]
+    }
+    case 'usuario': {
+      const nombre = `${comanda.creadoPor.nombre} ${comanda.creadoPor.apellido}`.trim()
+      return [{ key: comanda.creadoPor.id, label: nombre, metrics }]
+    }
+    default:
+      return [{ key: 'total', label: 'Total', metrics }]
+  }
 }
 
 function getDimensionSeeds(comanda: ReportBaseComanda, dimension: ReportDimension): AggregationSeed[] {
@@ -354,6 +503,19 @@ function getDimensionSeeds(comanda: ReportBaseComanda, dimension: ReportDimensio
           metrics,
         }
       })
+    case 'envio':
+      return comanda.items.map((item) => {
+        const metrics = emptyTotals()
+        metrics.ventas = item.subtotal
+        metrics.productosVendidos = item.cantidad
+        metrics.ticketPromedio = item.subtotal
+        const ronda = item.numeroRonda || 1
+        return {
+          key: String(ronda),
+          label: `Envio ${ronda}`,
+          metrics,
+        }
+      })
     default:
       return [{ key: 'total', label: 'Total', metrics: baseMetrics }]
   }
@@ -419,6 +581,65 @@ export function aggregateWidgetData(
     ...row,
     metrics: finalizeTotals(row.metrics),
     value: finalizeTotals(row.metrics)[widget.metric],
+  }))
+
+  const sortedRows = sortRows(rows, widget).slice(0, Math.max(1, widget.limit || 10))
+
+  return {
+    widgetId: widget.id,
+    title: widget.title,
+    metric: widget.metric,
+    dimension: widget.dimension,
+    chartType: widget.chartType,
+    rows: sortedRows,
+    totals: finalizeTotals(totals),
+    generatedAt: new Date().toISOString(),
+  }
+}
+
+export function aggregateCancelledWidgetData(
+  comandas: Array<ReportBaseComanda & { fechaCancelacion?: Date | null }>,
+  widgetInput: ReportWidgetConfig
+): ReportWidgetResult {
+  const widget = {
+    ...widgetInput,
+    title: widgetInput.title?.trim() || buildWidgetTitle(widgetInput.dimension, widgetInput.metric),
+  }
+
+  if (!isMetricSupportedForDimension(widget.dimension, widget.metric)) {
+    throw new Error('La métrica no es compatible con la dimensión seleccionada')
+  }
+  if (widget.metric !== 'comandasCanceladas') {
+    throw new Error('Solo se permite la métrica de comandas canceladas para este dataset')
+  }
+
+  const groups = new Map<string, ReportRow>()
+  const totals = emptyTotals()
+
+  for (const comanda of comandas) {
+    const seeds = getCancelledDimensionSeeds(comanda, widget.dimension)
+
+    for (const seed of seeds) {
+      mergeTotals(totals, seed.metrics)
+      const current = groups.get(seed.key)
+      if (!current) {
+        groups.set(seed.key, {
+          key: seed.key,
+          label: seed.label,
+          value: 0,
+          metrics: finalizeTotals({ ...seed.metrics }),
+        })
+        continue
+      }
+      mergeTotals(current.metrics, seed.metrics)
+      current.metrics.ticketPromedio = computeTicketPromedio(current.metrics)
+    }
+  }
+
+  const rows = Array.from(groups.values()).map((row) => ({
+    ...row,
+    metrics: finalizeTotals(row.metrics),
+    value: row.metrics.comandasCanceladas,
   }))
 
   const sortedRows = sortRows(rows, widget).slice(0, Math.max(1, widget.limit || 10))

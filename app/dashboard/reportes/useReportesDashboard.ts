@@ -87,6 +87,21 @@ export function useReportesDashboard() {
     () => widgets.find((widget) => widget.id === selectedWidgetId) || null,
     [widgets, selectedWidgetId]
   )
+  const widgetsQuerySignature = useMemo(
+    () =>
+      JSON.stringify(
+        widgets.map((widget) => ({
+          id: widget.id,
+          dimension: widget.dimension,
+          metric: widget.metric,
+          chartType: widget.chartType,
+          limit: widget.limit,
+          sort: widget.sort,
+        }))
+      ),
+    [widgets]
+  )
+  const widgetsForQuery = useMemo(() => widgets, [widgetsQuerySignature])
 
   const syncQueryString = useCallback(
     (nextFilters: ReportFilters) => {
@@ -95,7 +110,7 @@ export function useReportesDashboard() {
       params.set('fechaFin', nextFilters.fechaFin)
       nextFilters.tipoPedido.forEach((value) => params.append('tipoPedido', value))
       nextFilters.metodoPago.forEach((value) => params.append('metodoPago', value))
-      router.replace(`/dashboard/reportes?${params.toString()}`)
+      router.replace(`/dashboard/reportes?${params.toString()}`, { scroll: false })
     },
     [router]
   )
@@ -167,12 +182,12 @@ export function useReportesDashboard() {
     try {
       setLoading(true)
 
-      if (widgets.length === 0) {
+      if (widgetsForQuery.length === 0) {
         setResults({})
         return
       }
       const responses = await Promise.all(
-        widgets.map(async (widget) => {
+        widgetsForQuery.map(async (widget) => {
           const response = await apiFetch('/api/reportes/query', {
             method: 'POST',
             headers: {
@@ -193,14 +208,13 @@ export function useReportesDashboard() {
       setResults(
         Object.fromEntries(responses.map((item) => [item.widgetId, item]))
       )
-      syncQueryString(filters)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudieron cargar los widgets'
       toast.error(message)
     } finally {
       setLoading(false)
     }
-  }, [filters, isBootstrapped, syncQueryString, widgets])
+  }, [filters, isBootstrapped, widgetsForQuery])
 
   useEffect(() => {
     loadInitialState()
@@ -209,6 +223,11 @@ export function useReportesDashboard() {
   useEffect(() => {
     fetchWidgetResults()
   }, [fetchWidgetResults])
+
+  useEffect(() => {
+    if (!isBootstrapped) return
+    syncQueryString(filters)
+  }, [filters, isBootstrapped, syncQueryString])
 
   useEffect(() => {
     if (widgets.length === 0) {

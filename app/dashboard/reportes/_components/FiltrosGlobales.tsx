@@ -81,6 +81,7 @@ export default function FiltrosGlobales({ filters, loading, onChange }: FiltrosG
         <div className="grid gap-4 lg:grid-cols-2">
           <div>
             <p className="mb-2 text-sm font-medium text-stone-700">Tipo de pedido</p>
+            <p className="mb-2 text-xs text-stone-500">Filtra por canal de venta.</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(TIPO_PEDIDO_LABELS).map(([value, label]) => (
                 <ToggleChip
@@ -95,6 +96,7 @@ export default function FiltrosGlobales({ filters, loading, onChange }: FiltrosG
 
           <div>
             <p className="mb-2 text-sm font-medium text-stone-700">Método de pago</p>
+            <p className="mb-2 text-xs text-stone-500">Aplica en widgets de ventas y cobros.</p>
             <div className="flex flex-wrap gap-2">
               {Object.entries(METODO_PAGO_LABELS).map(([value, label]) => (
                 <ToggleChip

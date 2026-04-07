@@ -9,6 +9,7 @@ const updateComandaSchema = z.object({
   propina: z.number().optional(),
   descuento: z.number().optional(),
   observaciones: z.string().optional(),
+  motivoCancelacion: z.string().trim().min(1).max(2000).optional(),
 })
 
 export async function GET(
@@ -123,6 +124,17 @@ export async function PATCH(
 
     const comanda = await prisma.comanda.findFirst({
       where: { id: params.id, restauranteId: user.restauranteId },
+      include: {
+        items: {
+          include: {
+            producto: {
+              select: {
+                listoPorDefault: true,
+              },
+            },
+          },
+        },
+      },
     })
 
     if (!comanda) {
@@ -136,10 +148,38 @@ export async function PATCH(
     const cambios: string[] = []
 
     if (data.estado !== undefined && data.estado !== comanda.estado) {
+      if (data.estado === 'CANCELADO') {
+        if (!data.motivoCancelacion) {
+          return NextResponse.json(
+            { success: false, error: 'Debes escribir el motivo de cancelación' },
+            { status: 400 }
+          )
+        }
+
+        const tieneItemsNoCancelables = comanda.items.some((item) => {
+          if (item.estado === 'EN_PREPARACION' || item.estado === 'ENTREGADO') return true
+          if (item.estado === 'LISTO' && !item.producto.listoPorDefault) return true
+          return false
+        })
+
+        if (tieneItemsNoCancelables) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'No se puede cancelar: ya hay productos en preparación o listos para servir',
+            },
+            { status: 400 }
+          )
+        }
+
+        updateData.motivoCancelacion = data.motivoCancelacion
+        updateData.fechaCancelacion = new Date()
+      }
+
       updateData.estado = data.estado
       cambios.push(`Estado: ${comanda.estado} → ${data.estado}`)
 
-      if (data.estado === 'PAGADO' && comanda.mesaId) {
+      if ((data.estado === 'PAGADO' || data.estado === 'CANCELADO') && comanda.mesaId) {
         // Liberar mesa
         await prisma.mesa.update({
           where: { id: comanda.mesaId! },
@@ -165,6 +205,9 @@ export async function PATCH(
     if (data.observaciones !== undefined) {
       updateData.observaciones = data.observaciones
     }
+    if (data.motivoCancelacion !== undefined && data.estado !== 'CANCELADO') {
+      updateData.motivoCancelacion = data.motivoCancelacion
+    }
 
     const updated = await prisma.comanda.update({
       where: { id: params.id },
@@ -184,8 +227,11 @@ export async function PATCH(
       await prisma.comandaHistorial.create({
         data: {
           comandaId: params.id,
-          accion: 'ACTUALIZADA',
-          descripcion: cambios.join(', '),
+          accion: data.estado === 'CANCELADO' ? 'COMANDA_CANCELADA' : 'ACTUALIZADA',
+          descripcion:
+            data.estado === 'CANCELADO'
+              ? data.motivoCancelacion
+              : cambios.join(', '),
           usuarioId: user.id,
         },
       })

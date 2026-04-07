@@ -92,6 +92,11 @@ export async function POST(
       destino: 'COCINA' | 'BARRA'
       modificadores: { create: Array<{ modificadorId: string; precioExtra: number }> }
     }> = []
+    const rondaActualMax = comanda.items.reduce(
+      (max, item: { numeroRonda?: number }) => Math.max(max, item.numeroRonda || 1),
+      1
+    )
+    const numeroRonda = rondaActualMax + 1
 
     for (const itemData of data.items) {
       const producto = productos.find((p) => p.id === itemData.productoId)
@@ -177,6 +182,7 @@ export async function POST(
           precioUnitario: item.precioUnitario,
           subtotal: item.subtotal,
           notas: item.notas,
+          numeroRonda,
           destino: item.destino,
           modificadores: {
             create: item.modificadores.create.map((m) => ({
@@ -197,7 +203,7 @@ export async function POST(
       data: {
         comandaId: params.id,
         accion: 'ITEMS_AGREGADOS',
-        descripcion: `${user.nombre} ${user.apellido} agregó ${data.items.length} item(s). Subtotal agregado: $${subtotalNuevos.toFixed(2)}`,
+        descripcion: `${user.nombre} ${user.apellido} agregó ${data.items.length} item(s) en envío ${numeroRonda}. Subtotal agregado: $${subtotalNuevos.toFixed(2)}`,
         usuarioId: user.id,
       },
     })

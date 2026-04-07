@@ -259,6 +259,7 @@ export async function POST(request: NextRequest) {
         subtotal: number
         notas?: string
         destino: 'COCINA' | 'BARRA'
+        numeroRonda: number
         estado?: 'PENDIENTE' | 'LISTO'
         fechaListo?: Date
         modificadores: { create: { modificadorId: string; precioExtra: number }[] }
@@ -270,6 +271,7 @@ export async function POST(request: NextRequest) {
         subtotal,
         notas: itemData.notas,
         destino: getDestinoFromCategoria(producto.categoria.tipo),
+        numeroRonda: 1,
         modificadores: {
           create: itemModificadores,
         },

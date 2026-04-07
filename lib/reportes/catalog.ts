@@ -34,22 +34,22 @@ export const REPORT_DIMENSIONS: Array<{
   {
     value: 'none',
     label: 'Sin desglose',
-    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
   {
     value: 'dia',
     label: 'Por día',
-    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
   {
     value: 'hora',
     label: 'Por hora',
-    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
   {
     value: 'tipoPedido',
     label: 'Por tipo de pedido',
-    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
   {
     value: 'metodoPago',
@@ -67,20 +67,26 @@ export const REPORT_DIMENSIONS: Array<{
     supportedMetrics: ['ventas', 'productosVendidos'],
   },
   {
+    value: 'envio',
+    label: 'Por envío',
+    supportedMetrics: ['ventas', 'productosVendidos'],
+  },
+  {
     value: 'mesa',
     label: 'Por mesa',
-    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
   {
     value: 'usuario',
     label: 'Por usuario',
-    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
 ]
 
 export const REPORT_METRICS: Array<{ value: ReportMetric; label: string; shortLabel: string }> = [
   { value: 'ventas', label: 'Ventas', shortLabel: 'Ventas' },
   { value: 'comandas', label: 'Comandas', shortLabel: 'Comandas' },
+  { value: 'comandasCanceladas', label: 'Comandas canceladas', shortLabel: 'Canceladas' },
   { value: 'ticketPromedio', label: 'Ticket promedio', shortLabel: 'Ticket' },
   { value: 'productosVendidos', label: 'Productos vendidos', shortLabel: 'Productos' },
   { value: 'propina', label: 'Propina', shortLabel: 'Propina' },

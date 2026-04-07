@@ -6,12 +6,14 @@ export type ReportDimension =
   | 'metodoPago'
   | 'producto'
   | 'categoria'
+  | 'envio'
   | 'mesa'
   | 'usuario'
 
 export type ReportMetric =
   | 'ventas'
   | 'comandas'
+  | 'comandasCanceladas'
   | 'ticketPromedio'
   | 'productosVendidos'
   | 'propina'
@@ -41,6 +43,7 @@ export interface ReportWidgetConfig {
 export interface ReportMetricTotals {
   ventas: number
   comandas: number
+  comandasCanceladas: number
   ticketPromedio: number
   productosVendidos: number
   propina: number

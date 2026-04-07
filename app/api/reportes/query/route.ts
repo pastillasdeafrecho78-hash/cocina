@@ -3,7 +3,12 @@ import { ZodError } from 'zod'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { reportQuerySchema } from '@/lib/reportes/schemas'
-import { aggregateWidgetData, fetchReportBaseData } from '@/lib/reportes/server'
+import {
+  aggregateCancelledWidgetData,
+  aggregateWidgetData,
+  fetchCancelledReportBaseData,
+  fetchReportBaseData,
+} from '@/lib/reportes/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,8 +23,16 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = reportQuerySchema.parse(body)
 
-    const comandas = await fetchReportBaseData(data.filters, user.restauranteId)
-    const result = aggregateWidgetData(comandas, data.widget)
+    const result =
+      data.widget.metric === 'comandasCanceladas'
+        ? aggregateCancelledWidgetData(
+            await fetchCancelledReportBaseData(data.filters, user.restauranteId),
+            data.widget
+          )
+        : aggregateWidgetData(
+            await fetchReportBaseData(data.filters, user.restauranteId),
+            data.widget
+          )
 
     return NextResponse.json({
       success: true,

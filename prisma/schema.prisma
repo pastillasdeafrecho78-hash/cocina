@@ -247,8 +247,10 @@ model Comanda {
   propina         Float?        @default(0)
   descuento       Float?        @default(0)
   observaciones   String?
+  motivoCancelacion String?
   fechaCreacion   DateTime      @default(now())
   fechaCompletado DateTime?
+  fechaCancelacion DateTime?
   fechaEntrega    DateTime?
   creadoPorId     String
   asignadoAId     String?
@@ -267,6 +269,7 @@ model Comanda {
   @@index([estado])
   @@index([fechaCreacion])
   @@index([fechaCompletado])
+  @@index([fechaCancelacion])
   @@index([tipoPedido])
   @@index([clienteId])
   @@index([creadoPorId])
@@ -370,6 +373,7 @@ model ComandaItem {
   subtotal         Float
   notas            String?
   estado           EstadoItem  @default(PENDIENTE)
+  numeroRonda      Int         @default(1)
   destino          DestinoItem
   fechaPreparacion DateTime?
   fechaListo       DateTime?

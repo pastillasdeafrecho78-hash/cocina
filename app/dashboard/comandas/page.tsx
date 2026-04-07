@@ -13,6 +13,7 @@ interface Comanda {
   estado: string
   total: number
   fechaCreacion: string
+  motivoCancelacion?: string | null
   mesa?: { numero: number } | null
   cliente?: { nombre: string } | null
   items?: Array< { estado: string } >
@@ -97,6 +98,7 @@ export default function ComandasPage() {
     { value: 'LISTO', label: 'Listas' },
     { value: 'SERVIDO', label: 'Servidas' },
     { value: 'PAGADO', label: 'Pagadas' },
+    { value: 'CANCELADO', label: 'Canceladas' },
   ]
 
   return (
@@ -215,6 +217,11 @@ export default function ComandasPage() {
                     {comanda.mesa
                       ? `Mesa ${comanda.mesa.numero}`
                       : comanda.cliente?.nombre || 'Para llevar'}
+                    {comanda.estado === 'CANCELADO' && comanda.motivoCancelacion && (
+                      <div className="mt-1 max-w-[320px] truncate text-xs text-rose-700" title={comanda.motivoCancelacion}>
+                        Motivo: {comanda.motivoCancelacion}
+                      </div>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <span
