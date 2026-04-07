@@ -28,11 +28,11 @@ interface Comanda {
 }
 
 const badgeClassByEstado = (estado: string) => {
-  if (estado === 'PENDIENTE') return 'border-yellow-300 bg-yellow-100 text-yellow-900'
-  if (estado === 'EN_PREPARACION') return 'border-amber-300 bg-amber-100 text-amber-900'
-  if (estado === 'LISTO') return 'border-emerald-300 bg-emerald-100 text-emerald-900'
-  if (estado === 'SERVIDO') return 'border-sky-300 bg-sky-100 text-sky-900'
-  if (estado === 'PAGADO') return 'border-stone-300 bg-stone-200 text-stone-800'
+  if (estado === 'PENDIENTE') return 'border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-500/60 dark:bg-amber-900/30 dark:text-amber-200'
+  if (estado === 'EN_PREPARACION') return 'border-orange-300 bg-orange-100 text-orange-900 dark:border-orange-500/60 dark:bg-orange-900/30 dark:text-orange-200'
+  if (estado === 'LISTO') return 'border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-500/60 dark:bg-sky-900/30 dark:text-sky-200'
+  if (estado === 'SERVIDO') return 'border-indigo-300 bg-indigo-100 text-indigo-900 dark:border-indigo-500/60 dark:bg-indigo-900/30 dark:text-indigo-200'
+  if (estado === 'PAGADO') return 'border-emerald-300 bg-emerald-100 text-emerald-900 dark:border-emerald-500/60 dark:bg-emerald-900/30 dark:text-emerald-200'
   if (estado === 'CANCELADO') return 'border-rose-300 bg-rose-100 text-rose-900'
   return 'border-stone-300 bg-stone-100 text-stone-800'
 }
@@ -203,31 +203,31 @@ export default function ComandasPage() {
 
         <div className="app-table-shell">
           <table className="min-w-full divide-y divide-stone-200">
-            <thead className="bg-stone-50/90">
+            <thead className="bg-stone-100/90 dark:bg-stone-900/80">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">
                   Comanda
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">
                   Mesa/Cliente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">
                   Total
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">
                   Fecha
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-100 bg-white/95">
+            <tbody className="divide-y divide-stone-100 bg-white/95 dark:bg-stone-950/35">
               {comandas.map((comanda) => (
-                <tr key={comanda.id} className="hover:bg-amber-50/60">
+                <tr key={comanda.id} className="hover:bg-amber-50/70 dark:hover:bg-stone-900/70">
                   <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-stone-900">
                     {comanda.numeroComanda}
                   </td>
