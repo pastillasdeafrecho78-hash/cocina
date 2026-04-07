@@ -89,6 +89,7 @@ export async function POST(request: NextRequest) {
           data: {
             usuarioId: usuario.id,
             organizacionId: org.id,
+            rolId: rol.id,
             esOwner: true,
             activo: true,
           },
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
         data: {
           usuarioId: usuario.id,
           restauranteId: restaurante.id,
+          rolId: rol.id,
           activo: true,
           esPrincipal: true,
         },

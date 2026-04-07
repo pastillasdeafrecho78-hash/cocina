@@ -169,10 +169,11 @@ export async function POST(request: NextRequest) {
         create: {
           usuarioId: user.id,
           restauranteId: restaurante.id,
+          rolId: user.rolId,
           esPrincipal: false,
           activo: true,
         },
-        update: { activo: true },
+        update: { activo: true, rolId: user.rolId },
       })
 
       if (restaurante.organizacionId) {
@@ -186,9 +187,10 @@ export async function POST(request: NextRequest) {
           create: {
             usuarioId: user.id,
             organizacionId: restaurante.organizacionId,
+            rolId: user.rolId,
             activo: true,
           },
-          update: { activo: true },
+          update: { activo: true, rolId: user.rolId },
         })
       }
 

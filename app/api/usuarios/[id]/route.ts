@@ -75,26 +75,53 @@ export async function PATCH(
       updateData.password = await hashPassword(data.password)
     }
 
-    const usuario = await prisma.usuario.update({
-      where: { id: params.id },
-      data: updateData,
-      select: {
-        id: true,
-        email: true,
-        nombre: true,
-        apellido: true,
-        activo: true,
-        rolId: true,
-        rol: {
-          select: {
-            id: true,
-            nombre: true,
-            codigo: true,
+    const usuario = await prisma.$transaction(async (tx) => {
+      const updated = await tx.usuario.update({
+        where: { id: params.id },
+        data: updateData,
+        select: {
+          id: true,
+          email: true,
+          nombre: true,
+          apellido: true,
+          activo: true,
+          rolId: true,
+          rol: {
+            select: {
+              id: true,
+              nombre: true,
+              codigo: true,
+            },
           },
+          createdAt: true,
+          updatedAt: true,
         },
-        createdAt: true,
-        updatedAt: true,
-      },
+      })
+
+      if (data.rolId !== undefined) {
+        await tx.sucursalMiembro.updateMany({
+          where: {
+            usuarioId: params.id,
+            restauranteId: user.restauranteId,
+          },
+          data: { rolId: data.rolId },
+        })
+        const base = await tx.restaurante.findUnique({
+          where: { id: user.restauranteId },
+          select: { organizacionId: true },
+        })
+        if (base?.organizacionId) {
+          await tx.organizacionMiembro.updateMany({
+            where: {
+              usuarioId: params.id,
+              organizacionId: base.organizacionId,
+            },
+            data: { rolId: data.rolId },
+          })
+        }
+      }
+
+      return updated
     })
 
     return NextResponse.json({

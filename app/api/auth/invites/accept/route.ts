@@ -85,10 +85,11 @@ export async function POST(request: NextRequest) {
         create: {
           usuarioId: createdUser.id,
           restauranteId: inv.restauranteId,
+          rolId: inv.rolId,
           esPrincipal: true,
           activo: true,
         },
-        update: { activo: true },
+        update: { activo: true, rolId: inv.rolId },
       })
       if (restaurante?.organizacionId) {
         await tx.organizacionMiembro.upsert({
@@ -101,10 +102,11 @@ export async function POST(request: NextRequest) {
           create: {
             usuarioId: createdUser.id,
             organizacionId: restaurante.organizacionId,
+            rolId: inv.rolId,
             esOwner: false,
             activo: true,
           },
-          update: { activo: true },
+          update: { activo: true, rolId: inv.rolId },
         })
       }
       await tx.invitacion.update({

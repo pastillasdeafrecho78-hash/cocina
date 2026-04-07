@@ -107,6 +107,8 @@ model Rol {
   dashboards  DashboardVista[]
   invitaciones Invitacion[]
   codigosVinculacion CodigoVinculacionSucursal[]
+  miembrosSucursal    SucursalMiembro[]
+  miembrosOrganizacion OrganizacionMiembro[]
 }
 
 model Restaurante {
@@ -193,6 +195,7 @@ model OrganizacionMiembro {
   id            String   @id @default(cuid())
   usuarioId     String
   organizacionId String
+  rolId         String?
   esOwner       Boolean  @default(false)
   activo        Boolean  @default(true)
   createdAt     DateTime @default(now())
@@ -200,15 +203,18 @@ model OrganizacionMiembro {
 
   usuario      Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  rol          Rol?         @relation(fields: [rolId], references: [id], onDelete: SetNull)
 
   @@unique([usuarioId, organizacionId])
   @@index([organizacionId])
+  @@index([rolId])
 }
 
 model SucursalMiembro {
   id            String   @id @default(cuid())
   usuarioId     String
   restauranteId String
+  rolId         String?
   activo        Boolean  @default(true)
   esPrincipal   Boolean  @default(false)
   createdAt     DateTime @default(now())
@@ -216,9 +222,11 @@ model SucursalMiembro {
 
   usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  rol         Rol?        @relation(fields: [rolId], references: [id], onDelete: SetNull)
 
   @@unique([usuarioId, restauranteId])
   @@index([restauranteId])
+  @@index([rolId])
 }
 
 model CuentaOAuth {

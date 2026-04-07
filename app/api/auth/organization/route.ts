@@ -46,10 +46,11 @@ export async function POST(request: NextRequest) {
         create: {
           usuarioId: user.id,
           organizacionId: org.id,
+          rolId: user.rolId,
           activo: true,
           esOwner: true,
         },
-        update: { activo: true, esOwner: true },
+        update: { activo: true, esOwner: true, rolId: user.rolId },
       })
 
       await tx.usuario.update({

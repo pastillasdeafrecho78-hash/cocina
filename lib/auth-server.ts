@@ -43,6 +43,7 @@ export async function getSessionUser() {
         select: {
           restauranteId: true,
           esPrincipal: true,
+          rolId: true,
           restaurante: {
             select: {
               id: true,
@@ -65,11 +66,6 @@ export async function getSessionUser() {
 
   if (!user?.activo) return null
 
-  const rol = await prisma.rol.findUnique({
-    where: { id: user.rolId },
-    select: { id: true, nombre: true, permisos: true },
-  })
-
   let activeRestauranteId = user.activeRestauranteId ?? null
   let activeOrganizacionId = user.activeOrganizacionId ?? null
 
@@ -86,6 +82,22 @@ export async function getSessionUser() {
   } else {
     activeRestauranteId = null
     activeOrganizacionId = null
+  }
+
+  const membershipForActiveBranch = hasMemberships
+    ? user.sucursales.find((m) => m.restauranteId === activeRestauranteId)
+    : undefined
+  const effectiveRolId = membershipForActiveBranch?.rolId ?? user.rolId
+
+  let rol = await prisma.rol.findUnique({
+    where: { id: effectiveRolId },
+    select: { id: true, nombre: true, permisos: true },
+  })
+  if (!rol && effectiveRolId !== user.rolId) {
+    rol = await prisma.rol.findUnique({
+      where: { id: user.rolId },
+      select: { id: true, nombre: true, permisos: true },
+    })
   }
 
   if (

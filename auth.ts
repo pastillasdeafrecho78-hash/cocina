@@ -162,10 +162,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             create: {
               usuarioId: existingLink.usuario.id,
               restauranteId: existingLink.usuario.restauranteId,
+              rolId: existingLink.usuario.rolId,
               activo: true,
               esPrincipal: true,
             },
-            update: { activo: true },
+            update: { activo: true, rolId: existingLink.usuario.rolId },
           })
           .catch(() => {})
         if (existingLink.usuario.restaurante.organizacionId) {
@@ -180,9 +181,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               create: {
                 usuarioId: existingLink.usuario.id,
                 organizacionId: existingLink.usuario.restaurante.organizacionId,
+                rolId: existingLink.usuario.rolId,
                 activo: true,
               },
-              update: { activo: true },
+              update: { activo: true, rolId: existingLink.usuario.rolId },
             })
             .catch(() => {})
         }
@@ -286,10 +288,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           create: {
             usuarioId: dbUser.id,
             restauranteId: dbUser.restauranteId,
+            rolId: dbUser.rolId,
             activo: true,
             esPrincipal: true,
           },
-          update: { activo: true },
+          update: { activo: true, rolId: dbUser.rolId },
         })
         .catch(() => {})
       if (dbUser.restaurante.organizacionId) {
@@ -304,9 +307,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             create: {
               usuarioId: dbUser.id,
               organizacionId: dbUser.restaurante.organizacionId,
+              rolId: dbUser.rolId,
               activo: true,
             },
-            update: { activo: true },
+            update: { activo: true, rolId: dbUser.rolId },
           })
           .catch(() => {})
       }

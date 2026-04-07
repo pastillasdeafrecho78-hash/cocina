@@ -205,20 +205,22 @@ async function main() {
   for (const u of [admin, mesero, cocinero]) {
     await prisma.sucursalMiembro.upsert({
       where: { usuarioId_restauranteId: { usuarioId: u.id, restauranteId: rid } },
-      update: { activo: true },
+      update: { activo: true, rolId: u.rolId },
       create: {
         usuarioId: u.id,
         restauranteId: rid,
+        rolId: u.rolId,
         esPrincipal: true,
         activo: true,
       },
     })
     await prisma.organizacionMiembro.upsert({
       where: { usuarioId_organizacionId: { usuarioId: u.id, organizacionId: organizacion.id } },
-      update: { activo: true, esOwner: u.id === admin.id },
+      update: { activo: true, esOwner: u.id === admin.id, rolId: u.rolId },
       create: {
         usuarioId: u.id,
         organizacionId: organizacion.id,
+        rolId: u.rolId,
         esOwner: u.id === admin.id,
         activo: true,
       },

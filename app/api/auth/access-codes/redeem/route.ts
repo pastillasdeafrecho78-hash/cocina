@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const membershipRolId = codeRow.rolId ?? user.rolId
+
     await prisma.$transaction(async (tx) => {
       const consume = await tx.codigoVinculacionSucursal.updateMany({
         where: { id: codeRow.id, usadaEn: null },
@@ -65,10 +67,11 @@ export async function POST(request: NextRequest) {
         create: {
           usuarioId: user.id,
           restauranteId: codeRow.restauranteId,
+          rolId: membershipRolId,
           activo: true,
           esPrincipal: false,
         },
-        update: { activo: true },
+        update: { activo: true, rolId: membershipRolId },
       })
 
       const orgId = codeRow.organizacionId ?? codeRow.restaurante.organizacionId
@@ -83,9 +86,10 @@ export async function POST(request: NextRequest) {
           create: {
             usuarioId: user.id,
             organizacionId: orgId,
+            rolId: membershipRolId,
             activo: true,
           },
-          update: { activo: true },
+          update: { activo: true, rolId: membershipRolId },
         })
       }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getMenuContext } from '@/lib/menu-context'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -19,9 +20,12 @@ export async function GET(_request: Request, { params }: { params: { slug: strin
       return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
     }
 
+    const menuCtx = await getMenuContext(restaurante.id)
+    const menuRestauranteId = menuCtx?.menuRestauranteId ?? restaurante.id
+
     const categorias = await prisma.categoria.findMany({
       where: {
-        restauranteId: restaurante.id,
+        restauranteId: menuRestauranteId,
         activa: true,
       },
       orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
