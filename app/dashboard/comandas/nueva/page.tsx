@@ -369,19 +369,19 @@ export default function NuevaComandaPage() {
       <button
         key={producto.id}
         onClick={() => handleClickProducto(producto, categoria)}
-        className="p-3 border border-gray-300 rounded-md hover:bg-indigo-50 hover:border-indigo-300 text-left transition-colors group"
+        className="group rounded-2xl border border-stone-300 bg-white/80 p-3 text-left transition-colors hover:border-amber-300 hover:bg-amber-50 dark:bg-stone-900/70"
       >
-        <div className="font-semibold text-gray-900 group-hover:text-indigo-900">{producto.nombre}</div>
-        <div className="text-sm text-gray-600 mt-0.5">
+        <div className="font-semibold text-stone-900 group-hover:text-amber-900">{producto.nombre}</div>
+        <div className="mt-0.5 text-sm text-stone-600">
           {tieneTamanos ? `Desde $${precioMin.toFixed(2)}` : `$${producto.precio.toFixed(2)}`}
         </div>
         {tieneTamanos && (
-          <div className="text-xs text-blue-600 mt-1">
+          <div className="mt-1 text-xs text-sky-700">
             {producto.tamanos!.length} tamaño{producto.tamanos!.length !== 1 ? 's' : ''}
           </div>
         )}
         {extras.length > 0 && (
-          <div className="text-xs text-indigo-500 mt-0.5">
+          <div className="mt-0.5 text-xs text-amber-700">
             {extras.length} extra{extras.length !== 1 ? 's' : ''} disponible{extras.length !== 1 ? 's' : ''}
           </div>
         )}
@@ -394,12 +394,13 @@ export default function NuevaComandaPage() {
   return (
     <div className="app-page">
       <BackButton className="mb-4" fallbackHref={esAgregarPedidos ? '/dashboard/mesas' : '/dashboard/comandas'} />
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">
+      <div className="app-card mb-6">
+        <p className="app-kicker">Comandas</p>
+        <h1 className="mt-2 text-3xl font-semibold text-stone-900">
           {esAgregarPedidos ? 'Agregar más pedidos' : 'Nueva Comanda'}
         </h1>
         {esAgregarPedidos && (
-          <p className="text-gray-600 mt-1">Se agregarán los productos a la comanda actual</p>
+          <p className="mt-1 text-stone-600">Se agregarán los productos a la comanda actual</p>
         )}
       </div>
 
@@ -409,11 +410,11 @@ export default function NuevaComandaPage() {
           {!esAgregarPedidos && (
             <>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Pedido</label>
+              <label className="mb-2 block text-sm font-medium text-stone-700">Tipo de Pedido</label>
             <select
               value={tipoPedido}
               onChange={(e) => setTipoPedido(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                className="app-input app-field w-full"
             >
               <option value="EN_MESA">En Mesa</option>
               <option value="PARA_LLEVAR">Para Llevar</option>
@@ -424,11 +425,11 @@ export default function NuevaComandaPage() {
 
           {tipoPedido === 'EN_MESA' && (
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Mesa</label>
+              <label className="mb-2 block text-sm font-medium text-stone-700">Mesa</label>
               <select
                 value={mesaId}
                 onChange={(e) => setMesaId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black"
+                className="app-input app-field w-full"
               >
                 <option value="">Selecciona una mesa</option>
                 {mesas.map((mesa) => (
@@ -442,20 +443,20 @@ export default function NuevaComandaPage() {
 
           {/* Búsqueda */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Buscar Producto</label>
+            <label className="mb-2 block text-sm font-medium text-stone-700">Buscar Producto</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                <MagnifyingGlassIcon className="h-5 w-5 text-stone-400" />
               </div>
               <input
                 type="text"
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 placeholder="Buscar por nombre de producto o categoría..."
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black"
+                className="app-input app-field w-full pl-10 pr-10"
               />
               {busqueda && (
-                <button onClick={() => setBusqueda('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
+                <button onClick={() => setBusqueda('')} className="absolute inset-y-0 right-0 pr-3 flex items-center text-stone-400 hover:text-stone-700">
                   <span className="text-xl">×</span>
                 </button>
               )}
@@ -467,7 +468,7 @@ export default function NuevaComandaPage() {
             {productosFiltrados !== null ? (
               productosFiltrados.length > 0 ? (
                 <div className="app-card p-4">
-                  <h2 className="text-xl font-bold mb-4">Resultados ({productosFiltrados.length})</h2>
+                  <h2 className="mb-4 text-xl font-semibold text-stone-900">Resultados ({productosFiltrados.length})</h2>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {productosFiltrados.map(({ producto, categoria }) =>
                       renderBotonProducto(producto, categoria)
@@ -476,16 +477,16 @@ export default function NuevaComandaPage() {
                 </div>
               ) : (
                 <div className="app-card p-8 text-center">
-                  <p className="text-gray-500 text-lg">No se encontraron productos que coincidan con "{busqueda}"</p>
-                  <button onClick={() => setBusqueda('')} className="mt-4 text-primary-600 hover:text-primary-800 underline">Limpiar búsqueda</button>
+                  <p className="text-lg text-stone-500">No se encontraron productos que coincidan con "{busqueda}"</p>
+                  <button onClick={() => setBusqueda('')} className="mt-4 font-medium text-amber-700 hover:text-amber-900 underline">Limpiar búsqueda</button>
                 </div>
               )
             ) : (
               categorias.map((categoria) => (
                 <div key={categoria.id} className="app-card p-4">
-                  <h2 className="text-xl font-bold mb-1">{categoria.nombre}</h2>
+                  <h2 className="mb-1 text-xl font-semibold text-stone-900">{categoria.nombre}</h2>
                   {categoria.modificadores.length > 0 && (
-                    <p className="text-xs text-indigo-500 mb-3">
+                    <p className="mb-3 text-xs text-stone-500">
                       Extras de categoría: {categoria.modificadores.map((mc) => mc.modificador.nombre).join(', ')}
                     </p>
                   )}
@@ -501,10 +502,10 @@ export default function NuevaComandaPage() {
         {/* ── PANEL DERECHO - CARRITO ───────────────────────────────────── */}
         <div className="lg:col-span-1">
           <div className="app-card sticky top-4 p-6">
-            <h2 className="text-xl font-bold mb-4">Pedido</h2>
+            <h2 className="mb-4 text-xl font-semibold text-stone-900">Pedido</h2>
 
             {carrito.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-8">Agrega productos al pedido</p>
+              <p className="py-8 text-center text-sm text-stone-500">Agrega productos al pedido</p>
             ) : (
               <div className="space-y-3 mb-4 max-h-[50vh] overflow-y-auto pr-1">
                 {carrito.map((item) => (
@@ -514,10 +515,10 @@ export default function NuevaComandaPage() {
                         <div className="font-semibold text-sm truncate">
                           {item.producto.nombre}
                           {item.tamanoDetalle && (
-                            <span className="font-normal text-gray-600"> — {item.tamanoDetalle.nombre}</span>
+                            <span className="font-normal text-stone-600"> — {item.tamanoDetalle.nombre}</span>
                           )}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-stone-500">
                           ${(item.tamanoDetalle ? item.tamanoDetalle.precio : item.producto.precio).toFixed(2)} c/u
                         </div>
                         {item.modificadoresDetalle.length > 0 && (
@@ -530,26 +531,26 @@ export default function NuevaComandaPage() {
                           </div>
                         )}
                         {item.notas && (
-                          <div className="text-xs text-gray-400 italic mt-0.5">"{item.notas}"</div>
+                          <div className="mt-0.5 text-xs italic text-stone-400">"{item.notas}"</div>
                         )}
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         <button
                           onClick={() => actualizarCantidad(item.key, item.cantidad - 1)}
-                          className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                          className="flex h-6 w-6 items-center justify-center rounded bg-stone-100 hover:bg-stone-200"
                         >
                           <MinusIcon className="w-3 h-3" />
                         </button>
                         <span className="w-6 text-center text-sm font-medium">{item.cantidad}</span>
                         <button
                           onClick={() => actualizarCantidad(item.key, item.cantidad + 1)}
-                          className="w-6 h-6 rounded bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
+                          className="flex h-6 w-6 items-center justify-center rounded bg-stone-100 hover:bg-stone-200"
                         >
                           <PlusIcon className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
-                    <div className="text-sm font-medium text-right text-gray-700 mt-1">
+                    <div className="mt-1 text-right text-sm font-medium text-stone-700">
                       ${precioItem(item).toFixed(2)}
                     </div>
                   </div>
@@ -565,11 +566,11 @@ export default function NuevaComandaPage() {
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
+              <label className="mb-2 block text-sm font-medium text-stone-700">Observaciones</label>
               <textarea
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-black text-sm"
+                className="app-input app-field w-full text-sm"
                 rows={2}
                 placeholder="Alergias, instrucciones generales..."
               />
@@ -578,7 +579,7 @@ export default function NuevaComandaPage() {
             <button
               onClick={handleGuardar}
               disabled={guardando || carrito.length === 0}
-              className="w-full bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              className="app-btn-primary w-full rounded-md px-4 py-2 font-medium disabled:cursor-not-allowed disabled:opacity-50"
             >
               {guardando ? 'Guardando...' : esAgregarPedidos ? 'Agregar pedidos' : 'Crear Comanda'}
             </button>

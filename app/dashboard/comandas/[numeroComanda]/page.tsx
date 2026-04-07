@@ -341,12 +341,13 @@ export default function ComandaDetallePage() {
 
   return (
     <div className="app-page">
-      <div className="mb-6">
+      <div className="app-card mb-6">
         <BackButton className="mb-4" />
-        <h1 className="text-3xl font-bold text-gray-900">
+        <p className="app-kicker">Detalle de comanda</p>
+        <h1 className="mt-2 text-3xl font-semibold text-stone-900">
           Comanda {comanda.numeroComanda}
         </h1>
-        <div className="mt-2 flex gap-4 text-sm text-gray-600">
+        <div className="mt-2 flex flex-wrap gap-4 text-sm text-stone-600">
           <span>
             {comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Para llevar'}
           </span>
@@ -361,7 +362,7 @@ export default function ComandaDetallePage() {
           <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             <strong>Motivo de cancelación:</strong> {comanda.motivoCancelacion}
             {comanda.canceladoPor && (
-              <div className="mt-1">
+            <div className="mt-1 text-rose-900">
                 <strong>Cancelada por:</strong>{' '}
                 {`${comanda.canceladoPor.nombre} ${comanda.canceladoPor.apellido}`.trim()}
               </div>
@@ -388,7 +389,7 @@ export default function ComandaDetallePage() {
       )}
 
       <div className="app-card mb-6 p-6">
-        <h2 className="text-xl font-bold mb-4">Items</h2>
+        <h2 className="mb-4 text-xl font-semibold text-stone-900">Items</h2>
         <div className="space-y-5">
           {rondasOrdenadas.map(({ ronda, items }) => (
             <div key={ronda} className="rounded-xl border border-stone-200 p-4">
@@ -399,21 +400,21 @@ export default function ComandaDetallePage() {
                 {items.map((item) => (
                   <div key={item.id} className="flex justify-between items-start border-b pb-3 last:border-b-0 last:pb-0">
                     <div className="flex-1">
-                      <div className="font-semibold">
+                      <div className="font-semibold text-stone-900">
                         {item.cantidad}x {item.producto.nombre}
                         {item.tamano && (
-                          <span className="font-normal text-gray-600"> - {item.tamano.nombre}</span>
+                          <span className="font-normal text-stone-600"> - {item.tamano.nombre}</span>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600">{item.producto.categoria.nombre}</div>
-                      {item.notas && <div className="text-sm text-red-600 mt-1">Nota: {item.notas}</div>}
-                      <div className="text-sm text-gray-500 mt-1">
+                      <div className="text-sm text-stone-600">{item.producto.categoria.nombre}</div>
+                      {item.notas && <div className="mt-1 text-sm text-rose-700">Nota: {item.notas}</div>}
+                      <div className="mt-1 text-sm text-stone-500">
                         Estado: {labelItemEstado(item.estado)}
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-semibold">${item.subtotal.toFixed(2)}</div>
-                      <div className="text-sm text-gray-600">${item.precioUnitario.toFixed(2)} c/u</div>
+                      <div className="text-sm text-stone-600">${item.precioUnitario.toFixed(2)} c/u</div>
                     </div>
                   </div>
                 ))}
@@ -428,7 +429,7 @@ export default function ComandaDetallePage() {
             <span>${comanda.total.toFixed(2)}</span>
           </div>
           {comanda.propina > 0 && (
-            <div className="flex justify-between text-gray-600">
+            <div className="flex justify-between text-stone-600">
               <span>Propina ({comanda.propina}%):</span>
               <span>${(comanda.total * comanda.propina / 100).toFixed(2)}</span>
             </div>
@@ -448,7 +449,7 @@ export default function ComandaDetallePage() {
 
       {comanda.estado !== 'PAGADO' && (
         <div className="app-card mb-6 p-6">
-          <h2 className="text-xl font-bold mb-4">Métodos de pago</h2>
+          <h2 className="mb-4 text-xl font-semibold text-stone-900">Métodos de pago</h2>
           {!comanda.items.every(
             (i) => i.estado === 'LISTO' || i.estado === 'ENTREGADO'
           ) ? (
@@ -461,7 +462,7 @@ export default function ComandaDetallePage() {
               <button
                 type="button"
                 onClick={() => setMetodoPago('efectivo')}
-                className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-green-500 hover:bg-green-50"
+                className="app-btn-secondary flex items-center gap-2 rounded-2xl px-5 py-3"
               >
                 <span className="text-2xl">💵</span>
                 Efectivo
@@ -469,7 +470,7 @@ export default function ComandaDetallePage() {
               <button
                 type="button"
                 onClick={handleSeleccionarTarjeta}
-                className="flex items-center gap-2 rounded-2xl border-2 border-gray-300 px-5 py-3 font-medium text-gray-800 hover:border-sky-500 hover:bg-sky-50"
+                className="app-btn-secondary flex items-center gap-2 rounded-2xl px-5 py-3"
               >
                 <span className="text-2xl">💳</span>
                 Tarjeta
@@ -477,18 +478,18 @@ export default function ComandaDetallePage() {
             </div>
           ) : metodoPago === 'efectivo' ? (
             <div className="space-y-4">
-              <p className="text-gray-600">
+              <p className="text-stone-600">
                 Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Monto recibido</label>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Monto recibido</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={montoRecibido}
                   onChange={(e) => setMontoRecibido(e.target.value)}
                   placeholder="0.00"
-                  className="app-input max-w-xs text-lg focus:border-green-500 focus:ring-green-500/20"
+                  className="app-input app-field max-w-xs text-lg"
                 />
               </div>
               {montoRecibidoNum >= totalFinal && montoRecibidoNum > 0 && (
@@ -509,7 +510,7 @@ export default function ComandaDetallePage() {
                   type="button"
                   onClick={handleCobrarEfectivo}
                   disabled={cobrandoEfectivo || montoRecibidoNum < totalFinal}
-                  className="rounded-2xl bg-green-600 px-6 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="app-btn-primary rounded-2xl px-6 py-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cobrandoEfectivo ? 'Registrando…' : 'Cobrar en efectivo'}
                 </button>
@@ -524,15 +525,15 @@ export default function ComandaDetallePage() {
             </div>
           ) : metodoPago === 'tarjeta' ? (
             <div className="space-y-4 max-w-md">
-              <p className="text-gray-600">
+              <p className="text-stone-600">
                 Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
               </p>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Terminal</label>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Terminal</label>
                 <select
                   value={serialClip}
                   onChange={(e) => setSerialClip(e.target.value)}
-                  className="app-input w-full"
+                  className="app-input app-field w-full"
                 >
                   <option value="">Selecciona una terminal</option>
                   {terminalesClip.map((t) => (
@@ -554,14 +555,14 @@ export default function ComandaDetallePage() {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Propina extra en terminal (opcional)</label>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Propina extra en terminal (opcional)</label>
                 <input
                   type="text"
                   inputMode="decimal"
                   value={propinaClip}
                   onChange={(e) => setPropinaClip(e.target.value)}
                   placeholder="0.00"
-                  className="app-input w-full"
+                  className="app-input app-field w-full"
                 />
               </div>
               {esperaClip && (
@@ -574,7 +575,7 @@ export default function ComandaDetallePage() {
                   type="button"
                   onClick={handleEnviarCobroClip}
                   disabled={cobrandoClip || !!esperaClip || !serialClip}
-                  className="rounded-2xl bg-sky-600 px-6 py-2 text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="app-btn-primary rounded-2xl px-6 py-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {cobrandoClip ? 'Enviando...' : 'Enviar cobro con tarjeta'}
                 </button>
@@ -598,7 +599,7 @@ export default function ComandaDetallePage() {
 
       {comanda.estado !== 'PAGADO' && comanda.estado !== 'CANCELADO' && (
         <div className="app-card mb-6 border-rose-200 bg-rose-50/40 p-6">
-          <h2 className="text-xl font-bold text-rose-900 mb-2">Cancelar comanda</h2>
+          <h2 className="mb-2 text-xl font-semibold text-rose-900">Cancelar comanda</h2>
           <p className="text-sm text-rose-800 mb-4">
             Usa esta opción cuando el cliente se retira antes de preparar los productos.
             El motivo quedará registrado en historial y reportes.
@@ -616,7 +617,7 @@ export default function ComandaDetallePage() {
               type="button"
               onClick={handleCancelarComanda}
               disabled={cancelandoComanda || !motivoCancelacion.trim()}
-              className="rounded-lg bg-rose-600 px-5 py-2 font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+              className="app-btn-danger rounded-lg px-5 py-2 disabled:opacity-50"
             >
               {cancelandoComanda ? 'Cancelando...' : 'Cancelar comanda'}
             </button>
