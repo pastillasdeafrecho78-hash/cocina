@@ -303,7 +303,7 @@ export default function CajaPage() {
             Comandas del periodo ({reporte.detalles.length})
           </h2>
           <div className="overflow-x-auto px-2 pb-4 sm:px-4">
-            <table className="min-w-full text-sm">
+            <table className="min-w-[700px] text-sm md:min-w-full">
               <thead>
                 <tr className="border-b border-stone-200 text-left text-stone-600 dark:border-stone-600 dark:text-stone-400">
                   <th className="py-3 pr-4">Comanda</th>

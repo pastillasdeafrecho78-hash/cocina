@@ -735,21 +735,22 @@ export default function CartaPage() {
   return (
     <div className="app-page min-h-screen pb-20 sm:pb-8">
       <BackButton className="mb-4" />
-      <div className="mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      <div className="app-card mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Gestión de Carta</h1>
-          <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Gestiona los productos del menú</p>
+          <p className="app-kicker">Carta</p>
+          <h1 className="mt-2 text-2xl font-semibold text-stone-900 sm:text-3xl">Gestión de Carta</h1>
+          <p className="mt-1 text-sm text-stone-600 sm:mt-2 sm:text-base">Gestiona productos, categorías, extras y tamaños</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <button
             onClick={() => setMostrarCategorias(!mostrarCategorias)}
-            className="w-full min-h-[44px] rounded-2xl bg-gray-600 px-4 py-3 text-white hover:bg-gray-700 sm:min-h-0 sm:w-auto sm:py-2"
+            className="app-btn-secondary w-full min-h-[44px] rounded-2xl px-4 py-3 sm:min-h-0 sm:w-auto sm:py-2"
           >
             {mostrarCategorias ? 'Ocultar Categorías' : 'Gestionar Categorías'}
           </button>
           <button
             onClick={() => setMostrarExtras(!mostrarExtras)}
-            className="w-full min-h-[44px] rounded-2xl bg-indigo-600 px-4 py-3 text-white hover:bg-indigo-700 sm:min-h-0 sm:w-auto sm:py-2"
+            className="app-btn-secondary w-full min-h-[44px] rounded-2xl px-4 py-3 sm:min-h-0 sm:w-auto sm:py-2"
           >
             {mostrarExtras ? 'Ocultar Extras' : 'Gestionar Extras'}
           </button>
@@ -765,26 +766,26 @@ export default function CartaPage() {
       {/* ── SECCIÓN CATEGORÍAS ─────────────────────────────────────────────── */}
       {mostrarCategorias && (
         <div className="app-card mb-6 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Gestión de Categorías</h2>
+          <h2 className="mb-4 text-xl font-semibold text-stone-900">Gestión de Categorías</h2>
 
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-medium text-gray-900 mb-3">Crear Nueva Categoría</h3>
+          <div className="mb-6 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <h3 className="mb-3 text-lg font-medium text-stone-900">Crear Nueva Categoría</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la Categoría</label>
+                <label className="mb-1 block text-sm font-medium text-stone-700">Nombre de la Categoría</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={nuevaCategoriaNombre}
                     onChange={(e) => setNuevaCategoriaNombre(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCrearCategoria() } }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black"
+                    className="app-input app-field w-full"
                     placeholder="Escribe el nombre de la categoría..."
                   />
                   {sugerenciasCategorias.length > 0 && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                    <div className="absolute z-10 mt-1 max-h-40 w-full overflow-y-auto rounded-md border border-stone-300 bg-white shadow-lg">
                       {sugerenciasCategorias.map((cat) => (
-                        <button key={cat.id} type="button" onClick={() => usarSugerencia(cat)} className="w-full text-left px-3 py-2 hover:bg-gray-100 text-black">
+                        <button key={cat.id} type="button" onClick={() => usarSugerencia(cat)} className="w-full px-3 py-2 text-left text-stone-900 hover:bg-stone-100">
                           <div className="font-medium">{cat.nombre}</div>
                         </button>
                       ))}
@@ -793,8 +794,8 @@ export default function CartaPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select value={nuevaCategoriaTipo} onChange={(e) => setNuevaCategoriaTipo(e.target.value as any)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black">
+                <label className="mb-1 block text-sm font-medium text-stone-700">Tipo</label>
+                <select value={nuevaCategoriaTipo} onChange={(e) => setNuevaCategoriaTipo(e.target.value as any)} className="app-input app-field w-full">
                   <option value="COMIDA">Comida</option>
                   <option value="BEBIDA">Bebida</option>
                   <option value="POSTRE">Postre</option>
@@ -803,14 +804,14 @@ export default function CartaPage() {
               </div>
             </div>
             <div className="mt-3">
-              <button onClick={handleCrearCategoria} disabled={creandoCategoria || !nuevaCategoriaNombre.trim()} className="bg-primary-600 text-white px-4 py-2 rounded-md hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed">
+              <button onClick={handleCrearCategoria} disabled={creandoCategoria || !nuevaCategoriaNombre.trim()} className="app-btn-primary rounded-md px-4 py-2 disabled:cursor-not-allowed disabled:opacity-50">
                 {creandoCategoria ? 'Creando...' : 'Crear Categoría'}
               </button>
             </div>
           </div>
 
           <div>
-            <h3 className="text-lg font-medium text-gray-900 mb-3">Categorías Existentes</h3>
+            <h3 className="mb-3 text-lg font-medium text-stone-900">Categorías Existentes</h3>
             {categorias.length > 0 ? (
               <div className="space-y-2">
                 {categorias.map((categoria) =>
@@ -950,8 +951,8 @@ export default function CartaPage() {
       {/* ── SECCIÓN EXTRAS/MODIFICADORES ───────────────────────────────────── */}
       {mostrarExtras && (
         <div className="app-card mb-6 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Gestión de Extras</h2>
-          <p className="text-sm text-gray-500 mb-4">
+          <h2 className="mb-4 text-xl font-semibold text-stone-900">Gestión de Extras</h2>
+          <p className="mb-4 text-sm text-stone-500">
             Crea los extras disponibles (queso extra, término de cocción, tamaño, etc.) y luego asígnalos a cada producto desde las tarjetas de abajo.
           </p>
 
@@ -1227,9 +1228,9 @@ export default function CartaPage() {
       )}
 
       {/* ── LISTA DE PRODUCTOS ─────────────────────────────────────────────── */}
-      <div className="bg-white rounded-lg shadow-md p-4 sm:p-6">
-        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-1">Productos de la Carta</h2>
-        <p className="text-xs sm:text-sm text-gray-500 mb-4">
+      <div className="app-card p-4 sm:p-6">
+        <h2 className="mb-1 text-lg font-semibold text-stone-900 sm:text-xl">Productos de la Carta</h2>
+        <p className="mb-4 text-xs text-stone-500 sm:text-sm">
           Haz clic en <strong>Tamaños y extras</strong> en cada producto para agregar tamaños con precios (ej: Chico $80, Grande $120).
         </p>
         {productos.length > 0 ? (
@@ -1241,7 +1242,7 @@ export default function CartaPage() {
               return (
                 <div
                   key={producto.id}
-                  className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
+                  className="overflow-hidden rounded-2xl border border-stone-200 transition-shadow hover:shadow-md"
                 >
                   {/* Imagen */}
                   {producto.imagenUrl && (

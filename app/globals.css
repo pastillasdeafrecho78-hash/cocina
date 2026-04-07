@@ -410,10 +410,17 @@ html.dark {
   }
 
   .app-table-shell {
-    @apply overflow-hidden rounded-[28px] backdrop-blur;
+    @apply overflow-x-auto overflow-y-hidden rounded-[28px] backdrop-blur;
     border: 1px solid rgb(var(--border) / 0.72);
     background: rgb(var(--surface) / 0.9);
     box-shadow: var(--shadow-card);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media (min-width: 768px) {
+    .app-table-shell {
+      overflow-x: hidden;
+    }
   }
 
   .app-loading-shell {

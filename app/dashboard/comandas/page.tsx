@@ -202,7 +202,7 @@ export default function ComandasPage() {
         )}
 
         <div className="app-table-shell">
-          <table className="min-w-full divide-y divide-stone-200">
+          <table className="min-w-[760px] divide-y divide-stone-200 md:min-w-full">
             <thead className="bg-stone-100/90 dark:bg-stone-900/80">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-800 dark:text-stone-100">
