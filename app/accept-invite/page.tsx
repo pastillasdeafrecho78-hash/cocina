@@ -1,10 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Suspense, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 
-export default function AcceptInvitePage() {
+function AcceptInviteForm() {
   const search = useSearchParams()
   const token = useMemo(() => search.get('token') ?? '', [search])
 
@@ -86,5 +86,13 @@ export default function AcceptInvitePage() {
         </form>
       </div>
     </main>
+  )
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense fallback={<main className="mx-auto max-w-md p-6">Cargando invitación...</main>}>
+      <AcceptInviteForm />
+    </Suspense>
   )
 }
