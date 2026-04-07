@@ -44,8 +44,6 @@ export default function MesasStatusPage() {
   const [editTiempoAmarillo, setEditTiempoAmarillo] = useState('30')
   const [editTiempoRojo, setEditTiempoRojo] = useState('60')
   const [guardandoTiempos, setGuardandoTiempos] = useState(false)
-  const [mesaAConfirmarBorrado, setMesaAConfirmarBorrado] = useState<Mesa | null>(null)
-  const [borrando, setBorrando] = useState(false)
   const [tick, setTick] = useState(0)
 
   const fetchMesas = async () => {
@@ -182,42 +180,6 @@ export default function MesasStatusPage() {
       toast.error('Error al agregar mesa')
     } finally {
       setGuardando(false)
-    }
-  }
-
-  const abrirConfirmarBorrado = (mesa: Mesa) => {
-    if (mesa.comandaActual) {
-      toast.error('No se puede borrar: la mesa tiene una comanda activa. Cierra o cancela la comanda primero.')
-      return
-    }
-    setMesaAConfirmarBorrado(mesa)
-  }
-
-  const cancelarBorrado = () => {
-    setMesaAConfirmarBorrado(null)
-  }
-
-  const confirmarBorrado = async () => {
-    if (!mesaAConfirmarBorrado) return
-    setBorrando(true)
-    try {
-      const response = await apiFetch(`/api/mesas/${mesaAConfirmarBorrado.id}`, {
-        method: 'DELETE',
-        headers: {},
-      })
-      const data = await response.json()
-
-      if (data.success) {
-        toast.success('Mesa borrada')
-        setMesaAConfirmarBorrado(null)
-        fetchMesas()
-      } else {
-        toast.error(data.error || 'Error al borrar mesa')
-      }
-    } catch {
-      toast.error('Error al borrar mesa')
-    } finally {
-      setBorrando(false)
     }
   }
 
@@ -418,7 +380,6 @@ export default function MesasStatusPage() {
                           tiempoAmarilloMinutos={tiempoAmarilloMinutos}
                           tiempoRojoMinutos={tiempoRojoMinutos}
                           variant="status"
-                          onDelete={() => abrirConfirmarBorrado(mesa)}
                           waitTime={waitTime}
                           colorProgresivo={colorProgresivo}
                           allItemsEntregados={allEntregados}
@@ -440,45 +401,6 @@ export default function MesasStatusPage() {
         </div>
       )}
 
-      {/* Modal ¿Estás seguro? para borrar mesa */}
-      {mesaAConfirmarBorrado && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
-          onClick={cancelarBorrado}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="confirmar-borrar-title"
-        >
-          <div
-            className="app-card max-w-sm w-full p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 id="confirmar-borrar-title" className="mb-2 text-lg font-bold text-stone-900">
-              ¿Estás seguro?
-            </h2>
-            <p className="mb-6 text-stone-600">
-              Se borrará la <strong>M{mesaAConfirmarBorrado.numero}</strong>. Esta acción no se puede deshacer.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                type="button"
-                onClick={cancelarBorrado}
-                className="px-4 py-2 rounded-lg font-semibold bg-gray-200 text-gray-800 hover:bg-gray-300"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarBorrado}
-                disabled={borrando}
-                className="px-4 py-2 rounded-lg font-semibold bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {borrando ? 'Borrando…' : 'Sí, borrar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       </div>
     </div>
   )

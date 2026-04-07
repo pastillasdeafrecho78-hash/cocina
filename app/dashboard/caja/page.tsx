@@ -35,13 +35,13 @@ interface ReporteData {
 }
 
 const TABS: { id: TabId; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  { id: 'resumen', label: 'Resumen', icon: DocumentTextIcon },
   { id: 'clip', label: 'Clip (PinPad)', icon: DevicePhoneMobileIcon },
   { id: 'fondo', label: 'Fondo de caja', icon: CurrencyDollarIcon },
-  { id: 'resumen', label: 'Resumen', icon: DocumentTextIcon },
 ]
 
 export default function CajaPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('clip')
+  const [activeTab, setActiveTab] = useState<TabId>('resumen')
   const [reporte, setReporte] = useState<ReporteData | null>(null)
   const [loading, setLoading] = useState(true)
   const [ejecutandoCorteX, setEjecutandoCorteX] = useState(false)
@@ -153,13 +153,17 @@ export default function CajaPage() {
               </p>
             </div>
             <div className="app-note max-w-md px-4 py-3 text-sm dark:border-stone-600/50 dark:bg-stone-900/40">
-              Usa las pestañas para Clip, fondo de caja o el resumen con cortes y detalle de comandas.
+              Revisa primero el resumen y después ejecuta acciones de cobro o arqueo desde sus pestañas.
             </div>
           </div>
 
           <div className="app-brand-divider my-6" />
 
-          <div className="flex flex-wrap gap-1 rounded-2xl border border-stone-200/90 bg-stone-100/70 p-1 dark:border-stone-600/50 dark:bg-stone-900/45">
+          <div
+            role="tablist"
+            aria-label="Secciones de caja"
+            className="flex flex-wrap gap-1 rounded-2xl border border-stone-200/90 bg-stone-100/70 p-1 dark:border-stone-600/50 dark:bg-stone-900/45"
+          >
             {TABS.map((tab) => {
               const Icon = tab.icon
               const active = activeTab === tab.id
@@ -168,6 +172,10 @@ export default function CajaPage() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
+                  role="tab"
+                  id={`caja-tab-${tab.id}`}
+                  aria-controls={`caja-panel-${tab.id}`}
+                  aria-selected={active}
                   className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
                     active
                       ? 'bg-white text-stone-900 shadow-sm dark:bg-stone-800 dark:text-stone-50'
@@ -182,10 +190,18 @@ export default function CajaPage() {
           </div>
         </section>
 
-        {activeTab === 'clip' && <ClipCajaSection />}
-        {activeTab === 'fondo' && <FondoCajaSection reporte={reporte} onRefresh={cargarReporte} />}
+        {activeTab === 'clip' && (
+          <section role="tabpanel" id="caja-panel-clip" aria-labelledby="caja-tab-clip">
+            <ClipCajaSection />
+          </section>
+        )}
+        {activeTab === 'fondo' && (
+          <section role="tabpanel" id="caja-panel-fondo" aria-labelledby="caja-tab-fondo">
+            <FondoCajaSection reporte={reporte} onRefresh={cargarReporte} />
+          </section>
+        )}
         {activeTab === 'resumen' && (
-        <>
+        <section role="tabpanel" id="caja-panel-resumen" aria-labelledby="caja-tab-resumen" className="space-y-4">
         <div className="app-card">
         <h2 className="text-xl font-semibold text-stone-900 dark:text-stone-50 mb-1">
           Resumen del periodo actual
@@ -225,9 +241,12 @@ export default function CajaPage() {
             </div>
           </div>
           <div className="app-card-muted p-4">
-            <div className="text-stone-600 dark:text-stone-400 text-sm mb-1">Otros / Comandas</div>
+            <div className="text-stone-600 dark:text-stone-400 text-sm mb-1">Comandas en el periodo</div>
             <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">
               {(reporte?.numComandas ?? 0)}
+            </div>
+            <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+              Otros cobros: ${(reporte?.totalOtros ?? 0).toFixed(2)}
             </div>
           </div>
         </div>
@@ -254,7 +273,7 @@ export default function CajaPage() {
             disabled={loading}
             className="app-btn-secondary"
           >
-            Actualizar
+            Actualizar resumen
           </button>
         </div>
         </div>
@@ -324,7 +343,7 @@ export default function CajaPage() {
           No hay comandas pagadas en el periodo actual
         </div>
       )}
-        </>
+        </section>
         )}
       </div>
     </div>

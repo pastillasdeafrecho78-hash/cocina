@@ -19,6 +19,16 @@ interface Comanda {
   items?: Array< { estado: string } >
 }
 
+const badgeClassByEstado = (estado: string) => {
+  if (estado === 'PENDIENTE') return 'border-yellow-300 bg-yellow-100 text-yellow-900'
+  if (estado === 'EN_PREPARACION') return 'border-amber-300 bg-amber-100 text-amber-900'
+  if (estado === 'LISTO') return 'border-emerald-300 bg-emerald-100 text-emerald-900'
+  if (estado === 'SERVIDO') return 'border-sky-300 bg-sky-100 text-sky-900'
+  if (estado === 'PAGADO') return 'border-stone-300 bg-stone-200 text-stone-800'
+  if (estado === 'CANCELADO') return 'border-rose-300 bg-rose-100 text-rose-900'
+  return 'border-stone-300 bg-stone-100 text-stone-800'
+}
+
 export default function ComandasPage() {
   const router = useRouter()
   const [comandas, setComandas] = useState<Comanda[]>([])
@@ -138,9 +148,9 @@ export default function ComandasPage() {
         </div>
 
         {listasParaRecoger.length > 0 && !filtro && (
-          <div className="app-card border-sky-200 bg-sky-50/50">
+          <div className="app-card border-sky-300 bg-sky-100/70">
             <h2 className="mb-3 text-lg font-semibold text-sky-900">Listo para recoger</h2>
-            <p className="mb-4 text-sm text-sky-700">
+            <p className="mb-4 text-sm text-sky-900">
               Cocina/Barra ya terminó estos pedidos. Confirma entrega al entregar a la mesa.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -157,7 +167,7 @@ export default function ComandasPage() {
                       <span className="ml-2 text-stone-600">
                         {c.mesa ? `Mesa ${c.mesa.numero}` : c.cliente?.nombre || 'Para llevar'}
                       </span>
-                      <span className="ml-2 text-sm text-sky-600">
+                      <span className="ml-2 text-sm text-sky-800">
                         {listos} de {total} listos
                       </span>
                     </div>
@@ -187,22 +197,22 @@ export default function ComandasPage() {
           <table className="min-w-full divide-y divide-stone-200">
             <thead className="bg-stone-50/90">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
                   Comanda
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
                   Mesa/Cliente
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
                   Estado
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
                   Total
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
                   Fecha
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-stone-500">
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-stone-700">
                   Acciones
                 </th>
               </tr>
@@ -225,19 +235,7 @@ export default function ComandasPage() {
                   </td>
                   <td className="whitespace-nowrap px-6 py-4">
                     <span
-                      className={`app-badge ${
-                        comanda.estado === 'PENDIENTE'
-                          ? 'border-yellow-200 bg-yellow-50 text-yellow-800'
-                          : comanda.estado === 'EN_PREPARACION'
-                            ? 'border-amber-200 bg-amber-50 text-amber-800'
-                            : comanda.estado === 'LISTO'
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : comanda.estado === 'SERVIDO'
-                                ? 'border-sky-200 bg-sky-50 text-sky-700'
-                                : comanda.estado === 'PAGADO'
-                                  ? 'border-stone-200 bg-stone-100 text-stone-700'
-                                  : 'border-sky-200 bg-sky-50 text-sky-700'
-                      }`}
+                      className={`app-badge ${badgeClassByEstado(comanda.estado)}`}
                     >
                       {labelComandaEstado(comanda.estado)}
                     </span>
@@ -251,7 +249,7 @@ export default function ComandasPage() {
                   <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">
                     <button
                       onClick={() => router.push(`/dashboard/comandas/${comanda.numeroComanda}`)}
-                      className="text-amber-700 hover:text-amber-900"
+                      className="rounded-sm font-semibold text-amber-800 underline decoration-amber-400 decoration-2 underline-offset-2 transition-colors hover:text-amber-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
                     >
                       Ver
                     </button>

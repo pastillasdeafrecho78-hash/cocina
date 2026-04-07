@@ -120,9 +120,14 @@ export default function ClipCajaSection() {
               </option>
             ))}
           </select>
+          {comandas.length === 0 && (
+            <p className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs text-stone-700 dark:border-stone-700 dark:bg-stone-900/50 dark:text-stone-300">
+              No hay comandas listas para cobrar en este momento.
+            </p>
+          )}
           <button
             type="button"
-            className="text-xs text-[rgb(var(--brand))] hover:underline dark:text-amber-200/90"
+            className="app-btn-secondary w-fit px-3 py-2 text-xs"
             onClick={loadComandas}
           >
             Actualizar lista
@@ -144,7 +149,10 @@ export default function ClipCajaSection() {
           {espera && (
             <div className="rounded-2xl border border-amber-300/80 bg-amber-50/95 p-3 text-sm text-amber-950 dark:border-amber-400/40 dark:bg-amber-950/50 dark:text-amber-50">
               Esperando confirmación del pago en la terminal…
-              <div className="mt-1 font-mono text-xs opacity-90">pinpad: {espera.pinpadId}</div>
+              <details className="mt-1">
+                <summary className="cursor-pointer text-xs font-medium">Ver detalles técnicos</summary>
+                <div className="mt-1 font-mono text-xs opacity-90">pinpad: {espera.pinpadId}</div>
+              </details>
             </div>
           )}
           <button

@@ -19,8 +19,6 @@ interface MesaCardProps {
   tiempoRojoMinutos?: number
   /** En modo status: sin comanda → gris; con comanda → tiempo de espera visible */
   variant?: 'default' | 'status'
-  /** Botón borrar (solo en status). Recibe confirmación antes de llamar. */
-  onDelete?: () => void
   /** Si el padre pasa estos valores, MesaCard no usa setInterval (optimización). */
   waitTime?: string
   colorProgresivo?: string | null
@@ -51,7 +49,6 @@ export default function MesaCard({
   tiempoAmarilloMinutos = 30,
   tiempoRojoMinutos = 60,
   variant = 'default',
-  onDelete,
   waitTime: waitTimeProp,
   colorProgresivo: colorProgresivoProp,
   allItemsEntregados: allItemsEntregadosProp,
@@ -155,28 +152,6 @@ export default function MesaCard({
       : colorProgresivo != null
         ? { backgroundColor: colorProgresivo, transition: 'background-color 1.2s ease' }
         : undefined
-
-  if (onDelete) {
-    return (
-      <div className="relative">
-        <button type="button" onClick={onClick} className={cardClass} style={cardStyle}>
-          {cardContent}
-        </button>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
-          }}
-          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/25 text-sm text-white transition-colors hover:bg-rose-600 z-10"
-          title="Borrar mesa"
-          aria-label="Borrar mesa"
-        >
-          🗑
-        </button>
-      </div>
-    )
-  }
 
   return (
     <button type="button" onClick={onClick} className={cardClass} style={cardStyle}>

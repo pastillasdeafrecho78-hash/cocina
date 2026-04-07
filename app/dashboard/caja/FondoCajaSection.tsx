@@ -202,6 +202,9 @@ export default function FondoCajaSection({ reporte, onRefresh }: FondoCajaSectio
             <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
               Apertura con fondo inicial, operación durante el turno y cierre con arqueo.
             </p>
+            <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
+              Nota: aquí cierras arqueo físico del turno; el Corte Z se ejecuta en la pestaña Resumen.
+            </p>
           </div>
         </div>
 
