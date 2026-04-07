@@ -7,7 +7,7 @@ Sistema de gestión de comandas diseñado para restaurantes, bares y cocinas que
 - **Mapa de Mesas**: Visualización en tiempo real del estado de todas las mesas
 - **Gestión de Comandas**: Creación y seguimiento de comandas
 - **KDS (Kitchen Display System)**: Pantallas para cocina y barra
-- **Sistema de Roles**: MESERO, CAJERO, COCINERO, BARTENDER, ADMIN, GERENTE
+- **Sistema de Roles Híbrido**: permisos legacy + capacidades granulares por membresía
 - **Tiempo Real**: Actualizaciones instantáneas de estado
 - **Tipos de Pedido**: En mesa, para llevar, a domicilio, WhatsApp
 
@@ -16,7 +16,7 @@ Sistema de gestión de comandas diseñado para restaurantes, bares y cocinas que
 - **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes
 - **Base de Datos**: PostgreSQL con Prisma ORM
-- **Autenticación**: JWT (jose)
+- **Autenticación**: NextAuth (JWT session strategy) + validación server-side por tenant
 - **Tiempo Real**: Socket.io (pendiente implementación completa)
 
 ## 📋 Prerequisitos
@@ -108,7 +108,8 @@ npm run db:seed
 │   └── layout.tsx        # Layout principal
 ├── components/           # Componentes reutilizables
 ├── lib/                  # Utilidades y helpers
-│   ├── auth.ts           # Autenticación JWT
+│   ├── auth-server.ts    # Sesión server-side con contexto activo y rol efectivo
+│   ├── permisos.ts       # Permisos legacy + capacidades
 │   ├── prisma.ts         # Cliente Prisma
 │   └── comanda-helpers.ts # Helpers de comandas
 ├── prisma/
@@ -116,16 +117,13 @@ npm run db:seed
 └── middleware.ts         # Middleware de Next.js
 ```
 
-## 🔐 Roles y Permisos
+## 🔐 Multitenancy, roles y permisos
 
-| Rol | Descripción | Permisos |
-|-----|-------------|----------|
-| **MESERO** | Atiende mesas | Ver mesas, crear comandas, ver estado |
-| **CAJERO** | Maneja pagos | Ver comandas, procesar pagos |
-| **COCINERO** | Prepara comida | Ver KDS cocina, actualizar estado items |
-| **BARTENDER** | Prepara bebidas | Ver KDS barra, actualizar estado items |
-| **ADMIN** | Administración | Gestión completa del sistema |
-| **GERENTE** | Supervisión | Ver reportes, ventas, tiempos |
+- El sistema opera por **sucursal** (`Restaurante`) y opcionalmente por **organización** (`Organizacion`).
+- La pertenencia se modela con `SucursalMiembro` y `OrganizacionMiembro`.
+- El contexto activo vive en `activeRestauranteId` / `activeOrganizacionId`.
+- El rol efectivo para autorización se resuelve desde la membresía de la sucursal activa (`SucursalMiembro.rolId`) con fallback de compatibilidad.
+- Los permisos se evalúan con capa híbrida (`lib/permisos.ts`): módulos legacy + capacidades granulares.
 
 ## 📝 Scripts Disponibles
 
@@ -162,13 +160,13 @@ La capa de pagos vive en `lib/payments/` (tipos, interfaz, registro, plugins). L
 - [ ] Generación de PDFs para tickets
 - [ ] Sistema de reportes
 - [ ] Gestión de productos y categorías desde admin
-- [ ] Gestión de usuarios desde admin
+- [x] Gestión de usuarios y roles desde admin
 - [ ] Sistema de notificaciones push
 - [ ] Capa de impresión ESC/POS (ver roadmap)
 
 ## 📚 Documentación
 
-Ver `DOCUMENTACION_TECNICA_APP_COMANDAS.md` para documentación técnica completa.
+Ver `.md/DOCUMENTACION_TECNICA_APP_COMANDAS.md` para documentación técnica completa.
 
 ## 🤝 Contribuir
 

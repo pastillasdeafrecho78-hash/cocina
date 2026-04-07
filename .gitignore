@@ -41,6 +41,9 @@ next-env.d.ts
 *.key
 *.p12
 
+# documentación local de revisión (no versionar)
+/CHATREVIEW/
+
 
 
 
