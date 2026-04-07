@@ -1,6 +1,7 @@
-import type { Usuario } from '@prisma/client'
+import type { OAuthProvider, Usuario } from '@prisma/client'
 import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
+import Facebook from 'next-auth/providers/facebook'
 import Google from 'next-auth/providers/google'
 
 const secret =
@@ -8,6 +9,12 @@ const secret =
 
 const googleConfigured =
   Boolean(process.env.AUTH_GOOGLE_ID) && Boolean(process.env.AUTH_GOOGLE_SECRET)
+const facebookConfigured =
+  Boolean(process.env.AUTH_META_ID) && Boolean(process.env.AUTH_META_SECRET)
+
+function isOAuthProvider(provider: string): provider is OAuthProvider {
+  return provider === 'google' || provider === 'facebook'
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
@@ -41,10 +48,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const ok = await verifyPassword(password, user.password)
         if (!ok) return null
 
+        const restaurante = await prisma.restaurante.findUnique({
+          where: { id: user.restauranteId },
+          select: { organizacionId: true },
+        })
+
         await prisma.usuario
           .update({
             where: { id: user.id },
-            data: { ultimoAcceso: new Date() },
+            data: {
+              ultimoAcceso: new Date(),
+              activeRestauranteId: user.restauranteId,
+              activeOrganizacionId: restaurante?.organizacionId ?? null,
+            },
           })
           .catch(() => {})
 
@@ -75,6 +91,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }),
         ]
       : []),
+    ...(facebookConfigured
+      ? [
+          Facebook({
+            clientId: process.env.AUTH_META_ID!,
+            clientSecret: process.env.AUTH_META_SECRET!,
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     /**
@@ -85,22 +109,81 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
      * - Varios usuarios con el mismo email → rechazar; debe usar email/contraseña y elegir restaurante en login.
      */
     async signIn({ account, profile }) {
-      if (account?.provider !== 'google' || !account.providerAccountId || !profile?.email) {
+      if (
+        !account?.provider ||
+        !isOAuthProvider(account.provider) ||
+        !account.providerAccountId ||
+        !profile?.email
+      ) {
         return true
       }
       const { prisma } = await import('@/lib/prisma')
+      const provider = account.provider
       const email = String(profile.email).toLowerCase()
 
       const existingLink = await prisma.cuentaOAuth.findUnique({
         where: {
           provider_providerAccountId: {
-            provider: 'google',
+            provider,
             providerAccountId: account.providerAccountId,
           },
         },
-        include: { usuario: true },
+        include: {
+          usuario: {
+            include: {
+              restaurante: {
+                select: { organizacionId: true },
+              },
+            },
+          },
+        },
       })
       if (existingLink?.usuario?.activo) {
+        await prisma.sucursalMiembro
+          .upsert({
+            where: {
+              usuarioId_restauranteId: {
+                usuarioId: existingLink.usuario.id,
+                restauranteId: existingLink.usuario.restauranteId,
+              },
+            },
+            create: {
+              usuarioId: existingLink.usuario.id,
+              restauranteId: existingLink.usuario.restauranteId,
+              activo: true,
+              esPrincipal: true,
+            },
+            update: { activo: true },
+          })
+          .catch(() => {})
+        if (existingLink.usuario.restaurante.organizacionId) {
+          await prisma.organizacionMiembro
+            .upsert({
+              where: {
+                usuarioId_organizacionId: {
+                  usuarioId: existingLink.usuario.id,
+                  organizacionId: existingLink.usuario.restaurante.organizacionId,
+                },
+              },
+              create: {
+                usuarioId: existingLink.usuario.id,
+                organizacionId: existingLink.usuario.restaurante.organizacionId,
+                activo: true,
+              },
+              update: { activo: true },
+            })
+            .catch(() => {})
+        }
+        await prisma.usuario
+          .update({
+            where: { id: existingLink.usuario.id },
+            data: {
+              ultimoAcceso: new Date(),
+              activeRestauranteId: existingLink.usuario.restauranteId,
+              activeOrganizacionId: existingLink.usuario.restaurante.organizacionId ?? null,
+            },
+          })
+          .catch(() => {})
         await prisma.auditoria
           .create({
             data: {
@@ -109,7 +192,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               accion: 'LOGIN',
               entidad: 'Usuario',
               entidadId: existingLink.usuario.id,
-              detalles: { via: 'google' },
+              detalles: { via: provider },
             },
           })
           .catch(() => {})
@@ -122,61 +205,90 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           activo: true,
           restaurante: { activo: true },
         },
+        include: {
+          restaurante: {
+            select: {
+              organizacionId: true,
+            },
+          },
+        },
       })
 
       if (sameEmail.length > 1) {
-        return '/login?error=google_multi'
+        return '/login?error=social_multi'
       }
 
       const nombre =
         (profile as { given_name?: string }).given_name ?? email.split('@')[0]
       const apellido = (profile as { family_name?: string }).family_name ?? ''
 
-      let dbUser: Usuario
+      let dbUser: Usuario & { restaurante: { organizacionId: string | null } }
 
       if (sameEmail.length === 1) {
         dbUser = sameEmail[0]
       } else {
-        const activos = await prisma.restaurante.count({ where: { activo: true } })
-        if (activos !== 1) {
-          return '/login?error=google_register'
-        }
-        const unico = await prisma.restaurante.findFirst({
-          where: { activo: true },
-        })
-        if (!unico) return '/login?error=google_register'
-
-        const rol =
-          (await prisma.rol.findFirst({ where: { codigo: 'admin' } })) ??
-          (await prisma.rol.findFirst())
-        if (!rol) return false
-
-        dbUser = await prisma.usuario.create({
-          data: {
-            email,
-            nombre,
-            apellido,
-            password: null,
-            restauranteId: unico.id,
-            rolId: rol.id,
-          },
-        })
+        return '/login?error=social_register'
       }
 
       await prisma.cuentaOAuth.upsert({
         where: {
           provider_providerAccountId: {
-            provider: 'google',
+            provider,
             providerAccountId: account.providerAccountId,
           },
         },
         create: {
           usuarioId: dbUser.id,
-          provider: 'google',
+          provider,
           providerAccountId: account.providerAccountId,
         },
         update: { usuarioId: dbUser.id },
       })
+      await prisma.sucursalMiembro
+        .upsert({
+          where: {
+            usuarioId_restauranteId: {
+              usuarioId: dbUser.id,
+              restauranteId: dbUser.restauranteId,
+            },
+          },
+          create: {
+            usuarioId: dbUser.id,
+            restauranteId: dbUser.restauranteId,
+            activo: true,
+            esPrincipal: true,
+          },
+          update: { activo: true },
+        })
+        .catch(() => {})
+      if (dbUser.restaurante.organizacionId) {
+        await prisma.organizacionMiembro
+          .upsert({
+            where: {
+              usuarioId_organizacionId: {
+                usuarioId: dbUser.id,
+                organizacionId: dbUser.restaurante.organizacionId,
+              },
+            },
+            create: {
+              usuarioId: dbUser.id,
+              organizacionId: dbUser.restaurante.organizacionId,
+              activo: true,
+            },
+            update: { activo: true },
+          })
+          .catch(() => {})
+      }
+      await prisma.usuario
+        .update({
+          where: { id: dbUser.id },
+          data: {
+            ultimoAcceso: new Date(),
+            activeRestauranteId: dbUser.restauranteId,
+            activeOrganizacionId: dbUser.restaurante.organizacionId ?? null,
+          },
+        })
+        .catch(() => {})
 
       await prisma.auditoria
         .create({
@@ -186,7 +298,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             accion: 'LOGIN',
             entidad: 'Usuario',
             entidadId: dbUser.id,
-            detalles: { via: 'google' },
+            detalles: { via: provider },
           },
         })
         .catch(() => {})
@@ -195,21 +307,32 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user, account }) {
       const { prisma } = await import('@/lib/prisma')
-      if (account?.provider === 'google' && account.providerAccountId) {
+      if (account?.provider && isOAuthProvider(account.provider) && account.providerAccountId) {
+        const provider = account.provider
         const link = await prisma.cuentaOAuth.findUnique({
           where: {
             provider_providerAccountId: {
-              provider: 'google',
+              provider,
               providerAccountId: account.providerAccountId,
             },
           },
-          include: { usuario: true },
+          include: {
+            usuario: {
+              include: {
+                restaurante: {
+                  select: { organizacionId: true },
+                },
+              },
+            },
+          },
         })
         if (link?.usuario?.activo) {
           const u = link.usuario
           token.userId = u.id
           token.rolId = u.rolId
-          token.restauranteId = u.restauranteId
+          token.restauranteId = u.activeRestauranteId ?? u.restauranteId
+          token.activeRestauranteId = u.activeRestauranteId ?? u.restauranteId
+          token.activeOrganizacionId = u.activeOrganizacionId ?? u.restaurante.organizacionId ?? undefined
           token.email = u.email
           token.name = `${u.nombre} ${u.apellido}`
         }
@@ -223,6 +346,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           select: {
             rolId: true,
             restauranteId: true,
+            activeRestauranteId: true,
+            activeOrganizacionId: true,
             email: true,
             nombre: true,
             apellido: true,
@@ -230,7 +355,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         })
         if (u) {
           token.rolId = u.rolId
-          token.restauranteId = u.restauranteId
+          token.restauranteId = u.activeRestauranteId ?? u.restauranteId
+          token.activeRestauranteId = u.activeRestauranteId ?? u.restauranteId
+          token.activeOrganizacionId = u.activeOrganizacionId ?? undefined
           token.email = u.email
           token.name = `${u.nombre} ${u.apellido}`
         }
@@ -243,6 +370,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.id = token.userId as string
         session.user.rolId = token.rolId as string
         session.user.restauranteId = token.restauranteId as string
+        session.user.activeRestauranteId = (token.activeRestauranteId as string) ?? undefined
+        session.user.activeOrganizacionId = (token.activeOrganizacionId as string) ?? undefined
         session.user.email = (token.email as string) ?? session.user.email
         session.user.name = (token.name as string) ?? session.user.name
       }

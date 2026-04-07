@@ -1,5 +1,6 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
+import { resolveTenantContext } from '@/lib/tenant'
 
 export type SessionUser = NonNullable<Awaited<ReturnType<typeof getSessionUser>>>
 
@@ -20,7 +21,22 @@ export async function getSessionUser() {
       apellido: true,
       rolId: true,
       restauranteId: true,
+      activeRestauranteId: true,
+      activeOrganizacionId: true,
       activo: true,
+      sucursales: {
+        where: { activo: true, restaurante: { activo: true } },
+        select: {
+          restauranteId: true,
+          esPrincipal: true,
+          restaurante: {
+            select: {
+              organizacionId: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      },
     },
   })
 
@@ -31,8 +47,47 @@ export async function getSessionUser() {
     select: { id: true, nombre: true, permisos: true },
   })
 
+  let activeRestauranteId = user.activeRestauranteId ?? user.restauranteId
+  let activeOrganizacionId = user.activeOrganizacionId ?? null
+
+  const hasMemberships = user.sucursales.length > 0
+  if (hasMemberships) {
+    const activeMembership = user.sucursales.find((m) => m.restauranteId === activeRestauranteId)
+    if (!activeMembership) {
+      const preferred = user.sucursales.find((m) => m.esPrincipal) ?? user.sucursales[0]
+      activeRestauranteId = preferred.restauranteId
+      activeOrganizacionId = preferred.restaurante.organizacionId ?? null
+    } else if (!activeOrganizacionId) {
+      activeOrganizacionId = activeMembership.restaurante.organizacionId ?? null
+    }
+  }
+
+  if (
+    activeRestauranteId !== user.activeRestauranteId ||
+    activeOrganizacionId !== user.activeOrganizacionId
+  ) {
+    await prisma.usuario
+      .update({
+        where: { id: user.id },
+        data: {
+          activeRestauranteId,
+          activeOrganizacionId,
+        },
+      })
+      .catch(() => {})
+  }
+
+  const ctx = resolveTenantContext({
+    restauranteId: user.restauranteId,
+    activeRestauranteId,
+    activeOrganizacionId,
+  })
+
   return {
     ...user,
+    restauranteId: ctx.restauranteId,
+    activeRestauranteId: ctx.activeRestauranteId,
+    activeOrganizacionId: ctx.activeOrganizacionId,
     rol,
   }
 }

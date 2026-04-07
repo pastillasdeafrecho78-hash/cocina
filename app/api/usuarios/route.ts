@@ -101,31 +101,80 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await hashPassword(data.password)
 
-    const nuevoUsuario = await prisma.usuario.create({
-      data: {
-        restauranteId: user.restauranteId,
-        nombre: data.nombre.trim(),
-        apellido: data.apellido.trim(),
-        email: data.email.toLowerCase().trim(),
-        password: hashedPassword,
-        rolId: data.rolId,
-      },
-      select: {
-        id: true,
-        email: true,
-        nombre: true,
-        apellido: true,
-        activo: true,
-        rolId: true,
-        rol: {
-          select: {
-            id: true,
-            nombre: true,
-            codigo: true,
+    const nuevoUsuario = await prisma.$transaction(async (tx) => {
+      const baseRestaurante = await tx.restaurante.findUnique({
+        where: { id: user.restauranteId },
+        select: { organizacionId: true },
+      })
+
+      const created = await tx.usuario.create({
+        data: {
+          restauranteId: user.restauranteId,
+          activeRestauranteId: user.restauranteId,
+          activeOrganizacionId: baseRestaurante?.organizacionId ?? null,
+          nombre: data.nombre.trim(),
+          apellido: data.apellido.trim(),
+          email: data.email.toLowerCase().trim(),
+          password: hashedPassword,
+          rolId: data.rolId,
+        },
+        select: {
+          id: true,
+          email: true,
+          nombre: true,
+          apellido: true,
+          activo: true,
+          rolId: true,
+          rol: {
+            select: {
+              id: true,
+              nombre: true,
+              codigo: true,
+            },
+          },
+          createdAt: true,
+        },
+      })
+
+      await tx.sucursalMiembro.upsert({
+        where: {
+          usuarioId_restauranteId: {
+            usuarioId: created.id,
+            restauranteId: user.restauranteId,
           },
         },
-        createdAt: true,
-      },
+        create: {
+          usuarioId: created.id,
+          restauranteId: user.restauranteId,
+          esPrincipal: true,
+          activo: true,
+        },
+        update: {
+          activo: true,
+        },
+      })
+
+      if (baseRestaurante?.organizacionId) {
+        await tx.organizacionMiembro.upsert({
+          where: {
+            usuarioId_organizacionId: {
+              usuarioId: created.id,
+              organizacionId: baseRestaurante.organizacionId,
+            },
+          },
+          create: {
+            usuarioId: created.id,
+            organizacionId: baseRestaurante.organizacionId,
+            esOwner: false,
+            activo: true,
+          },
+          update: {
+            activo: true,
+          },
+        })
+      }
+
+      return created
     })
 
     return NextResponse.json(

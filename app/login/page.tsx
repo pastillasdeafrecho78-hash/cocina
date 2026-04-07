@@ -6,7 +6,12 @@ import toast from 'react-hot-toast'
 import BrandLogo from '@/components/BrandLogo'
 import ThemeToggle from '@/components/ThemeToggle'
 
-type ChooseOption = { restauranteId: string; nombre: string }
+type ChooseOption = {
+  restauranteId: string
+  nombre: string
+  slug?: string | null
+  organizacionNombre?: string | null
+}
 
 export default function LoginPage() {
   const [activeTheme, setActiveTheme] = useState<'light' | 'dark'>('light')
@@ -33,6 +38,14 @@ export default function LoginPage() {
       toast.error(
         'No hay cuenta con Google para este entorno. Regístrate o pide una invitación.'
       )
+    }
+    if (e === 'social_multi') {
+      toast.error(
+        'Tu email está vinculado a varias sucursales. Inicia con contraseña y elige la sucursal.'
+      )
+    }
+    if (e === 'social_register') {
+      toast.error('Necesitas registro o invitación para vincular inicio social.')
     }
   }, [])
 
@@ -167,9 +180,23 @@ export default function LoginPage() {
     }
   }
 
+  const handleMeta = async () => {
+    setLoading(true)
+    try {
+      await signIn('facebook', { callbackUrl: '/dashboard' })
+    } catch {
+      toast.error('Error al iniciar con Meta')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const googleEnabled =
     typeof process !== 'undefined' &&
     Boolean(process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED)
+  const metaEnabled =
+    typeof process !== 'undefined' &&
+    Boolean(process.env.NEXT_PUBLIC_AUTH_META_ENABLED)
 
   return (
     <div className="app-login-shell px-4 py-7 lg:py-10">
@@ -246,6 +273,7 @@ export default function LoginPage() {
                         />
                         <span className="font-medium text-stone-900 dark:text-stone-100">
                           {opt.nombre}
+                          {opt.organizacionNombre ? ` · ${opt.organizacionNombre}` : ''}
                         </span>
                       </label>
                     ))}
@@ -310,17 +338,31 @@ export default function LoginPage() {
                     : 'Iniciar sesión'}
               </button>
 
-              {step === 'form' && googleEnabled && (
+              {step === 'form' && (googleEnabled || metaEnabled) && (
                 <>
                   <div className="relative py-2 text-center text-xs text-stone-500">o</div>
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => void handleGoogle()}
-                    className="app-btn-secondary w-full border-stone-300"
-                  >
-                    Continuar con Google
-                  </button>
+                  <div className="space-y-2">
+                    {googleEnabled && (
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => void handleGoogle()}
+                        className="app-btn-secondary w-full border-stone-300"
+                      >
+                        Continuar con Google
+                      </button>
+                    )}
+                    {metaEnabled && (
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={() => void handleMeta()}
+                        className="app-btn-secondary w-full border-stone-300"
+                      >
+                        Continuar con Meta
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </form>

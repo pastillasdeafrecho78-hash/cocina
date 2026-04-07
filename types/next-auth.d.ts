@@ -6,6 +6,8 @@ declare module 'next-auth' {
       id: string
       rolId: string
       restauranteId: string
+      activeRestauranteId?: string
+      activeOrganizacionId?: string
     } & DefaultSession['user']
   }
 }
@@ -15,5 +17,7 @@ declare module 'next-auth/jwt' {
     userId?: string
     rolId?: string
     restauranteId?: string
+    activeRestauranteId?: string
+    activeOrganizacionId?: string
   }
 }

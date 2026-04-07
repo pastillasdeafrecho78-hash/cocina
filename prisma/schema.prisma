@@ -33,6 +33,12 @@ enum EstadoComanda {
   CANCELADO
 }
 
+enum OrigenComanda {
+  STAFF_DASHBOARD
+  PUBLIC_LINK
+  EXTERNAL_API
+}
+
 enum TipoCategoria {
   COMIDA
   BEBIDA
@@ -67,6 +73,7 @@ enum ScopeVistaDashboard {
 
 enum OAuthProvider {
   google
+  facebook
 }
 
 model Organizacion {
@@ -76,7 +83,9 @@ model Organizacion {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurantes Restaurante[]
+  restaurantes  Restaurante[]
+  miembros      OrganizacionMiembro[]
+  usuariosActivos Usuario[] @relation("UsuarioActiveOrganizacion")
 }
 
 model Rol {
@@ -104,6 +113,7 @@ model Restaurante {
   organizacion   Organizacion? @relation(fields: [organizacionId], references: [id], onDelete: SetNull)
 
   usuarios                 Usuario[]
+  usuariosActivos          Usuario[]          @relation("UsuarioActiveRestaurante")
   mesas                    Mesa[]
   clientes                 Cliente[]
   comandas                 Comanda[]
@@ -119,6 +129,8 @@ model Restaurante {
   terminalesClip           ClipTerminal[]
   turnosCaja               TurnoCaja[]
   invitaciones             Invitacion[]
+  miembrosSucursal         SucursalMiembro[]
+  integracionPedidosApi    IntegracionPedidosApi?
 
   @@index([organizacionId])
 }
@@ -131,6 +143,8 @@ model Usuario {
   password     String?
   rolId        String
   restauranteId String
+  activeOrganizacionId String?
+  activeRestauranteId  String?
   activo       Boolean   @default(true)
   ultimoAcceso DateTime?
   createdAt    DateTime  @default(now())
@@ -138,6 +152,10 @@ model Usuario {
 
   rol               Rol                @relation(fields: [rolId], references: [id], onDelete: Restrict)
   restaurante       Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  activeOrganizacion Organizacion?     @relation("UsuarioActiveOrganizacion", fields: [activeOrganizacionId], references: [id], onDelete: SetNull)
+  activeRestaurante  Restaurante?      @relation("UsuarioActiveRestaurante", fields: [activeRestauranteId], references: [id], onDelete: SetNull)
+  organizaciones    OrganizacionMiembro[]
+  sucursales        SucursalMiembro[]
   cuentasOAuth      CuentaOAuth[]
   comandasCreadas   Comanda[]          @relation("ComandaCreadaPor")
   comandasAsignadas Comanda[]          @relation("ComandaAsignadaA")
@@ -151,6 +169,40 @@ model Usuario {
 
   @@unique([restauranteId, email])
   @@index([rolId])
+  @@index([restauranteId])
+  @@index([activeOrganizacionId])
+  @@index([activeRestauranteId])
+}
+
+model OrganizacionMiembro {
+  id            String   @id @default(cuid())
+  usuarioId     String
+  organizacionId String
+  esOwner       Boolean  @default(false)
+  activo        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  usuario      Usuario      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, organizacionId])
+  @@index([organizacionId])
+}
+
+model SucursalMiembro {
+  id            String   @id @default(cuid())
+  usuarioId     String
+  restauranteId String
+  activo        Boolean  @default(true)
+  esPrincipal   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  usuario     Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, restauranteId])
   @@index([restauranteId])
 }
 
@@ -243,6 +295,7 @@ model Comanda {
   mesaId          String?
   clienteId       String?
   tipoPedido      TipoPedido    @default(EN_MESA)
+  origen          OrigenComanda @default(STAFF_DASHBOARD)
   estado          EstadoComanda @default(PENDIENTE)
   total           Float
   propina         Float?        @default(0)
@@ -253,6 +306,9 @@ model Comanda {
   fechaCompletado DateTime?
   fechaCancelacion DateTime?
   fechaEntrega    DateTime?
+  publicTokenHash String?       @unique
+  externalOrderId String?
+  externalSource  String?
   creadoPorId     String
   asignadoAId     String?
   canceladoPorId  String?
@@ -281,6 +337,18 @@ model Comanda {
   @@index([estado, fechaCreacion])
   @@index([estado, fechaCompletado])
   @@index([restauranteId])
+  @@unique([restauranteId, externalOrderId])
+}
+
+model IntegracionPedidosApi {
+  id           String   @id @default(cuid())
+  restauranteId String  @unique
+  apiKeyHash   String
+  activo       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
 }
 
 model Categoria {

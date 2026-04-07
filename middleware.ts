@@ -14,6 +14,7 @@ function isPublicApi(pathname: string): boolean {
   if (pathname === '/api/auth/signout') return true
   if (pathname === '/api/health') return true
   if (pathname.startsWith('/api/webhooks/')) return true
+  if (pathname.startsWith('/api/public/')) return true
   return false
 }
 

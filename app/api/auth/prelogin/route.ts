@@ -54,19 +54,42 @@ export async function POST(request: NextRequest) {
     const restauranteIds = [...new Set(usuarios.map((u) => u.restauranteId))]
     const restaurantes = await prisma.restaurante.findMany({
       where: { id: { in: restauranteIds }, activo: true },
-      select: { id: true, nombre: true },
+      select: {
+        id: true,
+        nombre: true,
+        slug: true,
+        organizacion: {
+          select: { id: true, nombre: true },
+        },
+      },
     })
-    const nombrePorRestaurante = new Map(restaurantes.map((r) => [r.id, r.nombre]))
+    const metaPorRestaurante = new Map(
+      restaurantes.map((r) => [
+        r.id,
+        {
+          nombre: r.nombre,
+          slug: r.slug,
+          organizacionNombre: r.organizacion?.nombre ?? null,
+        },
+      ])
+    )
 
-    const matches: { restauranteId: string; nombre: string }[] = []
+    const matches: {
+      restauranteId: string
+      nombre: string
+      slug: string | null
+      organizacionNombre: string | null
+    }[] = []
     for (const u of usuarios) {
-      const nombre = nombrePorRestaurante.get(u.restauranteId)
-      if (!nombre || !u.password) continue
+      const meta = metaPorRestaurante.get(u.restauranteId)
+      if (!meta || !u.password) continue
       const ok = await verifyPassword(password, u.password)
       if (ok) {
         matches.push({
           restauranteId: u.restauranteId,
-          nombre,
+          nombre: meta.nombre,
+          slug: meta.slug,
+          organizacionNombre: meta.organizacionNombre,
         })
       }
     }

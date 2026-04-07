@@ -58,16 +58,55 @@ export async function POST(request: NextRequest) {
     const passwordHash = await hashPassword(data.password)
 
     await prisma.$transaction(async (tx) => {
-      await tx.usuario.create({
+      const restaurante = await tx.restaurante.findUnique({
+        where: { id: inv.restauranteId },
+        select: { organizacionId: true },
+      })
+
+      const createdUser = await tx.usuario.create({
         data: {
           email,
           nombre: data.nombre.trim(),
           apellido: data.apellido.trim(),
           password: passwordHash,
           restauranteId: inv.restauranteId,
+          activeRestauranteId: inv.restauranteId,
+          activeOrganizacionId: restaurante?.organizacionId ?? null,
           rolId: inv.rolId,
         },
       })
+      await tx.sucursalMiembro.upsert({
+        where: {
+          usuarioId_restauranteId: {
+            usuarioId: createdUser.id,
+            restauranteId: inv.restauranteId,
+          },
+        },
+        create: {
+          usuarioId: createdUser.id,
+          restauranteId: inv.restauranteId,
+          esPrincipal: true,
+          activo: true,
+        },
+        update: { activo: true },
+      })
+      if (restaurante?.organizacionId) {
+        await tx.organizacionMiembro.upsert({
+          where: {
+            usuarioId_organizacionId: {
+              usuarioId: createdUser.id,
+              organizacionId: restaurante.organizacionId,
+            },
+          },
+          create: {
+            usuarioId: createdUser.id,
+            organizacionId: restaurante.organizacionId,
+            esOwner: false,
+            activo: true,
+          },
+          update: { activo: true },
+        })
+      }
       await tx.invitacion.update({
         where: { id: inv.id },
         data: { usadaEn: new Date() },

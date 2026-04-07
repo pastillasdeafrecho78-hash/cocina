@@ -6,12 +6,31 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Iniciando seed...')
 
+  let organizacion = await prisma.organizacion.findFirst({
+    where: { nombre: 'Organización principal' },
+  })
+  if (!organizacion) {
+    organizacion = await prisma.organizacion.create({
+      data: { nombre: 'Organización principal' },
+    })
+  }
+
   let restaurante = await prisma.restaurante.findUnique({
     where: { slug: 'principal' },
   })
   if (!restaurante) {
     restaurante = await prisma.restaurante.create({
-      data: { nombre: 'Restaurante principal', slug: 'principal' },
+      data: {
+        nombre: 'Restaurante principal',
+        slug: 'principal',
+        organizacionId: organizacion.id,
+      },
+    })
+  }
+  if (!restaurante.organizacionId) {
+    restaurante = await prisma.restaurante.update({
+      where: { id: restaurante.id },
+      data: { organizacionId: organizacion.id },
     })
   }
   const rid = restaurante.id
@@ -55,6 +74,8 @@ async function main() {
     update: {},
     create: {
       restauranteId: rid,
+      activeRestauranteId: rid,
+      activeOrganizacionId: organizacion.id,
       email: 'admin@restaurante.com',
       nombre: 'Admin',
       apellido: 'Sistema',
@@ -72,6 +93,8 @@ async function main() {
     update: {},
     create: {
       restauranteId: rid,
+      activeRestauranteId: rid,
+      activeOrganizacionId: organizacion.id,
       email: 'mesero@restaurante.com',
       nombre: 'Juan',
       apellido: 'Mesero',
@@ -89,6 +112,8 @@ async function main() {
     update: {},
     create: {
       restauranteId: rid,
+      activeRestauranteId: rid,
+      activeOrganizacionId: organizacion.id,
       email: 'cocinero@restaurante.com',
       nombre: 'Pedro',
       apellido: 'Cocinero',
@@ -176,6 +201,29 @@ async function main() {
     }
   }
   console.log(`✅ ${productos.length} productos`)
+
+  for (const u of [admin, mesero, cocinero]) {
+    await prisma.sucursalMiembro.upsert({
+      where: { usuarioId_restauranteId: { usuarioId: u.id, restauranteId: rid } },
+      update: { activo: true },
+      create: {
+        usuarioId: u.id,
+        restauranteId: rid,
+        esPrincipal: true,
+        activo: true,
+      },
+    })
+    await prisma.organizacionMiembro.upsert({
+      where: { usuarioId_organizacionId: { usuarioId: u.id, organizacionId: organizacion.id } },
+      update: { activo: true, esOwner: u.id === admin.id },
+      create: {
+        usuarioId: u.id,
+        organizacionId: organizacion.id,
+        esOwner: u.id === admin.id,
+        activo: true,
+      },
+    })
+  }
 
   console.log('🎉 Seed OK — Admin admin@restaurante.com / admin123')
 }

@@ -77,7 +77,25 @@ export async function POST(request: NextRequest) {
           apellido: data.apellido.trim(),
           password: passwordHash,
           restauranteId: restaurante.id,
+          activeRestauranteId: restaurante.id,
+          activeOrganizacionId: org.id,
           rolId: rol.id,
+        },
+      })
+      await tx.organizacionMiembro.create({
+        data: {
+          usuarioId: usuario.id,
+          organizacionId: org.id,
+          esOwner: true,
+          activo: true,
+        },
+      })
+      await tx.sucursalMiembro.create({
+        data: {
+          usuarioId: usuario.id,
+          restauranteId: restaurante.id,
+          activo: true,
+          esPrincipal: true,
         },
       })
       await tx.auditoria.create({
