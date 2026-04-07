@@ -52,9 +52,9 @@ export const REPORT_DIMENSIONS: Array<{
     supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
   {
-    value: 'metodoPago',
-    label: 'Por método de pago',
-    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio'],
+    value: 'mesa',
+    label: 'Por mesa',
+    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
   },
   {
     value: 'producto',
@@ -72,14 +72,9 @@ export const REPORT_DIMENSIONS: Array<{
     supportedMetrics: ['ventas', 'productosVendidos'],
   },
   {
-    value: 'mesa',
-    label: 'Por mesa',
-    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
-  },
-  {
-    value: 'usuario',
-    label: 'Por mesero creador',
-    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    value: 'metodoPago',
+    label: 'Por método de pago',
+    supportedMetrics: ['ventas', 'comandas', 'ticketPromedio'],
   },
   {
     value: 'usuarioCreador',

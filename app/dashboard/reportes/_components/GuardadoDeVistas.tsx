@@ -10,6 +10,7 @@ interface GuardadoDeVistasProps {
   onSaveAsNew: () => void
   onSaveCurrent: () => void
   saving: boolean
+  hasUnsavedChanges: boolean
   setIsDefaultView: (value: boolean) => void
   setViewDescription: (value: string) => void
   setViewName: (value: string) => void
@@ -26,6 +27,7 @@ export default function GuardadoDeVistas({
   onSaveAsNew,
   onSaveCurrent,
   saving,
+  hasUnsavedChanges,
   setIsDefaultView,
   setViewDescription,
   setViewName,
@@ -46,6 +48,11 @@ export default function GuardadoDeVistas({
           {views.length} vistas
         </span>
       </div>
+      {hasUnsavedChanges && (
+        <p className="mt-2 text-xs font-medium text-rose-700 dark:text-rose-300">
+          Tienes cambios sin guardar en esta vista.
+        </p>
+      )}
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
         <label className="block">

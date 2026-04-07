@@ -8,7 +8,6 @@ export type ReportDimension =
   | 'categoria'
   | 'envio'
   | 'mesa'
-  | 'usuario'
   | 'usuarioCreador'
   | 'usuarioCancelador'
   | 'motivoCancelacion'
@@ -31,6 +30,21 @@ export interface ReportFilters {
   fechaFin: string
   tipoPedido: string[]
   metodoPago: string[]
+  estados?: string[]
+  creadorIds?: string[]
+  canceladorIds?: string[]
+  motivosCancelacion?: string[]
+}
+
+export interface ReportWidgetFilters {
+  fechaInicio?: string
+  fechaFin?: string
+  estados?: string[]
+  tipoPedido?: string[]
+  metodoPago?: string[]
+  creadorIds?: string[]
+  canceladorIds?: string[]
+  motivosCancelacion?: string[]
 }
 
 export interface ReportWidgetConfig {
@@ -41,6 +55,7 @@ export interface ReportWidgetConfig {
   chartType: ReportChartType
   limit: number
   sort: ReportSortDirection
+  widgetFilters?: ReportWidgetFilters
 }
 
 export interface ReportMetricTotals {

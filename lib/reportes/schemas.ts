@@ -5,6 +5,21 @@ export const reportFiltersSchema = z.object({
   fechaFin: z.string().min(1),
   tipoPedido: z.array(z.string()).default([]),
   metodoPago: z.array(z.string()).default([]),
+  estados: z.array(z.string()).optional().default([]),
+  creadorIds: z.array(z.string()).optional().default([]),
+  canceladorIds: z.array(z.string()).optional().default([]),
+  motivosCancelacion: z.array(z.string()).optional().default([]),
+})
+
+export const reportWidgetFiltersSchema = z.object({
+  fechaInicio: z.string().optional(),
+  fechaFin: z.string().optional(),
+  estados: z.array(z.string()).optional().default([]),
+  tipoPedido: z.array(z.string()).optional().default([]),
+  metodoPago: z.array(z.string()).optional().default([]),
+  creadorIds: z.array(z.string()).optional().default([]),
+  canceladorIds: z.array(z.string()).optional().default([]),
+  motivosCancelacion: z.array(z.string()).optional().default([]),
 })
 
 export const reportWidgetSchema = z.object({
@@ -20,7 +35,6 @@ export const reportWidgetSchema = z.object({
     'categoria',
     'envio',
     'mesa',
-    'usuario',
     'usuarioCreador',
     'usuarioCancelador',
     'motivoCancelacion',
@@ -37,6 +51,7 @@ export const reportWidgetSchema = z.object({
   chartType: z.enum(['kpi', 'bar', 'line', 'donut', 'table']),
   limit: z.number().int().min(1).max(50).default(10),
   sort: z.enum(['asc', 'desc']).default('desc'),
+  widgetFilters: reportWidgetFiltersSchema.optional(),
 })
 
 export const reportQuerySchema = z.object({

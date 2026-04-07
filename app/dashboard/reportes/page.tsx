@@ -13,7 +13,9 @@ export default function ReportesPage() {
     addWidget,
     deleteCurrentView,
     duplicateWidget,
+    filterOptions,
     filters,
+    hasUnsavedChanges,
     isDefaultView,
     loading,
     moveWidget,
@@ -49,6 +51,7 @@ export default function ReportesPage() {
           onSaveAsNew={() => saveCurrentView('create')}
           onSaveCurrent={() => saveCurrentView('update')}
           saving={savingView}
+          hasUnsavedChanges={hasUnsavedChanges}
           setIsDefaultView={setIsDefaultView}
           setViewDescription={setViewDescription}
           setViewName={setViewName}
@@ -72,6 +75,7 @@ export default function ReportesPage() {
           />
 
           <WidgetConfigPanel
+            filterOptions={filterOptions}
             onAddWidget={addWidget}
             onChange={updateWidget}
             selectedWidget={selectedWidget}

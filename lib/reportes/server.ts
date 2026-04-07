@@ -164,6 +164,12 @@ export function normalizeReportFilters(input?: Partial<ReportFilters>): ReportFi
     fechaFin: input?.fechaFin || defaults.fechaFin,
     tipoPedido: Array.isArray(input?.tipoPedido) ? input?.tipoPedido.filter(Boolean) : [],
     metodoPago: Array.isArray(input?.metodoPago) ? input?.metodoPago.filter(Boolean) : [],
+    estados: Array.isArray(input?.estados) ? input?.estados.filter(Boolean) : [],
+    creadorIds: Array.isArray(input?.creadorIds) ? input?.creadorIds.filter(Boolean) : [],
+    canceladorIds: Array.isArray(input?.canceladorIds) ? input?.canceladorIds.filter(Boolean) : [],
+    motivosCancelacion: Array.isArray(input?.motivosCancelacion)
+      ? input?.motivosCancelacion.filter(Boolean)
+      : [],
   }
 }
 
@@ -174,8 +180,12 @@ export function buildReportWhere(
   const fechaInicio = startOfDay(new Date(filters.fechaInicio))
   const fechaFin = endOfDay(new Date(filters.fechaFin))
 
+  const estadosNoCancelados = (filters.estados || []).filter((estado) => estado !== 'CANCELADO')
+
   const where: Prisma.ComandaWhereInput = {
-    estado: 'PAGADO',
+    estado: {
+      in: (estadosNoCancelados.length > 0 ? estadosNoCancelados : ['PAGADO']) as any[],
+    },
     OR: [
       { fechaCompletado: { gte: fechaInicio, lte: fechaFin } },
       { fechaCompletado: null, fechaCreacion: { gte: fechaInicio, lte: fechaFin } },
@@ -188,6 +198,15 @@ export function buildReportWhere(
 
   if (filters.tipoPedido.length > 0) {
     where.tipoPedido = { in: filters.tipoPedido as any[] }
+  }
+  if ((filters.creadorIds || []).length > 0) {
+    where.creadoPorId = { in: filters.creadorIds }
+  }
+  if ((filters.canceladorIds || []).length > 0) {
+    where.canceladoPorId = { in: filters.canceladorIds }
+  }
+  if ((filters.motivosCancelacion || []).length > 0) {
+    where.motivoCancelacion = { in: filters.motivosCancelacion }
   }
 
   return where
@@ -291,7 +310,9 @@ export function buildCancelledReportWhere(
   const fechaFin = endOfDay(new Date(filters.fechaFin))
 
   const where: Prisma.ComandaWhereInput = {
-    estado: 'CANCELADO',
+    estado: {
+      in: ['CANCELADO'] as any[],
+    },
     OR: [
       { fechaCancelacion: { gte: fechaInicio, lte: fechaFin } },
       { fechaCancelacion: null, fechaCreacion: { gte: fechaInicio, lte: fechaFin } },
@@ -304,6 +325,15 @@ export function buildCancelledReportWhere(
 
   if (filters.tipoPedido.length > 0) {
     where.tipoPedido = { in: filters.tipoPedido as any[] }
+  }
+  if ((filters.creadorIds || []).length > 0) {
+    where.creadoPorId = { in: filters.creadorIds }
+  }
+  if ((filters.canceladorIds || []).length > 0) {
+    where.canceladoPorId = { in: filters.canceladorIds }
+  }
+  if ((filters.motivosCancelacion || []).length > 0) {
+    where.motivoCancelacion = { in: filters.motivosCancelacion }
   }
 
   return where
@@ -427,7 +457,6 @@ function getCancelledDimensionSeeds(
       const label = comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Sin mesa'
       return [{ key, label, metrics }]
     }
-    case 'usuario':
     case 'usuarioCreador': {
       const nombre = `${comanda.creadoPor.nombre} ${comanda.creadoPor.apellido}`.trim()
       return [{ key: comanda.creadoPor.id, label: nombre, metrics }]
@@ -489,7 +518,6 @@ function getDimensionSeeds(comanda: ReportBaseComanda, dimension: ReportDimensio
       const label = comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Sin mesa'
       return [{ key, label, metrics: baseMetrics }]
     }
-    case 'usuario':
     case 'usuarioCreador': {
       const nombre = `${comanda.creadoPor.nombre} ${comanda.creadoPor.apellido}`.trim()
       return [{ key: comanda.creadoPor.id, label: nombre, metrics: baseMetrics }]

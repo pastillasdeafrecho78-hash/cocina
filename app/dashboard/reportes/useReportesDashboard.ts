@@ -14,6 +14,7 @@ import {
   DashboardVistaData,
   ReportFilters,
   ReportWidgetConfig,
+  ReportWidgetFilters,
   ReportWidgetResult,
 } from '@/lib/reportes/types'
 
@@ -38,6 +39,32 @@ function createWidget(): ReportWidgetConfig {
     chartType: 'bar',
     limit: 8,
     sort: 'desc',
+    widgetFilters: {},
+  }
+}
+
+function normalizeWidgetFilters(filters?: ReportWidgetFilters): ReportWidgetFilters {
+  return {
+    fechaInicio: filters?.fechaInicio || undefined,
+    fechaFin: filters?.fechaFin || undefined,
+    estados: Array.isArray(filters?.estados) ? filters.estados.filter(Boolean) : [],
+    tipoPedido: Array.isArray(filters?.tipoPedido) ? filters.tipoPedido.filter(Boolean) : [],
+    metodoPago: Array.isArray(filters?.metodoPago) ? filters.metodoPago.filter(Boolean) : [],
+    creadorIds: Array.isArray(filters?.creadorIds) ? filters.creadorIds.filter(Boolean) : [],
+    canceladorIds: Array.isArray(filters?.canceladorIds) ? filters.canceladorIds.filter(Boolean) : [],
+    motivosCancelacion: Array.isArray(filters?.motivosCancelacion)
+      ? filters.motivosCancelacion.filter(Boolean)
+      : [],
+  }
+}
+
+function normalizeWidgetConfig(widget: ReportWidgetConfig): ReportWidgetConfig {
+  const dimension =
+    (widget.dimension as unknown as string) === 'usuario' ? 'usuarioCreador' : widget.dimension
+  return {
+    ...widget,
+    dimension: dimension as ReportWidgetConfig['dimension'],
+    widgetFilters: normalizeWidgetFilters(widget.widgetFilters),
   }
 }
 
@@ -66,7 +93,9 @@ export function useReportesDashboard() {
   })
 
   const [filters, setFilters] = useState<ReportFilters>(initialFilters)
-  const [widgets, setWidgets] = useState<ReportWidgetConfig[]>(getDefaultWidgets())
+  const [widgets, setWidgets] = useState<ReportWidgetConfig[]>(
+    getDefaultWidgets().map(normalizeWidgetConfig)
+  )
   const [results, setResults] = useState<Record<string, ReportWidgetResult>>({})
   const [views, setViews] = useState<DashboardVistaData[]>([])
   const [activeViewId, setActiveViewId] = useState<string | null>(null)
@@ -77,6 +106,12 @@ export function useReportesDashboard() {
   const [loading, setLoading] = useState(true)
   const [savingView, setSavingView] = useState(false)
   const [isBootstrapped, setIsBootstrapped] = useState(false)
+  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null)
+  const [filterOptions, setFilterOptions] = useState<{
+    creadores: Array<{ id: string; label: string }>
+    canceladores: Array<{ id: string; label: string }>
+    motivosCancelacion: string[]
+  }>({ creadores: [], canceladores: [], motivosCancelacion: [] })
 
   const activeView = useMemo(
     () => views.find((view) => view.id === activeViewId) || null,
@@ -97,11 +132,25 @@ export function useReportesDashboard() {
           chartType: widget.chartType,
           limit: widget.limit,
           sort: widget.sort,
+          widgetFilters: widget.widgetFilters,
         }))
       ),
     [widgets]
   )
   const widgetsForQuery = useMemo(() => widgets, [widgetsQuerySignature])
+  const currentConfigSignature = useMemo(
+    () =>
+      JSON.stringify({
+        viewName: viewName.trim(),
+        viewDescription: viewDescription.trim(),
+        isDefaultView,
+        filters,
+        widgets,
+      }),
+    [filters, isDefaultView, viewDescription, viewName, widgets]
+  )
+  const hasUnsavedChanges =
+    lastSavedSignature !== null && currentConfigSignature !== lastSavedSignature
 
   const syncQueryString = useCallback(
     (nextFilters: ReportFilters) => {
@@ -131,7 +180,7 @@ export function useReportesDashboard() {
   const hydrateFromView = useCallback(
     (view: DashboardVistaData | null) => {
       if (!view) {
-        const defaultWidgets = getDefaultWidgets()
+        const defaultWidgets = getDefaultWidgets().map(normalizeWidgetConfig)
         setFilters(initialFilters)
         setWidgets(defaultWidgets)
         setSelectedWidgetId(defaultWidgets[0]?.id || null)
@@ -139,16 +188,36 @@ export function useReportesDashboard() {
         setViewName('Mi tablero')
         setViewDescription('')
         setIsDefaultView(false)
+        setLastSavedSignature(
+          JSON.stringify({
+            viewName: 'Mi tablero',
+            viewDescription: '',
+            isDefaultView: false,
+            filters: initialFilters,
+            widgets: defaultWidgets,
+          })
+        )
         return
       }
 
+      const hydratedFilters = hasInitialUrlOverrides ? initialFilters : view.filtros
+      const normalizedWidgets = view.widgets.map(normalizeWidgetConfig)
       setActiveViewId(view.id)
-      setFilters(hasInitialUrlOverrides ? initialFilters : view.filtros)
-      setWidgets(view.widgets)
-      setSelectedWidgetId(view.widgets[0]?.id || null)
+      setFilters(hydratedFilters)
+      setWidgets(normalizedWidgets)
+      setSelectedWidgetId(normalizedWidgets[0]?.id || null)
       setViewName(view.nombre)
       setViewDescription(view.descripcion || '')
       setIsDefaultView(view.esDefault)
+      setLastSavedSignature(
+        JSON.stringify({
+          viewName: view.nombre.trim(),
+          viewDescription: (view.descripcion || '').trim(),
+          isDefaultView: view.esDefault,
+          filters: hydratedFilters,
+          widgets: normalizedWidgets,
+        })
+      )
     },
     [hasInitialUrlOverrides, initialFilters]
   )
@@ -163,9 +232,18 @@ export function useReportesDashboard() {
         hydrateFromView(loadedViews.find((view) => view.esDefault) || loadedViews[0])
       } else {
         setFilters(initialFilters)
-        const defaultWidgets = getDefaultWidgets()
+        const defaultWidgets = getDefaultWidgets().map(normalizeWidgetConfig)
         setWidgets(defaultWidgets)
         setSelectedWidgetId(defaultWidgets[0]?.id || null)
+        setLastSavedSignature(
+          JSON.stringify({
+            viewName: 'Mi tablero',
+            viewDescription: '',
+            isDefaultView: false,
+            filters: initialFilters,
+            widgets: defaultWidgets,
+          })
+        )
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudieron cargar las vistas'
@@ -175,6 +253,44 @@ export function useReportesDashboard() {
       setLoading(false)
     }
   }, [fetchViews, hydrateFromView, initialFilters])
+
+  const fetchFilterOptions = useCallback(async () => {
+    try {
+      const response = await apiFetch('/api/comandas?estado=CANCELADO,PAGADO&limit=200', {
+        headers: {},
+      })
+      const data = await response.json()
+      if (!response.ok || !data.success) return
+      const comandas = Array.isArray(data.data) ? data.data : []
+      const creadores = new Map<string, string>()
+      const canceladores = new Map<string, string>()
+      const motivos = new Set<string>()
+      for (const comanda of comandas) {
+        if (comanda?.creadoPor?.id) {
+          creadores.set(
+            comanda.creadoPor.id,
+            `${comanda.creadoPor.nombre || ''} ${comanda.creadoPor.apellido || ''}`.trim()
+          )
+        }
+        if (comanda?.canceladoPor?.id) {
+          canceladores.set(
+            comanda.canceladoPor.id,
+            `${comanda.canceladoPor.nombre || ''} ${comanda.canceladoPor.apellido || ''}`.trim()
+          )
+        }
+        if (typeof comanda?.motivoCancelacion === 'string' && comanda.motivoCancelacion.trim()) {
+          motivos.add(comanda.motivoCancelacion.trim())
+        }
+      }
+      setFilterOptions({
+        creadores: Array.from(creadores.entries()).map(([id, label]) => ({ id, label })),
+        canceladores: Array.from(canceladores.entries()).map(([id, label]) => ({ id, label })),
+        motivosCancelacion: Array.from(motivos.values()).sort((a, b) => a.localeCompare(b)),
+      })
+    } catch {
+      // Opciones auxiliares no críticas.
+    }
+  }, [])
 
   const fetchWidgetResults = useCallback(async () => {
     if (!isBootstrapped) return
@@ -188,12 +304,29 @@ export function useReportesDashboard() {
       }
       const responses = await Promise.all(
         widgetsForQuery.map(async (widget) => {
+          const mergedFilters: ReportFilters = {
+            ...filters,
+            fechaInicio: widget.widgetFilters?.fechaInicio || filters.fechaInicio,
+            fechaFin: widget.widgetFilters?.fechaFin || filters.fechaFin,
+            tipoPedido:
+              (widget.widgetFilters?.tipoPedido || []).length > 0
+                ? widget.widgetFilters!.tipoPedido!
+                : filters.tipoPedido,
+            metodoPago:
+              (widget.widgetFilters?.metodoPago || []).length > 0
+                ? widget.widgetFilters!.metodoPago!
+                : filters.metodoPago,
+            estados: widget.widgetFilters?.estados || [],
+            creadorIds: widget.widgetFilters?.creadorIds || [],
+            canceladorIds: widget.widgetFilters?.canceladorIds || [],
+            motivosCancelacion: widget.widgetFilters?.motivosCancelacion || [],
+          }
           const response = await apiFetch('/api/reportes/query', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-                          },
-            body: JSON.stringify({ filters, widget }),
+            },
+            body: JSON.stringify({ filters: mergedFilters, widget }),
           })
           const data = await response.json()
 
@@ -205,9 +338,7 @@ export function useReportesDashboard() {
         })
       )
 
-      setResults(
-        Object.fromEntries(responses.map((item) => [item.widgetId, item]))
-      )
+      setResults(Object.fromEntries(responses.map((item) => [item.widgetId, item])))
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudieron cargar los widgets'
       toast.error(message)
@@ -223,6 +354,11 @@ export function useReportesDashboard() {
   useEffect(() => {
     fetchWidgetResults()
   }, [fetchWidgetResults])
+
+  useEffect(() => {
+    if (!isBootstrapped) return
+    fetchFilterOptions()
+  }, [fetchFilterOptions, isBootstrapped])
 
   useEffect(() => {
     if (!isBootstrapped) return
@@ -256,7 +392,7 @@ export function useReportesDashboard() {
   )
 
   const addWidget = useCallback(() => {
-    const widget = createWidget()
+    const widget = normalizeWidgetConfig(createWidget())
     widget.title = buildWidgetTitle(widget.dimension, widget.metric)
     setWidgets((current) => [...current, widget])
     setSelectedWidgetId(widget.id)
@@ -267,7 +403,7 @@ export function useReportesDashboard() {
       current.map((widget) => {
         if (widget.id !== widgetId) return widget
 
-        const nextWidget = { ...widget, ...patch }
+        const nextWidget = normalizeWidgetConfig({ ...widget, ...patch } as ReportWidgetConfig)
         if (patch.dimension) {
           const supportedMetrics =
             REPORT_DIMENSIONS.find((item) => item.value === patch.dimension)?.supportedMetrics || []
@@ -292,7 +428,7 @@ export function useReportesDashboard() {
       if (!source) return current
 
       const clone = {
-        ...source,
+        ...normalizeWidgetConfig(source),
         id: crypto.randomUUID(),
         title: `${source.title} copia`,
       }
@@ -343,7 +479,7 @@ export function useReportesDashboard() {
           descripcion: viewDescription.trim() || null,
           esDefault: isDefaultView,
           filtros: filters,
-          widgets,
+          widgets: widgets.map(normalizeWidgetConfig),
         }
 
         const url =
@@ -355,7 +491,7 @@ export function useReportesDashboard() {
           method: mode === 'update' && activeViewId ? 'PUT' : 'POST',
           headers: {
             'Content-Type': 'application/json',
-                      },
+          },
           body: JSON.stringify(payload),
         })
         const data = await response.json()
@@ -403,8 +539,7 @@ export function useReportesDashboard() {
       setSavingView(true)
       const response = await apiFetch(`/api/reportes/vistas/${activeViewId}`, {
         method: 'DELETE',
-        headers: {
-                  },
+        headers: {},
       })
       const data = await response.json()
 
@@ -430,7 +565,9 @@ export function useReportesDashboard() {
     addWidget,
     deleteCurrentView,
     duplicateWidget,
+    filterOptions,
     filters,
+    hasUnsavedChanges,
     isBootstrapped,
     isDefaultView,
     loading,
