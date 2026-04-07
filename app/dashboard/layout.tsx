@@ -30,6 +30,8 @@ export default function DashboardLayout({
   const [checking, setChecking] = useState(true)
   const [headerCompact, setHeaderCompact] = useState(false)
   const [tenantData, setTenantData] = useState<{
+    activeOrganizacionId?: string | null
+    activeRestauranteId?: string | null
     current: {
       restauranteId: string
       restauranteNombre: string
@@ -46,7 +48,24 @@ export default function DashboardLayout({
       esPrincipal: boolean
       isActive: boolean
     }>
+    organizations: Array<{
+      organizacionId: string
+      organizacionNombre: string
+      esOwner: boolean
+    }>
+    organizationBranches: Array<{
+      organizacionId: string
+      organizacionNombre: string
+      branches: Array<{
+        restauranteId: string
+        restauranteNombre: string
+        restauranteSlug: string | null
+        esPrincipal: boolean
+        isActive: boolean
+      }>
+    }>
   } | null>(null)
+  const [selectedOrgId, setSelectedOrgId] = useState('')
   const [switchingBranch, setSwitchingBranch] = useState(false)
   const lastScrollYRef = useRef(0)
   const headerCompactRef = useRef(false)
@@ -123,6 +142,8 @@ export default function DashboardLayout({
         const data = (await res.json()) as {
           success?: boolean
           data?: {
+            activeOrganizacionId?: string | null
+            activeRestauranteId?: string | null
             current: {
               restauranteId: string
               restauranteNombre: string
@@ -139,10 +160,32 @@ export default function DashboardLayout({
               esPrincipal: boolean
               isActive: boolean
             }>
+            organizations: Array<{
+              organizacionId: string
+              organizacionNombre: string
+              esOwner: boolean
+            }>
+            organizationBranches: Array<{
+              organizacionId: string
+              organizacionNombre: string
+              branches: Array<{
+                restauranteId: string
+                restauranteNombre: string
+                restauranteSlug: string | null
+                esPrincipal: boolean
+                isActive: boolean
+              }>
+            }>
           }
         }
         if (data.success && data.data) {
           setTenantData(data.data)
+          setSelectedOrgId(
+            data.data.activeOrganizacionId ??
+              data.data.current?.organizacionId ??
+              data.data.organizations[0]?.organizacionId ??
+              ''
+          )
         }
       } catch {
         // no-op: no bloquea la operación principal del layout
@@ -197,17 +240,17 @@ export default function DashboardLayout({
     }
   }, [router])
 
-  const handleSwitchBranch = async (restauranteId: string) => {
+  const handleSwitchContext = async (payload: { restauranteId?: string; organizacionId?: string }) => {
     if (!tenantData || switchingBranch) return
     const currentId = tenantData.current?.restauranteId
-    if (!restauranteId || restauranteId === currentId) return
+    if (payload.restauranteId && payload.restauranteId === currentId) return
     setSwitchingBranch(true)
     try {
       const res = await fetch('/api/auth/context', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
-        body: JSON.stringify({ restauranteId }),
+        body: JSON.stringify(payload),
       })
       const data = (await res.json()) as { success?: boolean; error?: string }
       if (!res.ok || !data.success) {
@@ -231,6 +274,11 @@ export default function DashboardLayout({
       setSwitchingBranch(false)
     }
   }
+
+  const visibleBranches =
+    tenantData?.branches.filter((b) =>
+      selectedOrgId ? (b.organizacionId ?? '__none__') === selectedOrgId : true
+    ) ?? []
 
   if (checking || !user) {
     return (
@@ -297,23 +345,46 @@ export default function DashboardLayout({
           <div className="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center gap-2 justify-start">
             <ThemeToggle />
             {tenantData && tenantData.branches.length > 1 && (
-              <label className="flex items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs text-stone-700 shadow-sm dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-200">
-                <span className="font-semibold">Sucursal activa</span>
-                <select
-                  className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-800 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
-                  value={tenantData.current?.restauranteId ?? ''}
-                  disabled={switchingBranch}
-                  onChange={(e) => void handleSwitchBranch(e.target.value)}
-                >
-                  {tenantData.branches.map((branch) => (
-                    <option key={branch.restauranteId} value={branch.restauranteId}>
-                      {branch.restauranteNombre}
-                      {branch.organizacionNombre ? ` · ${branch.organizacionNombre}` : ''}
-                      {branch.esPrincipal ? ' (principal)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <div className="flex flex-wrap items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs text-stone-700 shadow-sm dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-200">
+                {tenantData.organizations.length > 1 && (
+                  <label className="flex items-center gap-2">
+                    <span className="font-semibold">Organización</span>
+                    <select
+                      className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-800 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
+                      value={selectedOrgId}
+                      disabled={switchingBranch}
+                      onChange={(e) => {
+                        const nextOrgId = e.target.value
+                        setSelectedOrgId(nextOrgId)
+                        void handleSwitchContext({ organizacionId: nextOrgId })
+                      }}
+                    >
+                      {tenantData.organizations.map((org) => (
+                        <option key={org.organizacionId} value={org.organizacionId}>
+                          {org.organizacionNombre}
+                          {org.esOwner ? ' (owner)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                <label className="flex items-center gap-2">
+                  <span className="font-semibold">Sucursal</span>
+                  <select
+                    className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-800 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
+                    value={tenantData.current?.restauranteId ?? ''}
+                    disabled={switchingBranch}
+                    onChange={(e) => void handleSwitchContext({ restauranteId: e.target.value })}
+                  >
+                    {visibleBranches.map((branch) => (
+                      <option key={branch.restauranteId} value={branch.restauranteId}>
+                        {branch.restauranteNombre}
+                        {branch.esPrincipal ? ' (principal)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
             )}
             {navItems.map((item) => (
               <Link key={item.href} href={item.href} className="app-chip hover:border-amber-300 hover:bg-amber-50">

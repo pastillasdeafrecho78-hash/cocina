@@ -5,6 +5,8 @@ import { signIn } from 'next-auth/react'
 import { tienePermiso } from '@/lib/permisos'
 
 type TenancyPayload = {
+  activeOrganizacionId?: string | null
+  activeRestauranteId?: string | null
   current: {
     restauranteId: string
     restauranteNombre: string
@@ -26,6 +28,17 @@ type TenancyPayload = {
     organizacionNombre: string
     esOwner: boolean
   }>
+  organizationBranches: Array<{
+    organizacionId: string
+    organizacionNombre: string
+    branches: Array<{
+      restauranteId: string
+      restauranteNombre: string
+      restauranteSlug: string | null
+      esPrincipal: boolean
+      isActive: boolean
+    }>
+  }>
   oauth: {
     linkedProviders: string[]
     availableProviders: Array<{ provider: string; enabled: boolean }>
@@ -43,6 +56,15 @@ export default function TenantIdentitySection() {
   const [inviteStatus, setInviteStatus] = useState('')
   const [inviteUrl, setInviteUrl] = useState('')
   const [loadingInvite, setLoadingInvite] = useState(false)
+  const [switching, setSwitching] = useState(false)
+  const [selectedOrgId, setSelectedOrgId] = useState('')
+  const [membersData, setMembersData] = useState<Array<Record<string, unknown>>>([])
+  const [membersTitle, setMembersTitle] = useState('')
+  const [membersLoading, setMembersLoading] = useState(false)
+  const [invites, setInvites] = useState<
+    Array<{ id: string; email: string; expiraEn: string; usadaEn: string | null }>
+  >([])
+  const [providerLoading, setProviderLoading] = useState<string | null>(null)
 
   const canManageUsers = useMemo(() => tienePermiso(me, 'usuarios_roles'), [me])
 
@@ -56,6 +78,14 @@ export default function TenantIdentitySection() {
       const meData = (await meRes.json()) as { success?: boolean; data?: unknown }
       if (tenancyData.success && tenancyData.data) setTenancy(tenancyData.data)
       if (meData.success && meData.data) setMe(meData.data)
+      if (tenancyData.success && tenancyData.data) {
+        setSelectedOrgId(
+          tenancyData.data.activeOrganizacionId ??
+            tenancyData.data.current?.organizacionId ??
+            tenancyData.data.organizations[0]?.organizacionId ??
+            ''
+        )
+      }
     }
     void load()
   }, [])
@@ -73,10 +103,90 @@ export default function TenantIdentitySection() {
     void loadRoles()
   }, [canManageUsers])
 
+  useEffect(() => {
+    if (!canManageUsers) return
+    const loadInvites = async () => {
+      const res = await fetch('/api/auth/invites', { credentials: 'same-origin', cache: 'no-store' })
+      const data = (await res.json()) as {
+        success?: boolean
+        data?: Array<{ id: string; email: string; expiraEn: string; usadaEn: string | null }>
+      }
+      if (data.success && Array.isArray(data.data)) {
+        setInvites(data.data)
+      }
+    }
+    void loadInvites()
+  }, [canManageUsers])
+
   const linkedSet = useMemo(
     () => new Set(tenancy?.oauth.linkedProviders ?? []),
     [tenancy?.oauth.linkedProviders]
   )
+
+  const filteredBranches = useMemo(() => {
+    if (!tenancy) return []
+    if (!selectedOrgId) return tenancy.branches
+    return tenancy.branches.filter((b) => (b.organizacionId ?? '__none__') === selectedOrgId)
+  }, [tenancy, selectedOrgId])
+
+  const refreshTenancy = async () => {
+    const res = await fetch('/api/auth/tenancy', { cache: 'no-store', credentials: 'same-origin' })
+    const data = (await res.json()) as { success?: boolean; data?: TenancyPayload }
+    if (data.success && data.data) {
+      setTenancy(data.data)
+      if (!selectedOrgId && data.data.organizations.length) {
+        setSelectedOrgId(data.data.organizations[0].organizacionId)
+      }
+    }
+  }
+
+  const switchContext = async (payload: { restauranteId?: string; organizacionId?: string }) => {
+    setSwitching(true)
+    try {
+      const res = await fetch('/api/auth/context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string }
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo cambiar contexto')
+      await refreshTenancy()
+      const meRes = await fetch('/api/auth/me', { credentials: 'same-origin', cache: 'no-store' })
+      const meData = (await meRes.json()) as { success?: boolean; data?: unknown }
+      if (meData.success && meData.data) {
+        localStorage.setItem('user', JSON.stringify(meData.data))
+      }
+      window.location.href = '/dashboard'
+    } catch (error) {
+      setInviteStatus(error instanceof Error ? error.message : 'Error al cambiar contexto')
+    } finally {
+      setSwitching(false)
+    }
+  }
+
+  const loadMembers = async (scope: 'branch' | 'organization', id: string, title: string) => {
+    setMembersLoading(true)
+    setMembersTitle(title)
+    setMembersData([])
+    try {
+      const res = await fetch(`/api/auth/memberships?scope=${scope}&id=${id}`, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
+      const data = (await res.json()) as {
+        success?: boolean
+        data?: { members?: Array<Record<string, unknown>> }
+        error?: string
+      }
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo cargar miembros')
+      setMembersData(data.data?.members ?? [])
+    } catch (error) {
+      setInviteStatus(error instanceof Error ? error.message : 'No se pudo cargar miembros')
+    } finally {
+      setMembersLoading(false)
+    }
+  }
 
   const createInvite = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -147,6 +257,27 @@ export default function TenantIdentitySection() {
                 {b.restauranteNombre}
                 {b.organizacionNombre ? ` · ${b.organizacionNombre}` : ''}
                 {b.isActive ? ' (activa)' : ''}
+                <div className="mt-1 flex gap-2">
+                  {!b.isActive && (
+                    <button
+                      type="button"
+                      disabled={switching}
+                      onClick={() => void switchContext({ restauranteId: b.restauranteId })}
+                      className="text-xs underline"
+                    >
+                      Cambiar a esta sucursal
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void loadMembers('branch', b.restauranteId, `Miembros de ${b.restauranteNombre}`)
+                    }
+                    className="text-xs underline"
+                  >
+                    Ver miembros
+                  </button>
+                </div>
               </li>
             ))}
             {(tenancy?.branches ?? []).length === 0 && <li>Sin sucursales asociadas</li>}
@@ -159,6 +290,30 @@ export default function TenantIdentitySection() {
               <li key={o.organizacionId}>
                 {o.organizacionNombre}
                 {o.esOwner ? ' (owner)' : ''}
+                <div className="mt-1 flex gap-2">
+                  {tenancy?.activeOrganizacionId !== o.organizacionId && (
+                    <button
+                      type="button"
+                      disabled={switching}
+                      onClick={() => {
+                        setSelectedOrgId(o.organizacionId)
+                        void switchContext({ organizacionId: o.organizacionId })
+                      }}
+                      className="text-xs underline"
+                    >
+                      Cambiar a esta organización
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void loadMembers('organization', o.organizacionId, `Miembros de ${o.organizacionNombre}`)
+                    }
+                    className="text-xs underline"
+                  >
+                    Ver miembros
+                  </button>
+                </div>
               </li>
             ))}
             {(tenancy?.organizations ?? []).length === 0 && <li>Sin organizaciones asociadas</li>}
@@ -170,16 +325,26 @@ export default function TenantIdentitySection() {
         <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
           Vinculación de cuentas (Google / Meta)
         </p>
+        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+          Conecta proveedores para login rápido y vínculo de identidad.
+        </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {tenancy?.oauth.availableProviders.map((p) => (
             <button
               key={p.provider}
               type="button"
-              disabled={!p.enabled}
-              onClick={() => void signIn(p.provider, { callbackUrl: '/dashboard/configuracion' })}
+              disabled={!p.enabled || providerLoading === p.provider}
+              onClick={async () => {
+                setProviderLoading(p.provider)
+                await signIn(p.provider, { callbackUrl: '/dashboard/configuracion' })
+              }}
               className="app-btn-secondary"
             >
-              {linkedSet.has(p.provider) ? `Vinculado: ${p.provider}` : `Vincular ${p.provider}`}
+              {providerLoading === p.provider
+                ? 'Abriendo proveedor...'
+                : linkedSet.has(p.provider)
+                  ? `Vinculado: ${p.provider}`
+                  : `Vincular ${p.provider}`}
             </button>
           ))}
         </div>
@@ -220,6 +385,66 @@ export default function TenantIdentitySection() {
             <p className="mt-1 break-all text-xs text-amber-900 dark:text-amber-100">
               Link: {inviteUrl}
             </p>
+          )}
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-900 dark:text-amber-100">
+              Invitaciones recientes
+            </p>
+            <ul className="mt-2 space-y-1 text-xs text-amber-900 dark:text-amber-100">
+              {invites.slice(0, 6).map((inv) => (
+                <li key={inv.id}>
+                  {inv.email} · {inv.usadaEn ? 'Aceptada' : 'Pendiente'} · expira{' '}
+                  {new Date(inv.expiraEn).toLocaleString('es-MX')}
+                </li>
+              ))}
+              {invites.length === 0 && <li>Sin invitaciones aún.</li>}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-950/55">
+        <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">Selector operativo</p>
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          <select
+            className="app-input"
+            value={selectedOrgId}
+            onChange={(e) => setSelectedOrgId(e.target.value)}
+          >
+            {(tenancy?.organizations ?? []).map((org) => (
+              <option key={org.organizacionId} value={org.organizacionId}>
+                {org.organizacionNombre}
+              </option>
+            ))}
+          </select>
+          <select
+            className="app-input"
+            value={tenancy?.activeRestauranteId ?? ''}
+            onChange={(e) => void switchContext({ restauranteId: e.target.value })}
+          >
+            {filteredBranches.map((b) => (
+              <option key={b.restauranteId} value={b.restauranteId}>
+                {b.restauranteNombre}
+                {b.isActive ? ' (activa)' : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {(membersLoading || membersData.length > 0) && (
+        <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-950/55">
+          <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">{membersTitle}</p>
+          {membersLoading ? (
+            <p className="mt-2 text-sm text-stone-500">Cargando miembros...</p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-sm text-stone-700 dark:text-stone-300">
+              {membersData.map((m, idx) => (
+                <li key={String(m.id ?? idx)}>
+                  {String(m.nombre ?? '')} {String(m.apellido ?? '')} · {String(m.email ?? '')}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       )}

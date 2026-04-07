@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { signIn } from 'next-auth/react'
+import Link from 'next/link'
+import { getProviders, signIn } from 'next-auth/react'
 import toast from 'react-hot-toast'
 import BrandLogo from '@/components/BrandLogo'
 import ThemeToggle from '@/components/ThemeToggle'
@@ -19,13 +20,19 @@ export default function LoginPage() {
   const [step, setStep] = useState<'form' | 'choose'>('form')
   const [chooseOptions, setChooseOptions] = useState<ChooseOption[]>([])
   const [selectedRestauranteId, setSelectedRestauranteId] = useState('')
+  const [availableProviders, setAvailableProviders] = useState<Record<string, unknown>>({})
   const [formData, setFormData] = useState({
     email: '',
     password: '',
   })
 
   useEffect(() => {
-    const e = new URLSearchParams(window.location.search).get('error')
+    const params = new URLSearchParams(window.location.search)
+    const e = params.get('error')
+    const emailHint = params.get('email')
+    if (emailHint) {
+      setFormData((prev) => ({ ...prev, email: emailHint }))
+    }
     if (e === 'OAuthAccountNotLinked' || e === 'Configuration') {
       toast.error('No se pudo completar el inicio con Google.')
     }
@@ -47,6 +54,17 @@ export default function LoginPage() {
     if (e === 'social_register') {
       toast.error('Necesitas registro o invitación para vincular inicio social.')
     }
+    if (params.get('invited') === '1') {
+      toast.success('Invitación aceptada. Inicia sesión para continuar.')
+    }
+  }, [])
+
+  useEffect(() => {
+    const loadProviders = async () => {
+      const providers = await getProviders()
+      if (providers) setAvailableProviders(providers as Record<string, unknown>)
+    }
+    void loadProviders()
   }, [])
 
   useEffect(() => {
@@ -191,12 +209,8 @@ export default function LoginPage() {
     }
   }
 
-  const googleEnabled =
-    typeof process !== 'undefined' &&
-    Boolean(process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED)
-  const metaEnabled =
-    typeof process !== 'undefined' &&
-    Boolean(process.env.NEXT_PUBLIC_AUTH_META_ENABLED)
+  const googleEnabled = Boolean(availableProviders.google)
+  const metaEnabled = Boolean(availableProviders.facebook)
 
   return (
     <div className="app-login-shell px-4 py-7 lg:py-10">
@@ -247,6 +261,12 @@ export default function LoginPage() {
               <p className="app-kicker text-center">Acceso</p>
               <p className="mt-2 text-center text-sm text-stone-600">
                 Inicia sesión con tu email y contraseña.
+              </p>
+              <p className="mt-1 text-center text-sm text-stone-600">
+                ¿No tienes cuenta?{' '}
+                <Link href="/register" className="font-medium text-amber-800 underline dark:text-amber-400">
+                  Crear cuenta
+                </Link>
               </p>
             </div>
 

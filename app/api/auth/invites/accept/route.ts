@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     const passwordHash = await hashPassword(data.password)
 
-    await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       const restaurante = await tx.restaurante.findUnique({
         where: { id: inv.restauranteId },
         select: { organizacionId: true },
@@ -123,9 +123,15 @@ export async function POST(request: NextRequest) {
           },
         })
       }
+
+      return {
+        email,
+        restauranteId: inv.restauranteId,
+        organizacionId: restaurante?.organizacionId ?? null,
+      }
     })
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, data: result })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

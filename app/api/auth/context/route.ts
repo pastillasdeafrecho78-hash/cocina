@@ -7,7 +7,8 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
-  restauranteId: z.string().min(1),
+  organizacionId: z.string().min(1).optional(),
+  restauranteId: z.string().min(1).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -20,23 +21,49 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = bodySchema.parse(body)
 
-    const membership = await prisma.sucursalMiembro.findFirst({
-      where: {
-        usuarioId: user.id,
-        restauranteId: data.restauranteId,
-        activo: true,
-        restaurante: { activo: true },
-      },
-      include: {
-        restaurante: {
-          select: { organizacionId: true },
+    if (!data.organizacionId && !data.restauranteId) {
+      return NextResponse.json(
+        { success: false, error: 'Debes enviar organización o sucursal' },
+        { status: 400 }
+      )
+    }
+
+    let membership: { restauranteId: string; restaurante: { organizacionId: string | null } } | null =
+      null
+
+    if (data.restauranteId) {
+      membership = await prisma.sucursalMiembro.findFirst({
+        where: {
+          usuarioId: user.id,
+          restauranteId: data.restauranteId,
+          activo: true,
+          restaurante: { activo: true },
         },
-      },
-    })
+        include: {
+          restaurante: {
+            select: { organizacionId: true },
+          },
+        },
+      })
+    } else if (data.organizacionId) {
+      membership = await prisma.sucursalMiembro.findFirst({
+        where: {
+          usuarioId: user.id,
+          activo: true,
+          restaurante: { activo: true, organizacionId: data.organizacionId },
+        },
+        include: {
+          restaurante: {
+            select: { organizacionId: true },
+          },
+        },
+        orderBy: [{ esPrincipal: 'desc' }, { createdAt: 'asc' }],
+      })
+    }
 
     if (!membership) {
       return NextResponse.json(
-        { success: false, error: 'No tienes acceso a esta sucursal' },
+        { success: false, error: 'No tienes acceso al contexto solicitado' },
         { status: 403 }
       )
     }

@@ -87,6 +87,8 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: {
+        activeOrganizacionId: freshUser.activeOrganizacionId,
+        activeRestauranteId: freshUser.activeRestauranteId,
         current: currentBranch
           ? {
               restauranteId: currentBranch.restaurante.id,
@@ -109,6 +111,19 @@ export async function GET() {
           organizacionId: m.organizacion.id,
           organizacionNombre: m.organizacion.nombre,
           esOwner: m.esOwner,
+        })),
+        organizationBranches: freshUser.organizaciones.map((m) => ({
+          organizacionId: m.organizacion.id,
+          organizacionNombre: m.organizacion.nombre,
+          branches: freshUser.sucursales
+            .filter((s) => s.restaurante.organizacionId === m.organizacion.id)
+            .map((s) => ({
+              restauranteId: s.restaurante.id,
+              restauranteNombre: s.restaurante.nombre,
+              restauranteSlug: s.restaurante.slug,
+              esPrincipal: s.esPrincipal,
+              isActive: s.restaurante.id === freshUser.activeRestauranteId,
+            })),
         })),
         oauth: {
           linkedProviders,

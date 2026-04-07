@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import toast from 'react-hot-toast'
 import BrandLogo from '@/components/BrandLogo'
 
@@ -31,6 +32,22 @@ export default function RegisterPage() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Error al registrar')
       }
+
+      const restauranteId = data?.data?.restauranteId as string | undefined
+      if (restauranteId) {
+        const signInRes = await signIn('credentials', {
+          email: form.email.trim().toLowerCase(),
+          password: form.password,
+          restauranteId,
+          redirect: false,
+        })
+        if (!signInRes?.error) {
+          toast.success('Cuenta creada y sesión iniciada.')
+          router.push('/dashboard')
+          return
+        }
+      }
+
       toast.success('Cuenta creada. Inicia sesión con tu email y contraseña.')
       router.push('/login')
     } catch (err: unknown) {
