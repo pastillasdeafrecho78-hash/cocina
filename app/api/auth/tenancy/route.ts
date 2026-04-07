@@ -29,6 +29,8 @@ export async function GET() {
                 id: true,
                 nombre: true,
                 slug: true,
+                menuStrategy: true,
+                menuSourceRestauranteId: true,
                 organizacionId: true,
                 organizacion: {
                   select: {
@@ -94,6 +96,8 @@ export async function GET() {
               restauranteId: currentBranch.restaurante.id,
               restauranteNombre: currentBranch.restaurante.nombre,
               restauranteSlug: currentBranch.restaurante.slug,
+              menuStrategy: currentBranch.restaurante.menuStrategy,
+              menuSourceRestauranteId: currentBranch.restaurante.menuSourceRestauranteId,
               organizacionId: currentBranch.restaurante.organizacionId,
               organizacionNombre: currentBranch.restaurante.organizacion?.nombre ?? null,
             }
@@ -102,6 +106,8 @@ export async function GET() {
           restauranteId: s.restaurante.id,
           restauranteNombre: s.restaurante.nombre,
           restauranteSlug: s.restaurante.slug,
+          menuStrategy: s.restaurante.menuStrategy,
+          menuSourceRestauranteId: s.restaurante.menuSourceRestauranteId,
           organizacionId: s.restaurante.organizacionId,
           organizacionNombre: s.restaurante.organizacion?.nombre ?? null,
           esPrincipal: s.esPrincipal,

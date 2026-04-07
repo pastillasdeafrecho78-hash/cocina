@@ -5,8 +5,7 @@ import { apiFetch } from '@/lib/auth-fetch'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
-import { tienePermiso } from '@/lib/permisos'
-import { MODULOS } from '@/lib/permisos'
+import { tienePermiso, MODULOS, PERMISSION_LABELS } from '@/lib/permisos'
 import {
   PlusIcon,
   PencilIcon,
@@ -15,18 +14,6 @@ import {
   UsersIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline'
-
-const MODULO_LABELS: Record<string, string> = {
-  mesas: 'Mesas',
-  comandas: 'Comandas',
-  carta: 'Carta',
-  cocina: 'Cocina',
-  barra: 'Barra',
-  reportes: 'Reportes',
-  caja: 'Caja',
-  configuracion: 'Configuración',
-  usuarios_roles: 'Usuarios y roles',
-}
 
 interface Rol {
   id: string
@@ -723,7 +710,7 @@ export default function AdminRolesPage() {
                         onChange={() => togglePermiso(mod)}
                       />
                       <span className="text-sm">
-                        {MODULO_LABELS[mod] || mod}
+                        {PERMISSION_LABELS[mod] || mod}
                       </span>
                     </label>
                   ))}

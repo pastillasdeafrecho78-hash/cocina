@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
+import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
 
 const createTamanoSchema = z.object({
@@ -24,8 +25,17 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
 
+    if (!tienePermiso(user, 'menu.view')) {
+      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+
     const producto = await prisma.producto.findFirst({
-      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
+      where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
     if (!producto) {
       return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })
@@ -59,12 +69,23 @@ export async function POST(
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
+        { status: 409 }
+      )
+    }
+
     const producto = await prisma.producto.findFirst({
-      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
+      where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
     if (!producto) {
       return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })

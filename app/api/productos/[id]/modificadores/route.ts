@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
+import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
 
 const asignarModificadorSchema = z.object({
@@ -21,8 +22,17 @@ export async function GET(
       )
     }
 
+    if (!tienePermiso(user, 'menu.view')) {
+      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+
     const producto = await prisma.producto.findFirst({
-      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
+      where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
 
     if (!producto) {
@@ -61,15 +71,26 @@ export async function POST(
       )
     }
 
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para asignar extras' },
         { status: 403 }
       )
     }
 
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
+        { status: 409 }
+      )
+    }
+
     const producto = await prisma.producto.findFirst({
-      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
+      where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
 
     if (!producto) {
@@ -83,7 +104,7 @@ export async function POST(
     const data = asignarModificadorSchema.parse(body)
 
     const modificador = await prisma.modificador.findFirst({
-      where: { id: data.modificadorId, restauranteId: user.restauranteId },
+      where: { id: data.modificadorId, restauranteId: menuCtx.menuRestauranteId },
     })
 
     if (!modificador) {
@@ -150,10 +171,21 @@ export async function DELETE(
       )
     }
 
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para quitar extras' },
         { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
+        { status: 409 }
       )
     }
 
@@ -161,7 +193,7 @@ export async function DELETE(
     const data = asignarModificadorSchema.parse(body)
 
     const prodOk = await prisma.producto.findFirst({
-      where: { id: params.id, categoria: { restauranteId: user.restauranteId } },
+      where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
     if (!prodOk) {
       return NextResponse.json(

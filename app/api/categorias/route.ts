@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
+import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
 
 const createCategoriaSchema = z.object({
@@ -30,9 +31,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    if (!tienePermiso(user, 'menu.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos para ver la carta' },
+        { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+
     const categorias = await prisma.categoria.findMany({
       where: {
-        restauranteId: user.restauranteId,
+        restauranteId: menuCtx.menuRestauranteId,
         activa: true,
       },
       include: {
@@ -83,10 +96,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para crear categorías' },
         { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Esta sucursal usa carta compartida. No puedes editarla directamente; usa la sucursal fuente o clona la carta.',
+        },
+        { status: 409 }
       )
     }
 
@@ -96,7 +124,7 @@ export async function POST(request: NextRequest) {
     // Verificar si ya existe una categoría con ese nombre
     const categoriaExistente = await prisma.categoria.findFirst({
       where: {
-        restauranteId: user.restauranteId,
+        restauranteId: menuCtx.menuRestauranteId,
         nombre: data.nombre,
         activa: true,
       },
@@ -111,7 +139,7 @@ export async function POST(request: NextRequest) {
 
     // Obtener el máximo orden para poner la nueva categoría al final
     const maxOrden = await prisma.categoria.aggregate({
-      where: { restauranteId: user.restauranteId },
+      where: { restauranteId: menuCtx.menuRestauranteId },
       _max: {
         orden: true,
       },
@@ -119,7 +147,7 @@ export async function POST(request: NextRequest) {
 
     const categoria = await prisma.categoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: menuCtx.menuRestauranteId,
         nombre: data.nombre,
         descripcion: data.descripcion || null,
         tipo: data.tipo,

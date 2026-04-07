@@ -73,14 +73,21 @@ export default function TenantIdentitySection() {
   const [codeOrgId, setCodeOrgId] = useState('')
   const [codeLoading, setCodeLoading] = useState(false)
   const [newBranchName, setNewBranchName] = useState('')
+  const [branchMenuStrategy, setBranchMenuStrategy] = useState<'empty' | 'clone' | 'shared'>('empty')
+  const [branchMenuSourceId, setBranchMenuSourceId] = useState('')
   const [newOrgName, setNewOrgName] = useState('')
   const [editingOrgName, setEditingOrgName] = useState('')
   const [savingBranch, setSavingBranch] = useState(false)
   const [savingOrg, setSavingOrg] = useState(false)
+  const [closingBranchId, setClosingBranchId] = useState('')
+  const [closingBranchConfirm, setClosingBranchConfirm] = useState('')
+  const [closingOrgConfirm, setClosingOrgConfirm] = useState('')
+  const [closingBranch, setClosingBranch] = useState(false)
+  const [closingOrg, setClosingOrg] = useState(false)
   const [providerLoading, setProviderLoading] = useState<string | null>(null)
 
   const canManageUsers = useMemo(() => tienePermiso(me, 'usuarios_roles'), [me])
-  const canManageConfig = useMemo(() => tienePermiso(me, 'configuracion'), [me])
+  const canManageConfig = useMemo(() => tienePermiso(me, 'settings.manage'), [me])
 
   useEffect(() => {
     const load = async () => {
@@ -144,6 +151,11 @@ export default function TenantIdentitySection() {
     if (!selectedOrgId) return tenancy.branches
     return tenancy.branches.filter((b) => (b.organizacionId ?? '__none__') === selectedOrgId)
   }, [tenancy, selectedOrgId])
+
+  const selectedBranchToClose = useMemo(
+    () => tenancy?.branches.find((b) => b.restauranteId === closingBranchId) ?? null,
+    [closingBranchId, tenancy?.branches]
+  )
 
   const refreshTenancy = async () => {
     const res = await fetch('/api/auth/tenancy', { cache: 'no-store', credentials: 'same-origin' })
@@ -257,17 +269,83 @@ export default function TenantIdentitySection() {
         body: JSON.stringify({
           nombre: newBranchName.trim(),
           organizacionId: selectedOrgId || undefined,
+          menuStrategy: branchMenuStrategy,
+          menuSourceRestauranteId:
+            branchMenuStrategy === 'clone' || branchMenuStrategy === 'shared'
+              ? branchMenuSourceId || undefined
+              : undefined,
         }),
       })
       const data = (await res.json()) as { success?: boolean; error?: string }
       if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo crear sucursal')
       setStatus('Sucursal creada')
       setNewBranchName('')
+      setBranchMenuSourceId('')
+      setBranchMenuStrategy('empty')
       await refreshTenancy()
     } catch (error) {
       setStatus(error instanceof Error ? error.message : 'Error creando sucursal')
     } finally {
       setSavingBranch(false)
+    }
+  }
+
+  const closeBranch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedBranchToClose) return
+    setClosingBranch(true)
+    setStatus('')
+    try {
+      const res = await fetch('/api/auth/branches', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          restauranteId: selectedBranchToClose.restauranteId,
+          confirmNombre: closingBranchConfirm.trim(),
+          acknowledge: true,
+        }),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string; data?: { message?: string } }
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo cerrar sucursal')
+      setStatus(data.data?.message ?? 'Sucursal cerrada correctamente')
+      setClosingBranchConfirm('')
+      setClosingBranchId('')
+      await refreshTenancy()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Error cerrando sucursal')
+    } finally {
+      setClosingBranch(false)
+    }
+  }
+
+  const closeOrganization = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedOrgId) return
+    const selectedOrg = tenancy?.organizations.find((o) => o.organizacionId === selectedOrgId)
+    if (!selectedOrg) return
+    setClosingOrg(true)
+    setStatus('')
+    try {
+      const res = await fetch('/api/auth/organization', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          organizacionId: selectedOrgId,
+          confirmNombre: closingOrgConfirm.trim(),
+          acknowledge: true,
+        }),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string; data?: { message?: string } }
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo cerrar organización')
+      setStatus(data.data?.message ?? 'Organización cerrada correctamente')
+      setClosingOrgConfirm('')
+      await refreshTenancy()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Error cerrando organización')
+    } finally {
+      setClosingOrg(false)
     }
   }
 
@@ -540,6 +618,33 @@ export default function TenantIdentitySection() {
                 onChange={(e) => setNewBranchName(e.target.value)}
                 placeholder="Nombre de la nueva sucursal"
               />
+              <select
+                className="app-input"
+                value={branchMenuStrategy}
+                onChange={(e) =>
+                  setBranchMenuStrategy(e.target.value as 'empty' | 'clone' | 'shared')
+                }
+              >
+                <option value="empty">Carta vacía (crear desde cero)</option>
+                <option value="clone">Copiar carta de otra sucursal (independiente)</option>
+                <option value="shared">Compartir carta de otra sucursal (vinculada)</option>
+              </select>
+              {(branchMenuStrategy === 'clone' || branchMenuStrategy === 'shared') && (
+                <select
+                  className="app-input"
+                  value={branchMenuSourceId}
+                  onChange={(e) => setBranchMenuSourceId(e.target.value)}
+                >
+                  <option value="">Selecciona sucursal origen de carta</option>
+                  {(tenancy?.branches ?? [])
+                    .filter((b) => b.restauranteId !== tenancy?.activeRestauranteId)
+                    .map((b) => (
+                      <option key={b.restauranteId} value={b.restauranteId}>
+                        {b.restauranteNombre}
+                      </option>
+                    ))}
+                </select>
+              )}
               <button type="submit" disabled={savingBranch} className="app-btn-primary">
                 {savingBranch ? 'Creando...' : 'Crear sucursal'}
               </button>
@@ -573,7 +678,80 @@ export default function TenantIdentitySection() {
                 Actualizar organización activa
               </button>
             </form>
+            <form className="mt-4 space-y-2 rounded-lg border border-red-200 bg-red-50 p-3" onSubmit={closeOrganization}>
+              <p className="text-xs font-semibold text-red-800">
+                Eliminar organización (acción destructiva)
+              </p>
+              <p className="text-xs text-red-700">
+                Esta acción cerrará sus sucursales activas. Algunos datos históricos pueden conservarse por integridad del sistema y analítica.
+              </p>
+              <input
+                className="app-input"
+                placeholder={`Escribe "${tenancy?.organizations.find((o) => o.organizacionId === selectedOrgId)?.organizacionNombre ?? ''}" para confirmar`}
+                value={closingOrgConfirm}
+                onChange={(e) => setClosingOrgConfirm(e.target.value)}
+                disabled={!selectedOrgId}
+              />
+              <button
+                type="submit"
+                disabled={
+                  closingOrg ||
+                  !selectedOrgId ||
+                  closingOrgConfirm.trim() !==
+                    (tenancy?.organizations.find((o) => o.organizacionId === selectedOrgId)?.organizacionNombre ?? '')
+                }
+                className="app-btn-danger"
+              >
+                {closingOrg ? 'Cerrando...' : 'Cerrar organización'}
+              </button>
+            </form>
           </div>
+        </div>
+      )}
+
+      {canManageConfig && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-500/35 dark:bg-red-950/45">
+          <p className="text-sm font-semibold text-red-900 dark:text-red-100">
+            Eliminar sucursal (acción destructiva)
+          </p>
+          <p className="mt-1 text-xs text-red-700 dark:text-red-200">
+            Se cerrará la sucursal seleccionada para operación diaria. Algunos datos históricos pueden conservarse por integridad del sistema y analítica.
+          </p>
+          <form className="mt-3 space-y-2" onSubmit={closeBranch}>
+            <select
+              className="app-input"
+              value={closingBranchId}
+              onChange={(e) => {
+                setClosingBranchId(e.target.value)
+                setClosingBranchConfirm('')
+              }}
+            >
+              <option value="">Selecciona sucursal a cerrar</option>
+              {(tenancy?.branches ?? []).map((b) => (
+                <option key={b.restauranteId} value={b.restauranteId}>
+                  {b.restauranteNombre}
+                </option>
+              ))}
+            </select>
+            <input
+              className="app-input"
+              value={closingBranchConfirm}
+              onChange={(e) => setClosingBranchConfirm(e.target.value)}
+              placeholder={`Escribe "${selectedBranchToClose?.restauranteNombre ?? ''}" para confirmar`}
+              disabled={!selectedBranchToClose}
+            />
+            <button
+              type="submit"
+              disabled={
+                closingBranch ||
+                !selectedBranchToClose ||
+                closingBranchConfirm.trim() !== selectedBranchToClose.restauranteNombre
+              }
+              className="app-btn-danger"
+            >
+              {closingBranch ? 'Cerrando...' : 'Cerrar sucursal'}
+            </button>
+          </form>
         </div>
       )}
 

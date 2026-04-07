@@ -76,6 +76,12 @@ enum OAuthProvider {
   facebook
 }
 
+enum MenuStrategy {
+  EMPTY
+  CLONE
+  SHARED
+}
+
 model Organizacion {
   id        String   @id @default(cuid())
   nombre    String
@@ -108,11 +114,15 @@ model Restaurante {
   nombre    String
   slug      String?  @unique
   activo    Boolean  @default(true)
+  menuStrategy MenuStrategy @default(EMPTY)
+  menuSourceRestauranteId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   organizacionId String?
   organizacion   Organizacion? @relation(fields: [organizacionId], references: [id], onDelete: SetNull)
+  menuSourceRestaurante Restaurante? @relation("RestauranteMenuSource", fields: [menuSourceRestauranteId], references: [id], onDelete: SetNull)
+  menuLinkedRestaurantes Restaurante[] @relation("RestauranteMenuSource")
 
   usuarios                 Usuario[]
   usuariosActivos          Usuario[]          @relation("UsuarioActiveRestaurante")
@@ -136,6 +146,7 @@ model Restaurante {
   codigosVinculacion       CodigoVinculacionSucursal[]
 
   @@index([organizacionId])
+  @@index([menuSourceRestauranteId])
 }
 
 model Usuario {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
+import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
 
 const updateTamanoSchema = z.object({
@@ -22,15 +23,26 @@ export async function PATCH(
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
+        { status: 409 }
+      )
     }
 
     const tamano = await prisma.productoTamano.findFirst({
       where: {
         id: params.tamanoId,
         productoId: params.id,
-        producto: { categoria: { restauranteId: user.restauranteId } },
+        producto: { categoria: { restauranteId: menuCtx.menuRestauranteId } },
       },
     })
     if (!tamano) {
@@ -77,15 +89,26 @@ export async function DELETE(
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
+        { status: 409 }
+      )
     }
 
     const tamano = await prisma.productoTamano.findFirst({
       where: {
         id: params.tamanoId,
         productoId: params.id,
-        producto: { categoria: { restauranteId: user.restauranteId } },
+        producto: { categoria: { restauranteId: menuCtx.menuRestauranteId } },
       },
     })
     if (!tamano) {

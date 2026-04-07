@@ -1,9 +1,10 @@
 /**
- * Sistema de permisos por módulo.
- * Cada módulo corresponde a una tarjeta del dashboard y a un grupo de rutas API.
+ * Sistema de permisos híbrido:
+ * - Legacy por módulo (mesas, carta, caja, ...)
+ * - Granular por capacidad (menu.manage, orders.view, ...)
  */
 
-export const MODULOS = [
+export const MODULOS_LEGACY = [
   'mesas',
   'comandas',
   'carta',
@@ -15,7 +16,84 @@ export const MODULOS = [
   'usuarios_roles',
 ] as const
 
+export const CAPACIDADES = [
+  'menu.view',
+  'menu.manage',
+  'orders.view',
+  'orders.manage',
+  'kitchen.view',
+  'kitchen.manage',
+  'bar.view',
+  'bar.manage',
+  'payments.view',
+  'payments.manage',
+  'reports.view',
+  'settings.view',
+  'settings.manage',
+  'staff.view',
+  'staff.manage',
+] as const
+
+export const MODULOS = [...MODULOS_LEGACY, ...CAPACIDADES] as const
+
 export type Modulo = (typeof MODULOS)[number]
+export type Capacidad = (typeof CAPACIDADES)[number]
+
+const LEGACY_TO_CAPABILITIES: Record<string, readonly string[]> = {
+  carta: ['menu.view', 'menu.manage'],
+  comandas: ['orders.view', 'orders.manage'],
+  cocina: ['kitchen.view', 'kitchen.manage'],
+  barra: ['bar.view', 'bar.manage'],
+  caja: ['payments.view', 'payments.manage'],
+  reportes: ['reports.view'],
+  configuracion: ['settings.view', 'settings.manage'],
+  usuarios_roles: ['staff.view', 'staff.manage'],
+}
+
+const CAPABILITY_TO_LEGACY: Record<string, readonly string[]> = {
+  'menu.view': ['carta'],
+  'menu.manage': ['carta'],
+  'orders.view': ['comandas'],
+  'orders.manage': ['comandas'],
+  'kitchen.view': ['cocina'],
+  'kitchen.manage': ['cocina'],
+  'bar.view': ['barra'],
+  'bar.manage': ['barra'],
+  'payments.view': ['caja'],
+  'payments.manage': ['caja'],
+  'reports.view': ['reportes'],
+  'settings.view': ['configuracion'],
+  'settings.manage': ['configuracion'],
+  'staff.view': ['usuarios_roles'],
+  'staff.manage': ['usuarios_roles'],
+}
+
+export const PERMISSION_LABELS: Record<string, string> = {
+  mesas: 'Mesas',
+  comandas: 'Comandas (legacy)',
+  carta: 'Carta (legacy)',
+  cocina: 'Cocina (legacy)',
+  barra: 'Barra (legacy)',
+  reportes: 'Reportes (legacy)',
+  caja: 'Caja (legacy)',
+  configuracion: 'Configuración (legacy)',
+  usuarios_roles: 'Usuarios y roles (legacy)',
+  'menu.view': 'Ver carta',
+  'menu.manage': 'Gestionar carta',
+  'orders.view': 'Ver comandas',
+  'orders.manage': 'Gestionar comandas',
+  'kitchen.view': 'Ver cocina',
+  'kitchen.manage': 'Gestionar cocina',
+  'bar.view': 'Ver barra',
+  'bar.manage': 'Gestionar barra',
+  'payments.view': 'Ver pagos/caja',
+  'payments.manage': 'Gestionar pagos/caja',
+  'reports.view': 'Ver reportes',
+  'settings.view': 'Ver configuración',
+  'settings.manage': 'Gestionar configuración',
+  'staff.view': 'Ver staff y roles',
+  'staff.manage': 'Gestionar staff y roles',
+}
 
 export interface RolConPermisos {
   id?: string
@@ -36,18 +114,50 @@ function extractPermisos(user: UserConRol | null | undefined): string[] {
   return permisos as string[]
 }
 
+function hasRawPermission(
+  permisos: string[],
+  permission: string
+): boolean {
+  return permisos.includes(permission)
+}
+
+/**
+ * Evalúa permiso con compatibilidad legacy<->capabilities.
+ */
+function hasPermissionWithCompatibility(
+  permisos: string[],
+  permission: string
+): boolean {
+  if (hasRawPermission(permisos, permission)) return true
+  if (permission === '*' || permission === 'admin') return false
+  if (CAPABILITY_TO_LEGACY[permission]?.some((legacy) => hasRawPermission(permisos, legacy))) {
+    return true
+  }
+  if (LEGACY_TO_CAPABILITIES[permission]?.some((cap) => hasRawPermission(permisos, cap))) {
+    return true
+  }
+  return false
+}
+
 /**
  * Comprueba si el usuario tiene permiso para el módulo dado.
  * Si permisos incluye "*" o "admin", tiene acceso total.
  */
 export function tienePermiso(
   user: UserConRol | null | undefined,
-  modulo: string
+  permission: string
 ): boolean {
   const arr = extractPermisos(user)
   if (arr.length === 0) return false
   if (arr.includes('*') || arr.includes('admin')) return true
-  return arr.includes(modulo)
+  return hasPermissionWithCompatibility(arr, permission)
+}
+
+export function tieneAlgunPermiso(
+  user: UserConRol | null | undefined,
+  permissions: string[]
+): boolean {
+  return permissions.some((permission) => tienePermiso(user, permission))
 }
 
 /**
@@ -56,14 +166,14 @@ export function tienePermiso(
  */
 export async function requireModulo(
   getUser: () => Promise<{ rol?: { permisos?: unknown } } | null>,
-  modulo: string
+  permission: string
 ): Promise<{ rol?: { permisos?: unknown }; id: string }> {
   const user = await getUser()
   if (!user) {
     throw { status: 403, message: 'No autenticado' }
   }
-  if (!tienePermiso(user as UserConRol, modulo)) {
-    throw { status: 403, message: 'Sin permisos para este módulo' }
+  if (!tienePermiso(user as UserConRol, permission)) {
+    throw { status: 403, message: 'Sin permisos para esta acción' }
   }
   return user as { rol?: { permisos?: unknown }; id: string }
 }

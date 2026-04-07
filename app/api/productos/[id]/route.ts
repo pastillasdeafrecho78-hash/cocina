@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
+import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
 
 const updateProductoSchema = z.object({
@@ -27,10 +28,21 @@ export async function PATCH(
       )
     }
 
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para editar productos' },
         { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
+        { status: 409 }
       )
     }
 
@@ -41,7 +53,7 @@ export async function PATCH(
     const productoExistente = await prisma.producto.findFirst({
       where: {
         id: params.id,
-        categoria: { restauranteId: user.restauranteId },
+        categoria: { restauranteId: menuCtx.menuRestauranteId },
       },
     })
 
@@ -55,7 +67,7 @@ export async function PATCH(
     // Si se está cambiando la categoría, verificar que existe
     if (data.categoriaId) {
       const categoria = await prisma.categoria.findFirst({
-        where: { id: data.categoriaId, restauranteId: user.restauranteId },
+        where: { id: data.categoriaId, restauranteId: menuCtx.menuRestauranteId },
       })
 
       if (!categoria) {

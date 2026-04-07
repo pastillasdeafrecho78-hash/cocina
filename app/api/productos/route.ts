@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
+import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
 
 const createProductoSchema = z.object({
@@ -24,6 +25,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    if (!tienePermiso(user, 'menu.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos para ver productos de la carta' },
+        { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+
     const { searchParams } = new URL(request.url)
     const categoriaId = searchParams.get('categoriaId')
     const tipo = searchParams.get('tipo') as any
@@ -32,7 +45,11 @@ export async function GET(request: NextRequest) {
     const where: any = {}
     if (categoriaId) where.categoriaId = categoriaId
     if (tipo) {
-      where.categoria = { tipo }
+      where.categoria = { tipo, restauranteId: menuCtx.menuRestauranteId }
+    }
+    where.categoria = {
+      ...(where.categoria ?? {}),
+      restauranteId: menuCtx.menuRestauranteId,
     }
     // Solo filtrar por activo si se pasa explícitamente el parámetro
     // Si no se pasa, traer todos los productos (para gestión de carta)
@@ -82,10 +99,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para crear productos' },
         { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Esta sucursal usa carta compartida. No puedes editarla directamente; usa la sucursal fuente o clona la carta.',
+        },
+        { status: 409 }
       )
     }
 
@@ -94,7 +126,7 @@ export async function POST(request: NextRequest) {
 
     // Verificar que la categoría existe
     const categoria = await prisma.categoria.findFirst({
-      where: { id: data.categoriaId, restauranteId: user.restauranteId },
+      where: { id: data.categoriaId, restauranteId: menuCtx.menuRestauranteId },
     })
 
     if (!categoria) {

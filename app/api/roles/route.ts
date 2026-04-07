@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!tienePermiso(user, 'usuarios_roles')) {
+    if (!tienePermiso(user, 'staff.manage')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
     }
-    if (!tienePermiso(user, 'usuarios_roles')) {
+    if (!tienePermiso(user, 'staff.manage')) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
 

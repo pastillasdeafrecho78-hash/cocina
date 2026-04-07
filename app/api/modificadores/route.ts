@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
+import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
 
 const createModificadorSchema = z.object({
@@ -19,11 +20,22 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       )
     }
+    if (!tienePermiso(user, 'menu.view')) {
+      return NextResponse.json(
+        { success: false, error: 'Sin permisos para ver extras de la carta' },
+        { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
 
     const { searchParams } = new URL(request.url)
     const soloActivos = searchParams.get('activo')
 
-    const where: any = { restauranteId: user.restauranteId }
+    const where: any = { restauranteId: menuCtx.menuRestauranteId }
     if (soloActivos !== null) {
       where.activo = soloActivos === 'true'
     }
@@ -53,10 +65,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!tienePermiso(user, 'carta')) {
+    if (!tienePermiso(user, 'menu.manage')) {
       return NextResponse.json(
         { success: false, error: 'Sin permisos para crear extras' },
         { status: 403 }
+      )
+    }
+
+    const menuCtx = await getMenuContext(user.restauranteId)
+    if (!menuCtx) {
+      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+    }
+    if (menuCtx.isSharedConsumer) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'Esta sucursal usa carta compartida. No puedes editarla directamente; usa la sucursal fuente o clona la carta.',
+        },
+        { status: 409 }
       )
     }
 
@@ -67,7 +94,7 @@ export async function POST(request: NextRequest) {
       where: {
         nombre: data.nombre,
         tipo: data.tipo,
-        restauranteId: user.restauranteId,
+        restauranteId: menuCtx.menuRestauranteId,
       },
     })
 
@@ -80,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     const modificador = await prisma.modificador.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: menuCtx.menuRestauranteId,
         nombre: data.nombre,
         tipo: data.tipo,
         precioExtra: data.precioExtra,
