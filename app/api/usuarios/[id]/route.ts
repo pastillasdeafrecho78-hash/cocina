@@ -34,10 +34,20 @@ export async function PATCH(
     const body = await request.json()
     const data = updateUsuarioSchema.parse(body)
 
-    const existente = await prisma.usuario.findUnique({
-      where: { id: params.id },
+    const existente = await prisma.usuario.findUnique({ where: { id: params.id } })
+    if (!existente) {
+      return NextResponse.json({ success: false, error: 'Usuario no encontrado' }, { status: 404 })
+    }
+
+    const membership = await prisma.sucursalMiembro.findFirst({
+      where: {
+        usuarioId: params.id,
+        restauranteId: user.restauranteId,
+        activo: true,
+      },
+      select: { id: true },
     })
-    if (!existente || existente.restauranteId !== user.restauranteId) {
+    if (!membership) {
       return NextResponse.json({ success: false, error: 'Usuario no encontrado' }, { status: 404 })
     }
 

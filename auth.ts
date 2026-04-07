@@ -166,7 +166,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               activo: true,
               esPrincipal: true,
             },
-            update: { activo: true, rolId: existingLink.usuario.rolId },
+            update: { activo: true },
           })
           .catch(() => {})
         if (existingLink.usuario.restaurante.organizacionId) {
@@ -184,7 +184,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                 rolId: existingLink.usuario.rolId,
                 activo: true,
               },
-              update: { activo: true, rolId: existingLink.usuario.rolId },
+              update: { activo: true },
             })
             .catch(() => {})
         }
@@ -292,7 +292,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             activo: true,
             esPrincipal: true,
           },
-          update: { activo: true, rolId: dbUser.rolId },
+          update: { activo: true },
         })
         .catch(() => {})
       if (dbUser.restaurante.organizacionId) {
@@ -310,7 +310,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               rolId: dbUser.rolId,
               activo: true,
             },
-            update: { activo: true, rolId: dbUser.rolId },
+            update: { activo: true },
           })
           .catch(() => {})
       }
@@ -344,6 +344,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
     async jwt({ token, user, account }) {
       const { prisma } = await import('@/lib/prisma')
+      async function resolveEffectiveRolId(input: {
+        userId: string
+        activeRestauranteId: string | null
+        restauranteId: string
+        fallbackRolId: string
+      }): Promise<string> {
+        const scopeRestauranteId = input.activeRestauranteId ?? input.restauranteId
+        const membership = await prisma.sucursalMiembro.findUnique({
+          where: {
+            usuarioId_restauranteId: {
+              usuarioId: input.userId,
+              restauranteId: scopeRestauranteId,
+            },
+          },
+          select: { rolId: true },
+        })
+        return membership?.rolId ?? input.fallbackRolId
+      }
+
       if (account?.provider && isOAuthProvider(account.provider) && account.providerAccountId) {
         const provider = account.provider
         const link = await prisma.cuentaOAuth.findUnique({
@@ -366,7 +385,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (link?.usuario?.activo) {
           const u = link.usuario
           token.userId = u.id
-          token.rolId = u.rolId
+          token.rolId = await resolveEffectiveRolId({
+            userId: u.id,
+            activeRestauranteId: u.activeRestauranteId,
+            restauranteId: u.restauranteId,
+            fallbackRolId: u.rolId,
+          })
           token.restauranteId = u.activeRestauranteId ?? u.restauranteId
           token.activeRestauranteId = u.activeRestauranteId ?? u.restauranteId
           token.activeOrganizacionId = u.activeOrganizacionId ?? u.restaurante.organizacionId ?? undefined
@@ -391,7 +415,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         })
         if (u) {
-          token.rolId = u.rolId
+          token.rolId = await resolveEffectiveRolId({
+            userId: user.id,
+            activeRestauranteId: u.activeRestauranteId,
+            restauranteId: u.restauranteId,
+            fallbackRolId: u.rolId,
+          })
           token.restauranteId = u.activeRestauranteId ?? u.restauranteId
           token.activeRestauranteId = u.activeRestauranteId ?? u.restauranteId
           token.activeOrganizacionId = u.activeOrganizacionId ?? undefined

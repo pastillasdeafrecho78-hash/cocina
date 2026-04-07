@@ -54,18 +54,19 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: 'asc' },
         select: {
           esPrincipal: true,
+          rolId: true,
+          rol: {
+            select: {
+              id: true,
+              nombre: true,
+            },
+          },
           usuario: {
             select: {
               id: true,
               nombre: true,
               apellido: true,
               email: true,
-              rol: {
-                select: {
-                  id: true,
-                  nombre: true,
-                },
-              },
             },
           },
         },
@@ -81,7 +82,8 @@ export async function GET(request: NextRequest) {
             nombre: m.usuario.nombre,
             apellido: m.usuario.apellido,
             email: m.usuario.email,
-            rol: m.usuario.rol,
+            rol: m.rol,
+            rolId: m.rolId,
             esPrincipal: m.esPrincipal,
           })),
         },
@@ -107,18 +109,19 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: 'asc' },
       select: {
         esOwner: true,
+        rolId: true,
+        rol: {
+          select: {
+            id: true,
+            nombre: true,
+          },
+        },
         usuario: {
           select: {
             id: true,
             nombre: true,
             apellido: true,
             email: true,
-            rol: {
-              select: {
-                id: true,
-                nombre: true,
-              },
-            },
             sucursales: {
               where: { activo: true, restaurante: { organizacionId: id, activo: true } },
               select: {
@@ -145,7 +148,8 @@ export async function GET(request: NextRequest) {
           nombre: m.usuario.nombre,
           apellido: m.usuario.apellido,
           email: m.usuario.email,
-          rol: m.usuario.rol,
+          rol: m.rol,
+          rolId: m.rolId,
           esOwner: m.esOwner,
           sucursales: m.usuario.sucursales.map((s) => ({
             restauranteId: s.restaurante.id,

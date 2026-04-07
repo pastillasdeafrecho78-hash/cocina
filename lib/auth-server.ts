@@ -123,6 +123,9 @@ export async function getSessionUser() {
 
   return {
     ...user,
+    legacyRolId: user.rolId,
+    rolId: effectiveRolId,
+    effectiveRolId,
     restauranteId: ctx.restauranteId,
     activeRestauranteId: ctx.activeRestauranteId,
     activeOrganizacionId: ctx.activeOrganizacionId,

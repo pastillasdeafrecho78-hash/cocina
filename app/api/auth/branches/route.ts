@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = schema.parse(await request.json())
+    const actorRolId = user.effectiveRolId ?? user.rolId
     const orgId = body.organizacionId ?? user.activeOrganizacionId ?? undefined
     const shouldUseSource = body.menuStrategy === 'clone' || body.menuStrategy === 'shared'
     if (shouldUseSource && !body.menuSourceRestauranteId) {
@@ -169,11 +170,11 @@ export async function POST(request: NextRequest) {
         create: {
           usuarioId: user.id,
           restauranteId: restaurante.id,
-          rolId: user.rolId,
+          rolId: actorRolId,
           esPrincipal: false,
           activo: true,
         },
-        update: { activo: true, rolId: user.rolId },
+        update: { activo: true, rolId: actorRolId },
       })
 
       if (restaurante.organizacionId) {
@@ -187,10 +188,10 @@ export async function POST(request: NextRequest) {
           create: {
             usuarioId: user.id,
             organizacionId: restaurante.organizacionId,
-            rolId: user.rolId,
+            rolId: actorRolId,
             activo: true,
           },
-          update: { activo: true, rolId: user.rolId },
+          update: { activo: true, rolId: actorRolId },
         })
       }
 

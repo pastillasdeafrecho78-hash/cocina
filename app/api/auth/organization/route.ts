@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const input = createSchema.parse(await request.json())
+    const actorRolId = user.effectiveRolId ?? user.rolId
     const created = await prisma.$transaction(async (tx) => {
       const org = await tx.organizacion.create({
         data: {
@@ -46,11 +47,11 @@ export async function POST(request: NextRequest) {
         create: {
           usuarioId: user.id,
           organizacionId: org.id,
-          rolId: user.rolId,
+          rolId: actorRolId,
           activo: true,
           esOwner: true,
         },
-        update: { activo: true, esOwner: true, rolId: user.rolId },
+        update: { activo: true, esOwner: true, rolId: actorRolId },
       })
 
       await tx.usuario.update({
