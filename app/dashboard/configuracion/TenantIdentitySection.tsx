@@ -46,27 +46,41 @@ type TenancyPayload = {
 }
 
 type Role = { id: string; nombre: string; codigo?: string | null }
+type AccessCode = {
+  id: string
+  expiraEn: string
+  usadaEn: string | null
+  createdAt: string
+  estado: 'ACTIVA' | 'USADA' | 'EXPIRADA'
+  rol?: { id: string; nombre: string } | null
+  organizacion?: { id: string; nombre: string } | null
+}
 
 export default function TenantIdentitySection() {
   const [tenancy, setTenancy] = useState<TenancyPayload | null>(null)
   const [me, setMe] = useState<any>(null)
   const [roles, setRoles] = useState<Role[]>([])
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRoleId, setInviteRoleId] = useState('')
-  const [inviteStatus, setInviteStatus] = useState('')
-  const [inviteUrl, setInviteUrl] = useState('')
-  const [loadingInvite, setLoadingInvite] = useState(false)
+  const [status, setStatus] = useState('')
   const [switching, setSwitching] = useState(false)
   const [selectedOrgId, setSelectedOrgId] = useState('')
   const [membersData, setMembersData] = useState<Array<Record<string, unknown>>>([])
   const [membersTitle, setMembersTitle] = useState('')
   const [membersLoading, setMembersLoading] = useState(false)
-  const [invites, setInvites] = useState<
-    Array<{ id: string; email: string; expiraEn: string; usadaEn: string | null }>
-  >([])
+  const [codes, setCodes] = useState<AccessCode[]>([])
+  const [generatedCode, setGeneratedCode] = useState<{ code: string; redeemUrl: string } | null>(null)
+  const [codeExpiryMins, setCodeExpiryMins] = useState(120)
+  const [codeRoleId, setCodeRoleId] = useState('')
+  const [codeOrgId, setCodeOrgId] = useState('')
+  const [codeLoading, setCodeLoading] = useState(false)
+  const [newBranchName, setNewBranchName] = useState('')
+  const [newOrgName, setNewOrgName] = useState('')
+  const [editingOrgName, setEditingOrgName] = useState('')
+  const [savingBranch, setSavingBranch] = useState(false)
+  const [savingOrg, setSavingOrg] = useState(false)
   const [providerLoading, setProviderLoading] = useState<string | null>(null)
 
   const canManageUsers = useMemo(() => tienePermiso(me, 'usuarios_roles'), [me])
+  const canManageConfig = useMemo(() => tienePermiso(me, 'configuracion'), [me])
 
   useEffect(() => {
     const load = async () => {
@@ -85,37 +99,39 @@ export default function TenantIdentitySection() {
             tenancyData.data.organizations[0]?.organizacionId ??
             ''
         )
+        setCodeOrgId(
+          tenancyData.data.activeOrganizacionId ??
+            tenancyData.data.current?.organizacionId ??
+            ''
+        )
       }
     }
     void load()
   }, [])
 
   useEffect(() => {
-    if (!canManageUsers) return
+    if (!canManageUsers && !canManageConfig) return
     const loadRoles = async () => {
       const res = await fetch('/api/roles', { credentials: 'same-origin' })
       const data = (await res.json()) as { success?: boolean; data?: Role[] }
       if (data.success && Array.isArray(data.data)) {
         setRoles(data.data)
-        setInviteRoleId(data.data[0]?.id ?? '')
+        setCodeRoleId(data.data[0]?.id ?? '')
       }
     }
     void loadRoles()
-  }, [canManageUsers])
+  }, [canManageConfig, canManageUsers])
 
   useEffect(() => {
     if (!canManageUsers) return
-    const loadInvites = async () => {
-      const res = await fetch('/api/auth/invites', { credentials: 'same-origin', cache: 'no-store' })
-      const data = (await res.json()) as {
-        success?: boolean
-        data?: Array<{ id: string; email: string; expiraEn: string; usadaEn: string | null }>
-      }
+    const loadCodes = async () => {
+      const res = await fetch('/api/auth/access-codes', { credentials: 'same-origin', cache: 'no-store' })
+      const data = (await res.json()) as { success?: boolean; data?: AccessCode[] }
       if (data.success && Array.isArray(data.data)) {
-        setInvites(data.data)
+        setCodes(data.data)
       }
     }
-    void loadInvites()
+    void loadCodes()
   }, [canManageUsers])
 
   const linkedSet = useMemo(
@@ -159,7 +175,7 @@ export default function TenantIdentitySection() {
       }
       window.location.href = '/dashboard'
     } catch (error) {
-      setInviteStatus(error instanceof Error ? error.message : 'Error al cambiar contexto')
+      setStatus(error instanceof Error ? error.message : 'Error al cambiar contexto')
     } finally {
       setSwitching(false)
     }
@@ -182,45 +198,133 @@ export default function TenantIdentitySection() {
       if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo cargar miembros')
       setMembersData(data.data?.members ?? [])
     } catch (error) {
-      setInviteStatus(error instanceof Error ? error.message : 'No se pudo cargar miembros')
+      setStatus(error instanceof Error ? error.message : 'No se pudo cargar miembros')
     } finally {
       setMembersLoading(false)
     }
   }
 
-  const createInvite = async (e: React.FormEvent) => {
+  const createCode = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!inviteEmail.trim() || !inviteRoleId) return
-    setLoadingInvite(true)
-    setInviteStatus('')
-    setInviteUrl('')
+    if (!tenancy?.activeRestauranteId) {
+      setStatus('Debes tener una sucursal activa para generar códigos')
+      return
+    }
+    setCodeLoading(true)
+    setStatus('')
+    setGeneratedCode(null)
     try {
-      const res = await fetch('/api/auth/invites', {
+      const res = await fetch('/api/auth/access-codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'same-origin',
         body: JSON.stringify({
-          email: inviteEmail.trim().toLowerCase(),
-          rolId: inviteRoleId,
+          expiraEnMinutos: codeExpiryMins,
+          rolId: codeRoleId || undefined,
+          organizacionId: codeOrgId || undefined,
         }),
       })
       const data = (await res.json()) as {
         success?: boolean
         error?: string
-        data?: { inviteUrl?: string }
+        data?: { codigo: string; redeemUrl: string }
       }
       if (!res.ok || !data.success) {
-        throw new Error(data.error ?? 'No se pudo generar invitación')
+        throw new Error(data.error ?? 'No se pudo generar código')
       }
-      setInviteStatus('Invitación creada correctamente')
-      setInviteUrl(data.data?.inviteUrl ?? '')
-      setInviteEmail('')
+      setStatus('Código generado correctamente')
+      setGeneratedCode({ code: data.data?.codigo ?? '', redeemUrl: data.data?.redeemUrl ?? '' })
+      const listRes = await fetch('/api/auth/access-codes', { credentials: 'same-origin', cache: 'no-store' })
+      const listData = (await listRes.json()) as { success?: boolean; data?: AccessCode[] }
+      if (listData.success && Array.isArray(listData.data)) setCodes(listData.data)
     } catch (error) {
-      setInviteStatus(error instanceof Error ? error.message : 'Error al crear invitación')
+      setStatus(error instanceof Error ? error.message : 'Error al crear código')
     } finally {
-      setLoadingInvite(false)
+      setCodeLoading(false)
     }
   }
+
+  const createBranch = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newBranchName.trim()) return
+    setSavingBranch(true)
+    setStatus('')
+    try {
+      const res = await fetch('/api/auth/branches', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          nombre: newBranchName.trim(),
+          organizacionId: selectedOrgId || undefined,
+        }),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string }
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo crear sucursal')
+      setStatus('Sucursal creada')
+      setNewBranchName('')
+      await refreshTenancy()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Error creando sucursal')
+    } finally {
+      setSavingBranch(false)
+    }
+  }
+
+  const createOrganization = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newOrgName.trim()) return
+    setSavingOrg(true)
+    setStatus('')
+    try {
+      const res = await fetch('/api/auth/organization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ nombre: newOrgName.trim() }),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string; data?: { id: string } }
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo crear organización')
+      setStatus('Organización creada')
+      setNewOrgName('')
+      await refreshTenancy()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Error creando organización')
+    } finally {
+      setSavingOrg(false)
+    }
+  }
+
+  const updateOrganization = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedOrgId || !editingOrgName.trim()) return
+    setSavingOrg(true)
+    setStatus('')
+    try {
+      const res = await fetch('/api/auth/organization', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          organizacionId: selectedOrgId,
+          nombre: editingOrgName.trim(),
+        }),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string }
+      if (!res.ok || !data.success) throw new Error(data.error ?? 'No se pudo actualizar organización')
+      setStatus('Organización actualizada')
+      await refreshTenancy()
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : 'Error actualizando organización')
+    } finally {
+      setSavingOrg(false)
+    }
+  }
+
+  useEffect(() => {
+    const currentOrg = tenancy?.organizations.find((o) => o.organizacionId === selectedOrgId)
+    setEditingOrgName(currentOrg?.organizacionNombre ?? '')
+  }, [selectedOrgId, tenancy?.organizations])
 
   return (
     <section className="space-y-6 rounded-2xl border border-stone-200 bg-stone-50/80 p-5 dark:border-stone-700 dark:bg-stone-900/45">
@@ -353,52 +457,122 @@ export default function TenantIdentitySection() {
       {canManageUsers && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-400/35 dark:bg-amber-950/45">
           <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
-            Invitar usuarios a la sucursal activa
+            Códigos de acceso (one-time)
           </p>
-          <form className="mt-3 grid gap-2 md:grid-cols-[1.5fr_1fr_auto]" onSubmit={createInvite}>
+          <form className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]" onSubmit={createCode}>
             <input
               className="app-input"
-              type="email"
-              required
-              placeholder="correo@ejemplo.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+              type="number"
+              min={5}
+              max={10080}
+              value={codeExpiryMins}
+              onChange={(e) => setCodeExpiryMins(Number(e.target.value))}
+              placeholder="Minutos de expiración"
             />
             <select
               className="app-input"
-              required
-              value={inviteRoleId}
-              onChange={(e) => setInviteRoleId(e.target.value)}
+              value={codeRoleId}
+              onChange={(e) => setCodeRoleId(e.target.value)}
             >
+              <option value="">Sin rol automático</option>
               {roles.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.nombre}
                 </option>
               ))}
             </select>
-            <button type="submit" disabled={loadingInvite} className="app-btn-primary">
-              {loadingInvite ? 'Creando...' : 'Invitar'}
+            <select
+              className="app-input"
+              value={codeOrgId}
+              onChange={(e) => setCodeOrgId(e.target.value)}
+            >
+              <option value="">Sin organización automática</option>
+              {(tenancy?.organizations ?? []).map((org) => (
+                <option key={org.organizacionId} value={org.organizacionId}>
+                  {org.organizacionNombre}
+                </option>
+              ))}
+            </select>
+            <button type="submit" disabled={codeLoading} className="app-btn-primary">
+              {codeLoading ? 'Generando...' : 'Generar código'}
             </button>
           </form>
-          {inviteStatus && <p className="mt-2 text-sm text-amber-900 dark:text-amber-100">{inviteStatus}</p>}
-          {inviteUrl && (
-            <p className="mt-1 break-all text-xs text-amber-900 dark:text-amber-100">
-              Link: {inviteUrl}
-            </p>
+          {generatedCode && (
+            <div className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-xs text-amber-900">
+              <p>
+                Código: <strong>{generatedCode.code}</strong>
+              </p>
+              <p className="mt-1 break-all">Link: {generatedCode.redeemUrl}</p>
+              <img
+                className="mt-2 h-28 w-28 rounded border border-amber-200 bg-white p-1"
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(generatedCode.code)}`}
+                alt="QR del código"
+              />
+            </div>
           )}
           <div className="mt-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-900 dark:text-amber-100">
-              Invitaciones recientes
+              Códigos recientes
             </p>
             <ul className="mt-2 space-y-1 text-xs text-amber-900 dark:text-amber-100">
-              {invites.slice(0, 6).map((inv) => (
-                <li key={inv.id}>
-                  {inv.email} · {inv.usadaEn ? 'Aceptada' : 'Pendiente'} · expira{' '}
-                  {new Date(inv.expiraEn).toLocaleString('es-MX')}
+              {codes.slice(0, 8).map((c) => (
+                <li key={c.id}>
+                  {c.estado} · {c.rol?.nombre ?? 'sin rol'} · expira{' '}
+                  {new Date(c.expiraEn).toLocaleString('es-MX')}
                 </li>
               ))}
-              {invites.length === 0 && <li>Sin invitaciones aún.</li>}
+              {codes.length === 0 && <li>Sin códigos aún.</li>}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {canManageConfig && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/35 dark:bg-emerald-950/45">
+            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+              Alta de sucursal
+            </p>
+            <form className="mt-3 space-y-2" onSubmit={createBranch}>
+              <input
+                className="app-input"
+                value={newBranchName}
+                onChange={(e) => setNewBranchName(e.target.value)}
+                placeholder="Nombre de la nueva sucursal"
+              />
+              <button type="submit" disabled={savingBranch} className="app-btn-primary">
+                {savingBranch ? 'Creando...' : 'Crear sucursal'}
+              </button>
+            </form>
+          </div>
+
+          <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-500/35 dark:bg-violet-950/45">
+            <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">
+              Gestión de organización
+            </p>
+            <form className="mt-3 space-y-2" onSubmit={createOrganization}>
+              <input
+                className="app-input"
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                placeholder="Crear nueva organización"
+              />
+              <button type="submit" disabled={savingOrg} className="app-btn-secondary">
+                {savingOrg ? 'Guardando...' : 'Crear organización'}
+              </button>
+            </form>
+            <form className="mt-3 space-y-2" onSubmit={updateOrganization}>
+              <input
+                className="app-input"
+                value={editingOrgName}
+                onChange={(e) => setEditingOrgName(e.target.value)}
+                placeholder="Nombre de organización activa"
+                disabled={!selectedOrgId}
+              />
+              <button type="submit" disabled={savingOrg || !selectedOrgId} className="app-btn-primary">
+                Actualizar organización activa
+              </button>
+            </form>
           </div>
         </div>
       )}
@@ -431,6 +605,12 @@ export default function TenantIdentitySection() {
           </select>
         </div>
       </div>
+
+      {status && (
+        <div className="rounded-lg border border-stone-200 bg-white p-3 text-sm text-stone-700 dark:border-stone-700 dark:bg-stone-950/55 dark:text-stone-200">
+          {status}
+        </div>
+      )}
 
       {(membersLoading || membersData.length > 0) && (
         <div className="rounded-xl border border-stone-200 bg-white p-4 dark:border-stone-700 dark:bg-stone-950/55">

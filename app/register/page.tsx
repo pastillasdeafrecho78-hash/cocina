@@ -1,15 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { signIn } from 'next-auth/react'
 import toast from 'react-hot-toast'
 import BrandLogo from '@/components/BrandLogo'
 
-export default function RegisterPage() {
+function RegisterPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(false)
+  const [mode, setMode] = useState<'worker' | 'owner'>('worker')
   const [form, setForm] = useState({
     organizacionNombre: '',
     restauranteNombre: '',
@@ -19,14 +21,40 @@ export default function RegisterPage() {
     apellido: '',
   })
 
+  useEffect(() => {
+    const qMode = searchParams.get('mode')
+    if (qMode === 'owner') setMode('owner')
+  }, [searchParams])
+
+  const title = useMemo(
+    () => (mode === 'owner' ? 'Registrar mi negocio' : 'Crear cuenta de trabajador'),
+    [mode]
+  )
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     try {
-      const res = await fetch('/api/auth/register', {
+      const payloadBase = {
+        email: form.email,
+        password: form.password,
+        nombre: form.nombre,
+        apellido: form.apellido,
+      }
+      const endpoint = mode === 'owner' ? '/api/auth/register' : '/api/auth/register-user'
+      const payload =
+        mode === 'owner'
+          ? {
+              ...payloadBase,
+              organizacionNombre: form.organizacionNombre,
+              restauranteNombre: form.restauranteNombre,
+            }
+          : payloadBase
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok || !data.success) {
@@ -43,7 +71,7 @@ export default function RegisterPage() {
         })
         if (!signInRes?.error) {
           toast.success('Cuenta creada y sesión iniciada.')
-          router.push('/dashboard')
+          router.push(mode === 'owner' ? '/dashboard' : '/acceso')
           return
         }
       }
@@ -64,26 +92,51 @@ export default function RegisterPage() {
           <BrandLogo size="lg" className="h-24 w-auto max-w-[320px]" />
         </div>
         <div className="app-brand-panel p-8">
-          <h1 className="text-xl font-semibold text-stone-900">Crear cuenta</h1>
+          <h1 className="text-xl font-semibold text-stone-900">{title}</h1>
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-lg border border-stone-200 p-1">
+            <button
+              type="button"
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                mode === 'worker' ? 'bg-stone-900 text-white' : 'text-stone-700'
+              }`}
+              onClick={() => setMode('worker')}
+            >
+              Entrar con código
+            </button>
+            <button
+              type="button"
+              className={`rounded-md px-3 py-2 text-sm font-medium ${
+                mode === 'owner' ? 'bg-stone-900 text-white' : 'text-stone-700'
+              }`}
+              onClick={() => setMode('owner')}
+            >
+              Registrar negocio
+            </button>
+          </div>
           <p className="mt-4 text-sm text-stone-600">
-            Registra tu organización y tu restaurante. Solo necesitas email y contraseña para entrar
-            después del registro.
+            {mode === 'owner'
+              ? 'Crea tu cuenta y da de alta tu sucursal inicial.'
+              : 'Crea tu cuenta personal y vincúlate luego con código o QR de sucursal.'}
           </p>
           <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <input
-              required
-              className="app-input w-full"
-              placeholder="Nombre de la organización"
-              value={form.organizacionNombre}
-              onChange={(e) => setForm({ ...form, organizacionNombre: e.target.value })}
-            />
-            <input
-              required
-              className="app-input w-full"
-              placeholder="Nombre del restaurante"
-              value={form.restauranteNombre}
-              onChange={(e) => setForm({ ...form, restauranteNombre: e.target.value })}
-            />
+            {mode === 'owner' && (
+              <>
+                <input
+                  required
+                  className="app-input w-full"
+                  placeholder="Nombre de la organización"
+                  value={form.organizacionNombre}
+                  onChange={(e) => setForm({ ...form, organizacionNombre: e.target.value })}
+                />
+                <input
+                  required
+                  className="app-input w-full"
+                  placeholder="Nombre del restaurante / sucursal"
+                  value={form.restauranteNombre}
+                  onChange={(e) => setForm({ ...form, restauranteNombre: e.target.value })}
+                />
+              </>
+            )}
             <input
               required
               type="email"
@@ -116,7 +169,7 @@ export default function RegisterPage() {
               onChange={(e) => setForm({ ...form, apellido: e.target.value })}
             />
             <button type="submit" disabled={loading} className="app-btn-primary w-full">
-              {loading ? 'Creando…' : 'Registrar'}
+              {loading ? 'Creando…' : mode === 'owner' ? 'Crear negocio' : 'Crear cuenta'}
             </button>
           </form>
           <p className="mt-6 text-center text-sm text-stone-600">
@@ -128,5 +181,13 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-sm text-stone-600">Cargando registro...</div>}>
+      <RegisterPageContent />
+    </Suspense>
   )
 }

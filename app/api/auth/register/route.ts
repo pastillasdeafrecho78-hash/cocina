@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const schema = z.object({
-  organizacionNombre: z.string().min(2).max(120),
+  organizacionNombre: z.string().min(2).max(120).optional(),
   restauranteNombre: z.string().min(2).max(120),
   slug: z.string().max(64).optional(),
   email: z.string().email(),
@@ -60,14 +60,16 @@ export async function POST(request: NextRequest) {
 
       const passwordHash = await hashPassword(data.password)
 
-      const org = await tx.organizacion.create({
-        data: { nombre: data.organizacionNombre.trim() },
-      })
+      const org = data.organizacionNombre?.trim()
+        ? await tx.organizacion.create({
+            data: { nombre: data.organizacionNombre.trim() },
+          })
+        : null
       const restaurante = await tx.restaurante.create({
         data: {
           nombre: data.restauranteNombre.trim(),
           slug,
-          organizacionId: org.id,
+          organizacionId: org?.id ?? null,
         },
       })
       const usuario = await tx.usuario.create({
@@ -78,18 +80,20 @@ export async function POST(request: NextRequest) {
           password: passwordHash,
           restauranteId: restaurante.id,
           activeRestauranteId: restaurante.id,
-          activeOrganizacionId: org.id,
+          activeOrganizacionId: org?.id ?? null,
           rolId: rol.id,
         },
       })
-      await tx.organizacionMiembro.create({
-        data: {
-          usuarioId: usuario.id,
-          organizacionId: org.id,
-          esOwner: true,
-          activo: true,
-        },
-      })
+      if (org?.id) {
+        await tx.organizacionMiembro.create({
+          data: {
+            usuarioId: usuario.id,
+            organizacionId: org.id,
+            esOwner: true,
+            activo: true,
+          },
+        })
+      }
       await tx.sucursalMiembro.create({
         data: {
           usuarioId: usuario.id,
@@ -103,8 +107,8 @@ export async function POST(request: NextRequest) {
           restauranteId: restaurante.id,
           usuarioId: usuario.id,
           accion: 'REGISTRO_ORG',
-          entidad: 'Organizacion',
-          entidadId: org.id,
+          entidad: org?.id ? 'Organizacion' : 'Restaurante',
+          entidadId: org?.id ?? restaurante.id,
           detalles: { slug },
         },
       })

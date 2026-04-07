@@ -70,7 +70,7 @@ export async function getSessionUser() {
     select: { id: true, nombre: true, permisos: true },
   })
 
-  let activeRestauranteId = user.activeRestauranteId ?? user.restauranteId
+  let activeRestauranteId = user.activeRestauranteId ?? null
   let activeOrganizacionId = user.activeOrganizacionId ?? null
 
   const hasMemberships = user.sucursales.length > 0
@@ -83,6 +83,9 @@ export async function getSessionUser() {
     } else if (!activeOrganizacionId) {
       activeOrganizacionId = activeMembership.restaurante.organizacionId ?? null
     }
+  } else {
+    activeRestauranteId = null
+    activeOrganizacionId = null
   }
 
   if (

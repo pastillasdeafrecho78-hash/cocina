@@ -3,6 +3,7 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import Facebook from 'next-auth/providers/facebook'
 import Google from 'next-auth/providers/google'
+import { PENDING_ACCESS_SLUG, ensurePendingAccessContext } from '@/lib/onboarding'
 
 const secret =
   process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? process.env.JWT_SECRET
@@ -33,33 +34,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const email = String(credentials?.email ?? '').trim().toLowerCase()
         const password = String(credentials?.password ?? '')
         const restauranteId = String(credentials?.restauranteId ?? '').trim()
-        if (!email || !password || !restauranteId) return null
+        if (!email || !password) return null
+
+        const where = restauranteId
+          ? {
+              restauranteId,
+              email,
+              activo: true,
+              password: { not: null },
+              restaurante: { activo: true },
+            }
+          : {
+              email,
+              activo: true,
+              password: { not: null },
+            }
 
         const user = await prisma.usuario.findFirst({
-          where: {
-            restauranteId,
-            email,
-            activo: true,
-            password: { not: null },
-            restaurante: { activo: true },
+          where,
+          include: {
+            restaurante: {
+              select: { slug: true, organizacionId: true },
+            },
           },
+          orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
         })
         if (!user?.password) return null
         const ok = await verifyPassword(password, user.password)
         if (!ok) return null
 
-        const restaurante = await prisma.restaurante.findUnique({
-          where: { id: user.restauranteId },
-          select: { organizacionId: true },
-        })
+        const isPendingAccess = user.restaurante.slug === PENDING_ACCESS_SLUG
 
         await prisma.usuario
           .update({
             where: { id: user.id },
             data: {
               ultimoAcceso: new Date(),
-              activeRestauranteId: user.restauranteId,
-              activeOrganizacionId: restaurante?.organizacionId ?? null,
+              activeRestauranteId: isPendingAccess ? null : user.restauranteId,
+              activeOrganizacionId: isPendingAccess ? null : user.restaurante.organizacionId ?? null,
             },
           })
           .catch(() => {})
@@ -227,7 +239,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (sameEmail.length === 1) {
         dbUser = sameEmail[0]
       } else {
-        return '/login?error=social_register'
+        const pending = await ensurePendingAccessContext(prisma)
+        dbUser = await prisma.usuario.create({
+          data: {
+            email,
+            nombre,
+            apellido,
+            password: null,
+            restauranteId: pending.restauranteId,
+            rolId: pending.rolId,
+            activeRestauranteId: null,
+            activeOrganizacionId: null,
+          },
+          include: {
+            restaurante: {
+              select: {
+                organizacionId: true,
+              },
+            },
+          },
+        })
       }
 
       await prisma.cuentaOAuth.upsert({
@@ -279,13 +310,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           })
           .catch(() => {})
       }
+      const pendingContext = await ensurePendingAccessContext(prisma)
+      const isPendingOnly = dbUser.restauranteId === pendingContext.restauranteId
       await prisma.usuario
         .update({
           where: { id: dbUser.id },
           data: {
             ultimoAcceso: new Date(),
-            activeRestauranteId: dbUser.restauranteId,
-            activeOrganizacionId: dbUser.restaurante.organizacionId ?? null,
+            activeRestauranteId: isPendingOnly ? null : dbUser.restauranteId,
+            activeOrganizacionId: isPendingOnly ? null : dbUser.restaurante.organizacionId ?? null,
           },
         })
         .catch(() => {})

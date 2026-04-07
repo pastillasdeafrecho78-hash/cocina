@@ -86,6 +86,7 @@ model Organizacion {
   restaurantes  Restaurante[]
   miembros      OrganizacionMiembro[]
   usuariosActivos Usuario[] @relation("UsuarioActiveOrganizacion")
+  codigosVinculacion CodigoVinculacionSucursal[]
 }
 
 model Rol {
@@ -99,6 +100,7 @@ model Rol {
   usuarios    Usuario[]
   dashboards  DashboardVista[]
   invitaciones Invitacion[]
+  codigosVinculacion CodigoVinculacionSucursal[]
 }
 
 model Restaurante {
@@ -131,6 +133,7 @@ model Restaurante {
   invitaciones             Invitacion[]
   miembrosSucursal         SucursalMiembro[]
   integracionPedidosApi    IntegracionPedidosApi?
+  codigosVinculacion       CodigoVinculacionSucursal[]
 
   @@index([organizacionId])
 }
@@ -166,6 +169,7 @@ model Usuario {
   cortesZ           CorteZ[]
   turnosCaja        TurnoCaja[]
   dashboards        DashboardVista[]
+  codigosVinculacion CodigoVinculacionSucursal[] @relation("CodigoVinculacionCreadoPor")
 
   @@unique([restauranteId, email])
   @@index([rolId])
@@ -235,6 +239,27 @@ model Invitacion {
 
   @@index([restauranteId])
   @@index([email])
+}
+
+model CodigoVinculacionSucursal {
+  id              String    @id @default(cuid())
+  restauranteId   String
+  codigoHash      String    @unique
+  expiraEn        DateTime
+  usadaEn         DateTime?
+  creadoPorId     String?
+  rolId           String?
+  organizacionId  String?
+  createdAt       DateTime  @default(now())
+
+  restaurante Restaurante  @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  creadoPor   Usuario?     @relation("CodigoVinculacionCreadoPor", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  rol         Rol?         @relation(fields: [rolId], references: [id], onDelete: SetNull)
+  organizacion Organizacion? @relation(fields: [organizacionId], references: [id], onDelete: SetNull)
+
+  @@index([restauranteId])
+  @@index([expiraEn])
+  @@index([usadaEn])
 }
 
 model Mesa {

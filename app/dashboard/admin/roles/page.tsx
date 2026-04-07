@@ -85,6 +85,12 @@ export default function AdminRolesPage() {
     activo: true,
   })
   const [guardandoUsuario, setGuardandoUsuario] = useState(false)
+  const [codigoExpiraMin, setCodigoExpiraMin] = useState(120)
+  const [codigoRolId, setCodigoRolId] = useState('')
+  const [codigoOrgId, setCodigoOrgId] = useState('')
+  const [codigoGenerado, setCodigoGenerado] = useState<{ codigo: string; redeemUrl: string } | null>(null)
+  const [generandoCodigo, setGenerandoCodigo] = useState(false)
+  const [orgsTenancy, setOrgsTenancy] = useState<Array<{ organizacionId: string; organizacionNombre: string }>>([])
 
   useEffect(() => {
     const userStr = localStorage.getItem('user')
@@ -103,7 +109,27 @@ export default function AdminRolesPage() {
 
   useEffect(() => {
     if (tab === 'roles' && user) cargarRoles()
-    if (tab === 'usuarios' && user) cargarUsuarios()
+    if (tab === 'usuarios' && user) {
+      cargarUsuarios()
+      cargarRoles()
+    }
+  }, [tab, user])
+
+  useEffect(() => {
+    if (!user || tab !== 'usuarios') return
+    const loadTenancy = async () => {
+      const res = await fetch('/api/auth/tenancy', { credentials: 'same-origin', cache: 'no-store' })
+      const data = (await res.json()) as {
+        success?: boolean
+        data?: { organizations?: Array<{ organizacionId: string; organizacionNombre: string }>; activeOrganizacionId?: string | null }
+      }
+      if (data.success) {
+        const orgs = data.data?.organizations ?? []
+        setOrgsTenancy(orgs)
+        setCodigoOrgId(data.data?.activeOrganizacionId ?? orgs[0]?.organizacionId ?? '')
+      }
+    }
+    void loadTenancy()
   }, [tab, user])
 
   const cargarRoles = async () => {
@@ -360,6 +386,37 @@ export default function AdminRolesPage() {
     }
   }
 
+  const generarCodigo = async () => {
+    setGenerandoCodigo(true)
+    try {
+      const res = await fetch('/api/auth/access-codes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          expiraEnMinutos: codigoExpiraMin,
+          rolId: codigoRolId || undefined,
+          organizacionId: codigoOrgId || undefined,
+        }),
+      })
+      const data = (await res.json()) as {
+        success?: boolean
+        error?: string
+        data?: { codigo: string; redeemUrl: string }
+      }
+      if (!res.ok || !data.success || !data.data) {
+        toast.error(data.error || 'No se pudo generar código')
+        return
+      }
+      setCodigoGenerado({ codigo: data.data.codigo, redeemUrl: data.data.redeemUrl })
+      toast.success('Código generado')
+    } catch (e) {
+      toast.error('Error al generar código')
+    } finally {
+      setGenerandoCodigo(false)
+    }
+  }
+
   if (loading || !user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -468,6 +525,64 @@ export default function AdminRolesPage() {
               <PlusIcon className="w-5 h-5" />
               Nuevo usuario
             </button>
+          </div>
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+            <p className="text-sm font-semibold text-amber-900">Generar código / QR de acceso</p>
+            <div className="mt-3 grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                type="number"
+                min={5}
+                max={10080}
+                value={codigoExpiraMin}
+                onChange={(e) => setCodigoExpiraMin(Number(e.target.value))}
+                placeholder="Expira en minutos"
+              />
+              <select
+                className="w-full border rounded-lg px-3 py-2"
+                value={codigoRolId}
+                onChange={(e) => setCodigoRolId(e.target.value)}
+              >
+                <option value="">Sin rol automático</option>
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nombre}
+                  </option>
+                ))}
+              </select>
+              <select
+                className="w-full border rounded-lg px-3 py-2"
+                value={codigoOrgId}
+                onChange={(e) => setCodigoOrgId(e.target.value)}
+              >
+                <option value="">Sin organización automática</option>
+                {orgsTenancy.map((org) => (
+                  <option key={org.organizacionId} value={org.organizacionId}>
+                    {org.organizacionNombre}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={generarCodigo}
+                disabled={generandoCodigo}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50"
+              >
+                {generandoCodigo ? 'Generando...' : 'Generar'}
+              </button>
+            </div>
+            {codigoGenerado && (
+              <div className="mt-3 rounded border border-amber-300 bg-white p-3 text-sm">
+                <p>
+                  Código: <strong>{codigoGenerado.codigo}</strong>
+                </p>
+                <p className="break-all text-xs mt-1">Link: {codigoGenerado.redeemUrl}</p>
+                <img
+                  className="mt-2 h-24 w-24 rounded border border-amber-100 p-1"
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(codigoGenerado.codigo)}`}
+                  alt="QR código acceso"
+                />
+              </div>
+            )}
           </div>
           {cargandoUsuarios ? (
             <div className="text-gray-500">Cargando usuarios...</div>

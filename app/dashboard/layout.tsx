@@ -240,6 +240,12 @@ export default function DashboardLayout({
     }
   }, [router])
 
+  useEffect(() => {
+    if (!checking && user && tenantData && tenantData.branches.length === 0) {
+      router.replace('/acceso')
+    }
+  }, [checking, router, tenantData, user])
+
   const handleSwitchContext = async (payload: { restauranteId?: string; organizacionId?: string }) => {
     if (!tenantData || switchingBranch) return
     const currentId = tenantData.current?.restauranteId

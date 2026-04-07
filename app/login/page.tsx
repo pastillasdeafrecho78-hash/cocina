@@ -115,8 +115,12 @@ export default function LoginPage() {
       localStorage.setItem('user', JSON.stringify(session.user))
     }
 
+    const tenancyRes = await fetch('/api/auth/tenancy', { credentials: 'same-origin' })
+    const tenancyData = (await tenancyRes.json()) as { data?: { branches?: unknown[] } }
+    const hasBranch = (tenancyData?.data?.branches?.length ?? 0) > 0
+
     toast.success('Sesión iniciada correctamente')
-    window.location.href = '/dashboard'
+    window.location.href = hasBranch ? '/dashboard' : '/acceso'
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
