@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
-import { calcularReportePeriodo, obtenerInicioPeriodoActual } from '@/lib/caja-helpers'
+import {
+  calcularReportePeriodo,
+  obtenerComandasPendientesParaCorteZ,
+  obtenerInicioPeriodoActual,
+} from '@/lib/caja-helpers'
 
 /**
  * POST /api/caja/corte-z
@@ -20,6 +24,29 @@ export async function POST(request: NextRequest) {
     }
 
     const rid = user.restauranteId
+
+    const comandasPendientes = await obtenerComandasPendientesParaCorteZ(rid)
+    if (comandasPendientes.length > 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            'No se puede realizar Corte Z mientras existan comandas pendientes. Debes pagarlas o cancelarlas con motivo antes de cerrar.',
+          data: {
+            pendientesCount: comandasPendientes.length,
+            pendientes: comandasPendientes.slice(0, 50).map((c) => ({
+              id: c.id,
+              numeroComanda: c.numeroComanda,
+              estado: c.estado,
+              mesa: c.mesa,
+              fechaCreacion: c.fechaCreacion,
+            })),
+          },
+        },
+        { status: 409 }
+      )
+    }
+
     const fechaInicio = await obtenerInicioPeriodoActual(rid)
     const fechaFin = new Date()
 

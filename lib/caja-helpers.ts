@@ -20,6 +20,14 @@ export interface ReporteCaja {
   }>
 }
 
+export interface ComandaPendienteCorteZ {
+  id: string
+  numeroComanda: string
+  estado: string
+  mesa: number | null
+  fechaCreacion: Date
+}
+
 export async function calcularReportePeriodo(
   fechaInicio: Date,
   fechaFin: Date,
@@ -104,4 +112,31 @@ export async function obtenerInicioPeriodoActual(
   const hoy = new Date()
   hoy.setHours(0, 0, 0, 0)
   return hoy
+}
+
+export async function obtenerComandasPendientesParaCorteZ(
+  restauranteId: string
+): Promise<ComandaPendienteCorteZ[]> {
+  const pendientes = await prisma.comanda.findMany({
+    where: {
+      restauranteId,
+      estado: {
+        notIn: ['PAGADO', 'CANCELADO'],
+      },
+    },
+    include: {
+      mesa: {
+        select: { numero: true },
+      },
+    },
+    orderBy: { fechaCreacion: 'asc' },
+  })
+
+  return pendientes.map((c) => ({
+    id: c.id,
+    numeroComanda: c.numeroComanda,
+    estado: c.estado,
+    mesa: c.mesa?.numero ?? null,
+    fechaCreacion: c.fechaCreacion,
+  }))
 }
