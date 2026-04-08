@@ -1,17 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
 import {
   requireActiveTenant,
   requireAnyCapability,
   requireAuthenticatedUser,
+  requireCapability,
 } from '@/lib/authz/guards'
-import { toErrorResponse } from '@/lib/authz/http'
+import { raise, toErrorResponse } from '@/lib/authz/http'
+import type { SessionUser } from '@/lib/auth-server'
 
 const updateItemSchema = z.object({
   estado: z.enum(['PENDIENTE', 'EN_PREPARACION', 'LISTO', 'ENTREGADO']),
 })
+
+function requireItemCapability(destino: string, user: SessionUser) {
+  if (destino === 'COCINA') {
+    requireAnyCapability(user, ['comandas', 'cocina'])
+    return
+  }
+  if (destino === 'BARRA') {
+    requireAnyCapability(user, ['comandas', 'barra'])
+    return
+  }
+  requireCapability(user, 'comandas')
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -38,21 +51,9 @@ export async function PATCH(
     })
 
     if (!item) {
-      return NextResponse.json(
-        { success: false, error: 'Item no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Item no encontrado')
     }
-    const puede =
-      tienePermiso(user, 'comandas') ||
-      (item.destino === 'COCINA' && tienePermiso(user, 'cocina')) ||
-      (item.destino === 'BARRA' && tienePermiso(user, 'barra'))
-    if (!puede) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos' },
-        { status: 403 }
-      )
-    }
+    requireItemCapability(item.destino, user)
 
     const updateData: any = { estado }
 

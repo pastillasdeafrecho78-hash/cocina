@@ -3,7 +3,7 @@ import NextAuth from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import Facebook from 'next-auth/providers/facebook'
 import Google from 'next-auth/providers/google'
-import { PENDING_ACCESS_SLUG, ensurePendingAccessContext } from '@/lib/onboarding'
+import { PENDING_ACCESS_SLUG } from '@/lib/onboarding'
 import { resolveEffectiveRoleId } from '@/lib/authz/effective-role'
 import { logLegacyFallback } from '@/lib/authz/logging'
 import {
@@ -21,6 +21,21 @@ const facebookConfigured =
 
 function isOAuthProvider(provider: string): provider is OAuthProvider {
   return provider === 'google' || provider === 'facebook'
+}
+
+function getOAuthNames(
+  profile: Record<string, unknown>,
+  fallbackEmail: string
+): { nombre: string; apellido: string } {
+  const givenName =
+    (typeof profile.given_name === 'string' && profile.given_name.trim()) ||
+    (typeof profile.first_name === 'string' && profile.first_name.trim()) ||
+    fallbackEmail.split('@')[0]
+  const familyName =
+    (typeof profile.family_name === 'string' && profile.family_name.trim()) ||
+    (typeof profile.last_name === 'string' && profile.last_name.trim()) ||
+    ''
+  return { nombre: givenName, apellido: familyName }
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -119,25 +134,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       : []),
   ],
   callbacks: {
-    /**
-     * Google sin slug/cookie de tenant:
-     * - Cuenta OAuth ya enlazada → entra como ese usuario.
-     * - Un solo usuario activo con ese email (restaurante activo) → enlazar OAuth a ese usuario.
-     * - Ningún usuario: si hay exactamente un Restaurante activo, crear usuario admin ahí; si hay varios, rechazar (registro/invitación).
-     * - Varios usuarios con el mismo email → rechazar; debe usar email/contraseña y elegir restaurante en login.
-     */
     async signIn({ account, profile }) {
-      if (
-        !account?.provider ||
-        !isOAuthProvider(account.provider) ||
-        !account.providerAccountId ||
-        !profile?.email
-      ) {
+      if (!account?.provider || !isOAuthProvider(account.provider) || !account.providerAccountId) {
         return true
       }
       const { prisma } = await import('@/lib/prisma')
       const provider = account.provider
-      const email = String(profile.email).toLowerCase()
+      const emailRaw = typeof profile?.email === 'string' ? profile.email.trim().toLowerCase() : ''
+
+      if (!emailRaw) {
+        return '/login?error=social_email_required'
+      }
+      const email = emailRaw
 
       const existingLink = await prisma.cuentaOAuth.findUnique({
         where: {
@@ -222,34 +230,73 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return '/login?error=social_multi'
       }
 
-      const nombre =
-        (profile as { given_name?: string }).given_name ?? email.split('@')[0]
-      const apellido = (profile as { family_name?: string }).family_name ?? ''
+      const now = new Date()
+      const activeInvites = await prisma.invitacion.findMany({
+        where: {
+          email,
+          usadaEn: null,
+          expiraEn: { gt: now },
+          restaurante: { activo: true },
+        },
+        include: {
+          restaurante: { select: { organizacionId: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      })
 
       let dbUser: Usuario & { restaurante: { organizacionId: string | null } }
 
       if (sameEmail.length === 1) {
         dbUser = sameEmail[0]
       } else {
-        const pending = await ensurePendingAccessContext(prisma)
-        dbUser = await prisma.usuario.create({
-          data: {
-            email,
-            nombre,
-            apellido,
-            password: null,
-            restauranteId: pending.restauranteId,
-            rolId: pending.rolId,
-            activeRestauranteId: null,
-            activeOrganizacionId: null,
-          },
-          include: {
-            restaurante: {
-              select: {
-                organizacionId: true,
+        if (activeInvites.length === 0) {
+          return '/login?error=social_invite_required'
+        }
+        if (activeInvites.length > 1) {
+          return '/login?error=social_multi'
+        }
+        const invite = activeInvites[0]
+        const names = getOAuthNames(profile as Record<string, unknown>, email)
+
+        dbUser = await prisma.$transaction(async (tx) => {
+          const created = await tx.usuario.create({
+            data: {
+              email,
+              nombre: names.nombre,
+              apellido: names.apellido,
+              password: null,
+              restauranteId: invite.restauranteId,
+              rolId: invite.rolId,
+              activeRestauranteId: invite.restauranteId,
+              activeOrganizacionId: invite.restaurante.organizacionId ?? null,
+            },
+            include: {
+              restaurante: {
+                select: {
+                  organizacionId: true,
+                },
               },
             },
-          },
+          })
+          await tx.invitacion.update({
+            where: { id: invite.id },
+            data: { usadaEn: now },
+          })
+          if (invite.creadoPorId) {
+            await tx.auditoria
+              .create({
+                data: {
+                  restauranteId: invite.restauranteId,
+                  usuarioId: invite.creadoPorId,
+                  accion: 'INVITACION_ACEPTADA',
+                  entidad: 'Invitacion',
+                  entidadId: invite.id,
+                  detalles: { email, via: provider },
+                },
+              })
+              .catch(() => {})
+          }
+          return created
         })
       }
 
@@ -288,15 +335,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           )
           .catch(() => {})
       }
-      const pendingContext = await ensurePendingAccessContext(prisma)
-      const isPendingOnly = dbUser.restauranteId === pendingContext.restauranteId
       await prisma.usuario
         .update({
           where: { id: dbUser.id },
           data: {
             ultimoAcceso: new Date(),
-            activeRestauranteId: isPendingOnly ? null : dbUser.restauranteId,
-            activeOrganizacionId: isPendingOnly ? null : dbUser.restaurante.organizacionId ?? null,
+            activeRestauranteId: dbUser.restauranteId,
+            activeOrganizacionId: dbUser.restaurante.organizacionId ?? null,
           },
         })
         .catch(() => {})

@@ -42,6 +42,7 @@ type TenancyPayload = {
   oauth: {
     linkedProviders: string[]
     availableProviders: Array<{ provider: string; enabled: boolean }>
+    policy?: 'invite_only' | string
   }
 }
 
@@ -54,6 +55,12 @@ type AccessCode = {
   estado: 'ACTIVA' | 'USADA' | 'EXPIRADA'
   rol?: { id: string; nombre: string } | null
   organizacion?: { id: string; nombre: string } | null
+}
+
+function providerLabel(provider: string) {
+  if (provider === 'google') return 'Google'
+  if (provider === 'facebook') return 'Meta'
+  return provider
 }
 
 export default function TenantIdentitySection() {
@@ -509,8 +516,16 @@ export default function TenantIdentitySection() {
         </p>
         <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
           Conecta proveedores para login rápido y vínculo de identidad.
+          {tenancy?.oauth.policy === 'invite_only'
+            ? ' El alta social está protegida y requiere invitación o usuario preexistente.'
+            : ''}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
+          {(tenancy?.oauth.availableProviders.length ?? 0) === 0 && (
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              No hay proveedores OAuth habilitados en este entorno.
+            </p>
+          )}
           {tenancy?.oauth.availableProviders.map((p) => (
             <button
               key={p.provider}
@@ -525,8 +540,8 @@ export default function TenantIdentitySection() {
               {providerLoading === p.provider
                 ? 'Abriendo proveedor...'
                 : linkedSet.has(p.provider)
-                  ? `Vinculado: ${p.provider}`
-                  : `Vincular ${p.provider}`}
+                  ? `Vinculado: ${providerLabel(p.provider)}`
+                  : `Vincular ${providerLabel(p.provider)}`}
             </button>
           ))}
         </div>

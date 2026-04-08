@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getMenuContext } from '@/lib/menu-context'
+import { requireActiveTenant, requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 import { z } from 'zod'
 
 const createTamanoSchema = z.object({
@@ -16,29 +16,24 @@ const createTamanoSchema = z.object({
  * Lista los tamaños de un producto
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.view')
+    const tenant = requireActiveTenant(user)
 
-    if (!tienePermiso(user, 'menu.view')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
-
-    const menuCtx = await getMenuContext(user.restauranteId)
+    const menuCtx = await getMenuContext(tenant.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
 
     const producto = await prisma.producto.findFirst({
       where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
     if (!producto) {
-      return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })
+      raise(404, 'Producto no encontrado')
     }
 
     const tamanos = await prisma.productoTamano.findMany({
@@ -48,10 +43,10 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: tamanos })
   } catch (error) {
-    console.error('Error en GET /api/productos/[id]/tamanos:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en GET /api/productos/[id]/tamanos:'
     )
   }
 }
@@ -65,30 +60,23 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
+    const tenant = requireActiveTenant(user)
 
-    const menuCtx = await getMenuContext(user.restauranteId)
+    const menuCtx = await getMenuContext(tenant.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const producto = await prisma.producto.findFirst({
       where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
     if (!producto) {
-      return NextResponse.json({ success: false, error: 'Producto no encontrado' }, { status: 404 })
+      raise(404, 'Producto no encontrado')
     }
 
     const body = await request.json()
@@ -105,16 +93,10 @@ export async function POST(
 
     return NextResponse.json({ success: true, data: tamano })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en POST /api/productos/[id]/tamanos:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en POST /api/productos/[id]/tamanos:'
     )
   }
 }

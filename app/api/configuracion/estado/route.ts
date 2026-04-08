@@ -4,6 +4,8 @@ import { getClipApiKeyStatus } from '@/lib/clip-config'
 import { requireActiveTenant, requireAuthenticatedUser } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 
+export const dynamic = 'force-dynamic'
+
 /**
  * GET /api/configuracion/estado
  * Verifica si la configuración está completa

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getMenuContext } from '@/lib/menu-context'
+import { requireActiveTenant, requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 import { z } from 'zod'
 
 const updateTamanoSchema = z.object({
@@ -19,23 +19,16 @@ export async function PATCH(
   { params }: { params: { id: string; tamanoId: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
+    const tenant = requireActiveTenant(user)
 
-    const menuCtx = await getMenuContext(user.restauranteId)
+    const menuCtx = await getMenuContext(tenant.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const tamano = await prisma.productoTamano.findFirst({
@@ -46,7 +39,7 @@ export async function PATCH(
       },
     })
     if (!tamano) {
-      return NextResponse.json({ success: false, error: 'Tamaño no encontrado' }, { status: 404 })
+      raise(404, 'Tamaño no encontrado')
     }
 
     const body = await request.json()
@@ -63,16 +56,10 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, data: actualizado })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en PATCH /api/productos/[id]/tamanos/[tamanoId]:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en PATCH /api/productos/[id]/tamanos/[tamanoId]:'
     )
   }
 }
@@ -81,27 +68,20 @@ export async function PATCH(
  * DELETE /api/productos/[id]/tamanos/[tamanoId]
  */
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string; tamanoId: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
+    const tenant = requireActiveTenant(user)
 
-    const menuCtx = await getMenuContext(user.restauranteId)
+    const menuCtx = await getMenuContext(tenant.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const tamano = await prisma.productoTamano.findFirst({
@@ -112,7 +92,7 @@ export async function DELETE(
       },
     })
     if (!tamano) {
-      return NextResponse.json({ success: false, error: 'Tamaño no encontrado' }, { status: 404 })
+      raise(404, 'Tamaño no encontrado')
     }
 
     await prisma.productoTamano.delete({
@@ -121,10 +101,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error en DELETE /api/productos/[id]/tamanos/[tamanoId]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en DELETE /api/productos/[id]/tamanos/[tamanoId]:'
     )
   }
 }

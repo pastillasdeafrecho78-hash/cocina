@@ -34,25 +34,20 @@ export default function LoginPage() {
       setFormData((prev) => ({ ...prev, email: emailHint }))
     }
     if (e === 'OAuthAccountNotLinked' || e === 'Configuration') {
-      toast.error('No se pudo completar el inicio con Google.')
+      toast.error('No se pudo completar el inicio con Google o Meta.')
     }
-    if (e === 'google_multi') {
+    if (e === 'social_email_required') {
+      toast.error('Tu cuenta social no compartió email. Usa otro proveedor o inicia con contraseña.')
+    }
+    if (e === 'google_multi' || e === 'social_multi') {
       toast.error(
         'Ese email está en varios restaurantes. Inicia sesión con contraseña y elige el local.'
       )
     }
-    if (e === 'google_register') {
+    if (e === 'google_register' || e === 'social_register' || e === 'social_invite_required') {
       toast.error(
-        'No hay cuenta con Google para este entorno. Regístrate o pide una invitación.'
+        'No tienes acceso social habilitado todavía. Pide una invitación a tu administrador.'
       )
-    }
-    if (e === 'social_multi') {
-      toast.error(
-        'Tu email está vinculado a varias sucursales. Inicia con contraseña y elige la sucursal.'
-      )
-    }
-    if (e === 'social_register') {
-      toast.error('Necesitas registro o invitación para vincular inicio social.')
     }
     if (params.get('invited') === '1') {
       toast.success('Invitación aceptada. Inicia sesión para continuar.')
@@ -365,6 +360,9 @@ export default function LoginPage() {
               {step === 'form' && (googleEnabled || metaEnabled) && (
                 <>
                   <div className="relative py-2 text-center text-xs text-stone-500">o</div>
+                  <p className="text-center text-xs text-stone-500">
+                    El acceso con Google o Meta requiere invitación o cuenta existente.
+                  </p>
                   <div className="space-y-2">
                     {googleEnabled && (
                       <button

@@ -132,6 +132,7 @@ export async function GET() {
         oauth: {
           linkedProviders,
           availableProviders,
+          policy: 'invite_only',
         },
       },
     })

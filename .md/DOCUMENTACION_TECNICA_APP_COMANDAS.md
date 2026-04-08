@@ -143,6 +143,8 @@ Comportamiento actual en OAuth:
 
 - Si la membresía ya existe, solo reactiva (`activo: true`) y no pisa `rolId` existente.
 - Si crea membresía nueva, inicializa `rolId` desde el usuario en ese contexto.
+- Política actual de alta social: `invite-only`. Si no existe `CuentaOAuth` ni usuario activo por email, solo se permite si hay una invitación activa/usable para ese email.
+- Si el proveedor OAuth no devuelve email, se rechaza el acceso (`social_email_required`).
 
 ## 6. Menú multisucursal
 
@@ -179,9 +181,10 @@ Alineación reciente:
 ### 8.1 Capas
 
 - Autenticación por middleware + NextAuth.
-- Autorización fina en handlers (`tienePermiso`).
+- Autorización fina en handlers vía guards (`requireAuthenticatedUser`, `requireActiveTenant`, `requireCapability`).
 - Validación de payload con Zod.
 - Hash de secretos/tokens (códigos, API keys, etc. según flujo).
+- Segmento `app/api` forzado como dinámico para evitar errores de build por uso de sesión (`auth()`/headers).
 
 ### 8.2 Riesgos controlados y deuda conocida
 
@@ -227,4 +230,4 @@ Cobertura mínima actual:
 
 ---
 
-Última actualización: 2026-04-07
+Última actualización: 2026-04-08

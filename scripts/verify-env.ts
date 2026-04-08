@@ -9,11 +9,14 @@ import { resolve } from 'path'
 // Cargar variables de entorno desde .env.local
 config({ path: resolve(process.cwd(), '.env.local') })
 
-const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET']
-
-const optionalEnvVars: string[] = [
-  // Variables opcionales - no son necesarias para empezar
-  // La configuración fiscal y de pagos se hace desde la UI
+const requiredEnvVars = ['DATABASE_URL']
+const optionalEnvVars = [
+  'AUTH_SECRET',
+  'JWT_SECRET',
+  'AUTH_GOOGLE_ID',
+  'AUTH_GOOGLE_SECRET',
+  'AUTH_META_ID',
+  'AUTH_META_SECRET',
 ]
 
 interface EnvCheck {
@@ -48,6 +51,7 @@ function checkEnvVar(name: string, required: boolean = true): EnvCheck {
         break
         
       case 'JWT_SECRET':
+      case 'AUTH_SECRET':
         if (value.length < 32) {
           isValid = false
           message = '⚠️  Muy corto (recomendado: mínimo 32 caracteres)'
@@ -95,20 +99,49 @@ function main() {
     }
   }
   
-  // Solo mostrar variables opcionales si hay alguna configurada
-  if (optionalEnvVars.length > 0) {
-    console.log('\n📋 Variables Opcionales:')
-    console.log('─'.repeat(60))
-    
-    for (const varName of optionalEnvVars) {
-      const check = checkEnvVar(varName, false)
-      checks.push(check)
-      console.log(`${check.name.padEnd(20)} ${check.message}`)
-      if (check.value) {
-        console.log(`   Valor: ${check.value}`)
-      }
-    }
+  console.log('\n📋 Variables Opcionales (OAuth y sesión):')
+  console.log('─'.repeat(60))
+  for (const varName of optionalEnvVars) {
+    const check = checkEnvVar(varName, false)
+    checks.push(check)
+    console.log(`${check.name.padEnd(20)} ${check.message}`)
   }
+
+  const authSecret = process.env.AUTH_SECRET?.trim() ?? ''
+  const jwtSecret = process.env.JWT_SECRET?.trim() ?? ''
+  const hasSessionSecret = Boolean(authSecret || jwtSecret)
+  console.log('\n🔐 Verificación de secreto de sesión:')
+  if (hasSessionSecret) {
+    console.log('✅ OK (AUTH_SECRET o JWT_SECRET presente)')
+  } else {
+    console.log('❌ FALTANTE (define AUTH_SECRET o JWT_SECRET)')
+  }
+
+  const googleId = process.env.AUTH_GOOGLE_ID?.trim() ?? ''
+  const googleSecret = process.env.AUTH_GOOGLE_SECRET?.trim() ?? ''
+  const metaId = process.env.AUTH_META_ID?.trim() ?? ''
+  const metaSecret = process.env.AUTH_META_SECRET?.trim() ?? ''
+
+  const googlePairValid = (!googleId && !googleSecret) || (googleId && googleSecret)
+  const metaPairValid = (!metaId && !metaSecret) || (metaId && metaSecret)
+  const oauthAnyProvider = (googleId && googleSecret) || (metaId && metaSecret)
+
+  console.log('\n🔗 Verificación OAuth:')
+  console.log(
+    googlePairValid
+      ? '✅ Google: configuración consistente'
+      : '❌ Google: faltan variables (AUTH_GOOGLE_ID + AUTH_GOOGLE_SECRET)'
+  )
+  console.log(
+    metaPairValid
+      ? '✅ Meta: configuración consistente'
+      : '❌ Meta: faltan variables (AUTH_META_ID + AUTH_META_SECRET)'
+  )
+  console.log(
+    oauthAnyProvider
+      ? '✅ Al menos un proveedor OAuth está habilitado'
+      : '⚠️  Ningún proveedor OAuth habilitado (solo login con contraseña)'
+  )
   
   // Resumen
   console.log('\n' + '═'.repeat(60))
@@ -116,8 +149,10 @@ function main() {
   const requiredValid = checks
     .filter(c => requiredEnvVars.includes(c.name))
     .every(c => c.isValid)
+  const oauthValid = googlePairValid && metaPairValid
+  const sessionSecretValid = hasSessionSecret
   
-  if (allValid && requiredValid) {
+  if (allValid && requiredValid && oauthValid && sessionSecretValid) {
     console.log('✅ Todas las variables requeridas están configuradas correctamente\n')
     console.log('💡 Próximos pasos:')
     console.log('   1. Ejecuta: npm run db:generate')
@@ -131,8 +166,9 @@ function main() {
     console.log('❌ Hay problemas con la configuración\n')
     console.log('💡 Soluciones:')
     console.log('   1. Asegúrate de tener un archivo .env.local en la raíz del proyecto')
-    console.log('   2. Configura: DATABASE_URL y JWT_SECRET')
-    console.log('   3. Genera JWT_SECRET con PowerShell o: https://generate-secret.vercel.app/32')
+    console.log('   2. Configura: DATABASE_URL y AUTH_SECRET (o JWT_SECRET)')
+    console.log('   3. Si usas OAuth, configura pares completos Google/Meta')
+    console.log('   4. Genera secretos con: https://generate-secret.vercel.app/32')
     process.exit(1)
   }
 }

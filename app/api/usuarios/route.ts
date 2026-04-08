@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
 import { hashPassword } from '@/lib/auth'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+  requireRoleScopedToTenant,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 import { z } from 'zod'
 
 const createUsuarioSchema = z.object({
@@ -17,18 +22,14 @@ const createUsuarioSchema = z.object({
  * GET /api/usuarios
  * Lista usuarios. Solo usuarios con permiso usuarios_roles.
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'usuarios_roles')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'usuarios_roles')
+    const tenant = requireActiveTenant(user)
 
     const usuarios = await prisma.usuario.findMany({
-      where: { restauranteId: user.restauranteId },
+      where: { restauranteId: tenant.restauranteId },
       select: {
         id: true,
         email: true,
@@ -54,11 +55,7 @@ export async function GET(request: NextRequest) {
       data: usuarios,
     })
   } catch (error) {
-    console.error('Error en GET /api/usuarios:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/usuarios:')
   }
 }
 
@@ -68,16 +65,17 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'usuarios_roles')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'usuarios_roles')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = createUsuarioSchema.parse(body)
+    await requireRoleScopedToTenant(data.rolId, {
+      restauranteId: tenant.restauranteId,
+      organizacionId: tenant.organizacionId,
+      actorRoleId: user.effectiveRolId ?? user.rolId,
+    })
 
     const rol = await prisma.rol.findUnique({ where: { id: data.rolId } })
     if (!rol) {
@@ -87,7 +85,7 @@ export async function POST(request: NextRequest) {
     const existente = await prisma.usuario.findUnique({
       where: {
         restauranteId_email: {
-          restauranteId: user.restauranteId,
+          restauranteId: tenant.restauranteId,
           email: data.email.toLowerCase().trim(),
         },
       },
@@ -103,14 +101,14 @@ export async function POST(request: NextRequest) {
 
     const nuevoUsuario = await prisma.$transaction(async (tx) => {
       const baseRestaurante = await tx.restaurante.findUnique({
-        where: { id: user.restauranteId },
+        where: { id: tenant.restauranteId },
         select: { organizacionId: true },
       })
 
       const created = await tx.usuario.create({
         data: {
-          restauranteId: user.restauranteId,
-          activeRestauranteId: user.restauranteId,
+          restauranteId: tenant.restauranteId,
+          activeRestauranteId: tenant.restauranteId,
           activeOrganizacionId: baseRestaurante?.organizacionId ?? null,
           nombre: data.nombre.trim(),
           apellido: data.apellido.trim(),
@@ -140,12 +138,12 @@ export async function POST(request: NextRequest) {
         where: {
           usuarioId_restauranteId: {
             usuarioId: created.id,
-            restauranteId: user.restauranteId,
+            restauranteId: tenant.restauranteId,
           },
         },
         create: {
           usuarioId: created.id,
-          restauranteId: user.restauranteId,
+          restauranteId: tenant.restauranteId,
           rolId: data.rolId,
           esPrincipal: true,
           activo: true,
@@ -189,16 +187,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en POST /api/usuarios:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/usuarios:')
   }
 }

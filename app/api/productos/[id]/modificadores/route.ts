@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getMenuContext } from '@/lib/menu-context'
+import { requireActiveTenant, requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 import { z } from 'zod'
 
 const asignarModificadorSchema = z.object({
@@ -10,25 +10,17 @@ const asignarModificadorSchema = z.object({
 })
 
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.view')
+    const tenant = requireActiveTenant(user)
 
-    if (!tienePermiso(user, 'menu.view')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
-
-    const menuCtx = await getMenuContext(user.restauranteId)
+    const menuCtx = await getMenuContext(tenant.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
 
     const producto = await prisma.producto.findFirst({
@@ -36,10 +28,7 @@ export async function GET(
     })
 
     if (!producto) {
-      return NextResponse.json(
-        { success: false, error: 'Producto no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Producto no encontrado')
     }
 
     const modificadores = await prisma.modificadorProducto.findMany({
@@ -50,10 +39,10 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: modificadores })
   } catch (error) {
-    console.error('Error en GET /api/productos/[id]/modificadores:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en GET /api/productos/[id]/modificadores:'
     )
   }
 }
@@ -63,30 +52,16 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
+    const tenant = requireActiveTenant(user)
 
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para asignar extras' },
-        { status: 403 }
-      )
-    }
-
-    const menuCtx = await getMenuContext(user.restauranteId)
+    const menuCtx = await getMenuContext(tenant.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const producto = await prisma.producto.findFirst({
@@ -94,10 +69,7 @@ export async function POST(
     })
 
     if (!producto) {
-      return NextResponse.json(
-        { success: false, error: 'Producto no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Producto no encontrado')
     }
 
     const body = await request.json()
@@ -108,10 +80,7 @@ export async function POST(
     })
 
     if (!modificador) {
-      return NextResponse.json(
-        { success: false, error: 'Extra no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Extra no encontrado')
     }
 
     // upsert para evitar duplicados
@@ -132,7 +101,7 @@ export async function POST(
 
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'ASIGNAR_EXTRA_PRODUCTO',
         entidad: 'Producto',
@@ -143,17 +112,10 @@ export async function POST(
 
     return NextResponse.json({ success: true, data: relacion }, { status: 201 })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/productos/[id]/modificadores:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en POST /api/productos/[id]/modificadores:'
     )
   }
 }
@@ -163,30 +125,16 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
+    const tenant = requireActiveTenant(user)
 
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para quitar extras' },
-        { status: 403 }
-      )
-    }
-
-    const menuCtx = await getMenuContext(user.restauranteId)
+    const menuCtx = await getMenuContext(tenant.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const body = await request.json()
@@ -196,10 +144,7 @@ export async function DELETE(
       where: { id: params.id, categoria: { restauranteId: menuCtx.menuRestauranteId } },
     })
     if (!prodOk) {
-      return NextResponse.json(
-        { success: false, error: 'Producto no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Producto no encontrado')
     }
 
     const relacion = await prisma.modificadorProducto.findUnique({
@@ -212,10 +157,7 @@ export async function DELETE(
     })
 
     if (!relacion) {
-      return NextResponse.json(
-        { success: false, error: 'El extra no está asignado a este producto' },
-        { status: 404 }
-      )
+      raise(404, 'El extra no está asignado a este producto')
     }
 
     await prisma.modificadorProducto.delete({
@@ -229,7 +171,7 @@ export async function DELETE(
 
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'QUITAR_EXTRA_PRODUCTO',
         entidad: 'Producto',
@@ -240,17 +182,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: 'Extra quitado del producto' })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en DELETE /api/productos/[id]/modificadores:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en DELETE /api/productos/[id]/modificadores:'
     )
   }
 }
