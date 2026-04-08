@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
+import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 const updateProductoSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').optional(),
@@ -20,30 +20,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para editar productos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
 
     const menuCtx = await getMenuContext(user.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const body = await request.json()
@@ -58,10 +43,7 @@ export async function PATCH(
     })
 
     if (!productoExistente) {
-      return NextResponse.json(
-        { success: false, error: 'Producto no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Producto no encontrado')
     }
 
     // Si se está cambiando la categoría, verificar que existe
@@ -71,10 +53,7 @@ export async function PATCH(
       })
 
       if (!categoria) {
-        return NextResponse.json(
-          { success: false, error: 'Categoría no encontrada' },
-          { status: 404 }
-        )
+        raise(404, 'Categoría no encontrada')
       }
     }
 
@@ -111,17 +90,6 @@ export async function PATCH(
       data: producto,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en PATCH /api/productos/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en PATCH /api/productos/[id]:')
   }
 }

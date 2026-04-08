@@ -4,6 +4,10 @@ import Credentials from 'next-auth/providers/credentials'
 import Facebook from 'next-auth/providers/facebook'
 import Google from 'next-auth/providers/google'
 import { PENDING_ACCESS_SLUG, ensurePendingAccessContext } from '@/lib/onboarding'
+import {
+  buildBranchMembershipUpsertData,
+  buildOrganizationMembershipUpsertData,
+} from '@/lib/authz/oauth-membership'
 
 const secret =
   process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? process.env.JWT_SECRET
@@ -152,40 +156,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       })
       if (existingLink?.usuario?.activo) {
         await prisma.sucursalMiembro
-          .upsert({
-            where: {
-              usuarioId_restauranteId: {
-                usuarioId: existingLink.usuario.id,
-                restauranteId: existingLink.usuario.restauranteId,
-              },
-            },
-            create: {
-              usuarioId: existingLink.usuario.id,
+          .upsert(
+            buildBranchMembershipUpsertData({
+              userId: existingLink.usuario.id,
               restauranteId: existingLink.usuario.restauranteId,
               rolId: existingLink.usuario.rolId,
-              activo: true,
               esPrincipal: true,
-            },
-            update: { activo: true },
-          })
+            })
+          )
           .catch(() => {})
         if (existingLink.usuario.restaurante.organizacionId) {
           await prisma.organizacionMiembro
-            .upsert({
-              where: {
-                usuarioId_organizacionId: {
-                  usuarioId: existingLink.usuario.id,
-                  organizacionId: existingLink.usuario.restaurante.organizacionId,
-                },
-              },
-              create: {
-                usuarioId: existingLink.usuario.id,
+            .upsert(
+              buildOrganizationMembershipUpsertData({
+                userId: existingLink.usuario.id,
                 organizacionId: existingLink.usuario.restaurante.organizacionId,
                 rolId: existingLink.usuario.rolId,
-                activo: true,
-              },
-              update: { activo: true },
-            })
+              })
+            )
             .catch(() => {})
         }
         await prisma.usuario
@@ -278,40 +266,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         update: { usuarioId: dbUser.id },
       })
       await prisma.sucursalMiembro
-        .upsert({
-          where: {
-            usuarioId_restauranteId: {
-              usuarioId: dbUser.id,
-              restauranteId: dbUser.restauranteId,
-            },
-          },
-          create: {
-            usuarioId: dbUser.id,
+        .upsert(
+          buildBranchMembershipUpsertData({
+            userId: dbUser.id,
             restauranteId: dbUser.restauranteId,
             rolId: dbUser.rolId,
-            activo: true,
             esPrincipal: true,
-          },
-          update: { activo: true },
-        })
+          })
+        )
         .catch(() => {})
       if (dbUser.restaurante.organizacionId) {
         await prisma.organizacionMiembro
-          .upsert({
-            where: {
-              usuarioId_organizacionId: {
-                usuarioId: dbUser.id,
-                organizacionId: dbUser.restaurante.organizacionId,
-              },
-            },
-            create: {
-              usuarioId: dbUser.id,
+          .upsert(
+            buildOrganizationMembershipUpsertData({
+              userId: dbUser.id,
               organizacionId: dbUser.restaurante.organizacionId,
               rolId: dbUser.rolId,
-              activo: true,
-            },
-            update: { activo: true },
-          })
+            })
+          )
           .catch(() => {})
       }
       const pendingContext = await ensurePendingAccessContext(prisma)

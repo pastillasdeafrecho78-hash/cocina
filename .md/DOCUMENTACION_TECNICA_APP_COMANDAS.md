@@ -107,6 +107,7 @@ Regla operativa:
 
 - Middleware valida autenticación.
 - Cada handler debe validar permisos/capacidad y alcance de tenant/recurso.
+- Endpoints migrados usan guardas reutilizables (`lib/authz/guards.ts`) para reducir validaciones ad-hoc.
 
 ## 5. Multitenancy operativo
 
@@ -189,7 +190,24 @@ Flujos mínimos para QA:
 4. Menú público de sucursal SHARED:
    - validar que renderiza carta de fuente
 
-## 10. Próximos pasos recomendados
+## 10. Pruebas automatizadas mínimas
+
+Suite base con Vitest:
+
+- `tests/authz/effective-role.test.ts`
+- `tests/authz/oauth-membership.test.ts`
+- `tests/api/roles-protected.test.ts`
+- `tests/api/public-menu-shared.test.ts`
+
+Cobertura mínima actual:
+
+1. Usuario con dos sucursales y roles distintos.
+2. Cambio de contexto que altera rol efectivo.
+3. OAuth sin sobreescritura de `rolId` en membresías existentes.
+4. Endpoint protegido que retorna `403` sin capacidad suficiente.
+5. Menú público `SHARED` que consulta la fuente correcta.
+
+## 11. Próximos pasos recomendados
 
 1. Migrar UI/admin para gestionar rol por sucursal explícitamente.
 2. Reducir dependencia de `Usuario.rolId` hasta deprecación.

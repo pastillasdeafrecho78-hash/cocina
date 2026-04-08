@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
+import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 const updateModificadorSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').optional(),
@@ -17,30 +17,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para editar extras' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
 
     const menuCtx = await getMenuContext(user.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const modificadorExistente = await prisma.modificador.findFirst({
@@ -48,10 +33,7 @@ export async function PATCH(
     })
 
     if (!modificadorExistente) {
-      return NextResponse.json(
-        { success: false, error: 'Extra no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Extra no encontrado')
     }
 
     const body = await request.json()
@@ -68,10 +50,7 @@ export async function PATCH(
       })
 
       if (duplicado) {
-        return NextResponse.json(
-          { success: false, error: 'Ya existe un extra con ese nombre y tipo' },
-          { status: 400 }
-        )
+        raise(400, 'Ya existe un extra con ese nombre y tipo')
       }
     }
 
@@ -97,17 +76,10 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, data: modificador })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en PATCH /api/modificadores/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en PATCH /api/modificadores/[id]:'
     )
   }
 }
@@ -117,30 +89,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para eliminar extras' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
 
     const menuCtx = await getMenuContext(user.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const modificador = await prisma.modificador.findFirst({
@@ -152,10 +109,7 @@ export async function DELETE(
     })
 
     if (!modificador) {
-      return NextResponse.json(
-        { success: false, error: 'Extra no encontrado' },
-        { status: 404 }
-      )
+      raise(404, 'Extra no encontrado')
     }
 
     // Si está asignado a productos o usado en comandas, solo desactivar
@@ -196,10 +150,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true, message: 'Extra eliminado exitosamente' })
   } catch (error) {
-    console.error('Error en DELETE /api/modificadores/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en DELETE /api/modificadores/[id]:'
     )
   }
 }

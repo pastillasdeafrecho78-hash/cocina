@@ -1,6 +1,8 @@
 import { auth } from '@/auth'
 import { prisma } from '@/lib/prisma'
 import { resolveTenantContext } from '@/lib/tenant'
+import { logLegacyFallback } from '@/lib/authz/logging'
+import { resolveEffectiveRoleId } from '@/lib/authz/effective-role'
 
 export type SessionUser = NonNullable<Awaited<ReturnType<typeof getSessionUser>>>
 
@@ -84,10 +86,19 @@ export async function getSessionUser() {
     activeOrganizacionId = null
   }
 
-  const membershipForActiveBranch = hasMemberships
-    ? user.sucursales.find((m) => m.restauranteId === activeRestauranteId)
-    : undefined
-  const effectiveRolId = membershipForActiveBranch?.rolId ?? user.rolId
+  const { effectiveRolId, usedLegacyFallback } = resolveEffectiveRoleId(
+    activeRestauranteId,
+    user.sucursales.map((m) => ({ restauranteId: m.restauranteId, rolId: m.rolId ?? null })),
+    user.rolId
+  )
+  if (usedLegacyFallback) {
+    logLegacyFallback({
+      userId: user.id,
+      activeRestauranteId,
+      fallbackRolId: user.rolId,
+      reason: hasMemberships ? 'membership_without_role' : 'missing_membership',
+    })
+  }
 
   let rol = await prisma.rol.findUnique({
     where: { id: effectiveRolId },

@@ -16,7 +16,9 @@
     "db:seed": "dotenv -e .env.local -- tsx scripts/seed.ts",
     "verify:env": "tsx scripts/verify-env.ts",
     "tunnel": "node scripts/start-tunnel.js",
-    "tunnel:simple": "node scripts/ngrok-simple.js"
+    "tunnel:simple": "node scripts/ngrok-simple.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@heroicons/react": "^2.0.18",
@@ -56,6 +58,7 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^3.3.6",
     "tsx": "^4.7.0",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "vitest": "^4.1.3"
   }
 }

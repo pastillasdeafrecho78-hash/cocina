@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
 import { hashPassword } from '@/lib/auth'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+  requireUserScopedToTenant,
+} from '@/lib/authz/guards'
+import { toErrorResponse, raise } from '@/lib/authz/http'
 
 const updateUsuarioSchema = z.object({
   nombre: z.string().min(1).optional(),
@@ -23,39 +28,25 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'usuarios_roles')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'staff.manage')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = updateUsuarioSchema.parse(body)
 
     const existente = await prisma.usuario.findUnique({ where: { id: params.id } })
     if (!existente) {
-      return NextResponse.json({ success: false, error: 'Usuario no encontrado' }, { status: 404 })
+      raise(404, 'Usuario no encontrado')
     }
 
-    const membership = await prisma.sucursalMiembro.findFirst({
-      where: {
-        usuarioId: params.id,
-        restauranteId: user.restauranteId,
-        activo: true,
-      },
-      select: { id: true },
-    })
-    if (!membership) {
-      return NextResponse.json({ success: false, error: 'Usuario no encontrado' }, { status: 404 })
-    }
+    await requireUserScopedToTenant(params.id, tenant.restauranteId)
 
     if (data.email && data.email.toLowerCase().trim() !== existente.email) {
       const emailOcupado = await prisma.usuario.findUnique({
         where: {
           restauranteId_email: {
-            restauranteId: user.restauranteId,
+            restauranteId: tenant.restauranteId,
             email: data.email.toLowerCase().trim(),
           },
         },
@@ -112,12 +103,12 @@ export async function PATCH(
         await tx.sucursalMiembro.updateMany({
           where: {
             usuarioId: params.id,
-            restauranteId: user.restauranteId,
+            restauranteId: tenant.restauranteId,
           },
           data: { rolId: data.rolId },
         })
         const base = await tx.restaurante.findUnique({
-          where: { id: user.restauranteId },
+          where: { id: tenant.restauranteId },
           select: { organizacionId: true },
         })
         if (base?.organizacionId) {
@@ -139,17 +130,7 @@ export async function PATCH(
       data: usuario,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en PATCH /api/usuarios/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en PATCH /api/usuarios/[id]:')
   }
 }
 
@@ -162,20 +143,10 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'usuarios_roles')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
-
-    const existente = await prisma.usuario.findUnique({
-      where: { id: params.id },
-    })
-    if (!existente) {
-      return NextResponse.json({ success: false, error: 'Usuario no encontrado' }, { status: 404 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'staff.manage')
+    const tenant = requireActiveTenant(user)
+    await requireUserScopedToTenant(params.id, tenant.restauranteId)
 
     await prisma.usuario.update({
       where: { id: params.id },
@@ -184,10 +155,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error en DELETE /api/usuarios/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en DELETE /api/usuarios/[id]:'
     )
   }
 }

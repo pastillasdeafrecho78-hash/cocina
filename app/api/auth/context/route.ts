@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthenticatedUser, requireBranchMembership } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,38 +14,24 @@ const bodySchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
+    const user = await requireAuthenticatedUser()
 
     const body = await request.json()
     const data = bodySchema.parse(body)
 
     if (!data.organizacionId && !data.restauranteId) {
-      return NextResponse.json(
-        { success: false, error: 'Debes enviar organización o sucursal' },
-        { status: 400 }
-      )
+      raise(400, 'Debes enviar organización o sucursal')
     }
 
     let membership: { restauranteId: string; restaurante: { organizacionId: string | null } } | null =
       null
 
     if (data.restauranteId) {
-      membership = await prisma.sucursalMiembro.findFirst({
-        where: {
-          usuarioId: user.id,
-          restauranteId: data.restauranteId,
-          activo: true,
-          restaurante: { activo: true },
-        },
-        include: {
-          restaurante: {
-            select: { organizacionId: true },
-          },
-        },
-      })
+      const validMembership = await requireBranchMembership(user.id, data.restauranteId)
+      membership = {
+        restauranteId: validMembership.restauranteId,
+        restaurante: { organizacionId: validMembership.restaurante.organizacionId },
+      }
     } else if (data.organizacionId) {
       membership = await prisma.sucursalMiembro.findFirst({
         where: {
@@ -62,10 +49,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!membership) {
-      return NextResponse.json(
-        { success: false, error: 'No tienes acceso al contexto solicitado' },
-        { status: 403 }
-      )
+      raise(403, 'No tienes acceso al contexto solicitado')
     }
 
     await prisma.usuario.update({
@@ -84,16 +68,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en /api/auth/context:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error al cambiar de sucursal' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error al cambiar de sucursal', 'Error en /api/auth/context:')
   }
 }

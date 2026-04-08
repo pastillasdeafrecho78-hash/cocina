@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+  requireRoleScopedToTenant,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 const updateRolSchema = z.object({
   nombre: z.string().min(1).optional(),
@@ -20,13 +25,14 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'staff.manage')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'staff.manage')
+    const tenant = requireActiveTenant(user)
+    await requireRoleScopedToTenant(params.id, {
+      restauranteId: tenant.restauranteId,
+      organizacionId: tenant.organizacionId,
+      actorRoleId: user.rolId,
+    })
 
     const body = await request.json()
     const data = updateRolSchema.parse(body)
@@ -39,10 +45,7 @@ export async function PATCH(
         },
       })
       if (existente) {
-        return NextResponse.json(
-          { success: false, error: 'Ya existe un rol con ese código' },
-          { status: 400 }
-        )
+        raise(400, 'Ya existe un rol con ese código')
       }
     }
 
@@ -67,17 +70,7 @@ export async function PATCH(
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en PATCH /api/roles/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en PATCH /api/roles/[id]:')
   }
 }
 
@@ -90,13 +83,14 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'staff.manage')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'staff.manage')
+    const tenant = requireActiveTenant(user)
+    await requireRoleScopedToTenant(params.id, {
+      restauranteId: tenant.restauranteId,
+      organizacionId: tenant.organizacionId,
+      actorRoleId: user.rolId,
+    })
 
     const rol = await prisma.rol.findUnique({
       where: { id: params.id },
@@ -104,16 +98,13 @@ export async function DELETE(
     })
 
     if (!rol) {
-      return NextResponse.json({ success: false, error: 'Rol no encontrado' }, { status: 404 })
+      raise(404, 'Rol no encontrado')
     }
 
     if (rol._count.usuarios > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `No se puede eliminar: el rol tiene ${rol._count.usuarios} usuario(s) asignado(s). Reasigna los usuarios antes de eliminar.`,
-        },
-        { status: 400 }
+      raise(
+        400,
+        `No se puede eliminar: el rol tiene ${rol._count.usuarios} usuario(s) asignado(s). Reasigna los usuarios antes de eliminar.`
       )
     }
 
@@ -123,10 +114,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error en DELETE /api/roles/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en DELETE /api/roles/[id]:')
   }
 }

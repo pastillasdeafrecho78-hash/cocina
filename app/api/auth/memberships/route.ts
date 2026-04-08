@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
 import { prisma } from '@/lib/prisma'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireAuthenticatedUser,
+  requireBranchMembership,
+  requireCapability,
+  requireOrganizationMembership,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -14,13 +19,8 @@ const querySchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'usuarios_roles')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'staff.manage')
 
     const parsed = querySchema.safeParse({
       scope: request.nextUrl.searchParams.get('scope'),
@@ -35,19 +35,7 @@ export async function GET(request: NextRequest) {
     const { scope, id } = parsed.data
 
     if (scope === 'branch') {
-      const allowed = await prisma.sucursalMiembro.findFirst({
-        where: {
-          usuarioId: user.id,
-          restauranteId: id,
-          activo: true,
-        },
-      })
-      if (!allowed) {
-        return NextResponse.json(
-          { success: false, error: 'No tienes acceso a esta sucursal' },
-          { status: 403 }
-        )
-      }
+      await requireBranchMembership(user.id, id)
 
       const members = await prisma.sucursalMiembro.findMany({
         where: { restauranteId: id, activo: true, usuario: { activo: true } },
@@ -90,19 +78,7 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const allowedOrg = await prisma.organizacionMiembro.findFirst({
-      where: {
-        usuarioId: user.id,
-        organizacionId: id,
-        activo: true,
-      },
-    })
-    if (!allowedOrg) {
-      return NextResponse.json(
-        { success: false, error: 'No tienes acceso a esta organización' },
-        { status: 403 }
-      )
-    }
+    await requireOrganizationMembership(user.id, id)
 
     const members = await prisma.organizacionMiembro.findMany({
       where: { organizacionId: id, activo: true, usuario: { activo: true } },
@@ -159,10 +135,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error en /api/auth/memberships:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error al cargar membresías' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error al cargar membresías', 'Error en /api/auth/memberships:')
   }
 }

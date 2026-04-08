@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getMenuContext } from '@/lib/menu-context'
+import { resolveEffectiveMenu } from '@/lib/menu-effective'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,8 +21,8 @@ export async function GET(_request: Request, { params }: { params: { slug: strin
       return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
     }
 
-    const menuCtx = await getMenuContext(restaurante.id)
-    const menuRestauranteId = menuCtx?.menuRestauranteId ?? restaurante.id
+    const menuCtx = await resolveEffectiveMenu(restaurante.id)
+    const menuRestauranteId = menuCtx.menuRestauranteId
 
     const categorias = await prisma.categoria.findMany({
       where: {
@@ -50,10 +51,6 @@ export async function GET(_request: Request, { params }: { params: { slug: strin
       },
     })
   } catch (error) {
-    console.error('Error en GET /api/public/menu/[slug]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error al obtener el menú' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error al obtener el menú', 'Error en GET /api/public/menu/[slug]:')
   }
 }

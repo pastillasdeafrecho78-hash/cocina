@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 const createRolSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
@@ -17,15 +21,35 @@ const createRolSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'staff.manage')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'staff.manage')
+    const tenant = requireActiveTenant(user)
+
+    const branchRoleRows = await prisma.sucursalMiembro.findMany({
+      where: { restauranteId: tenant.restauranteId, activo: true, rolId: { not: null } },
+      select: { rolId: true },
+    })
+    const orgRoleRows = tenant.organizacionId
+      ? await prisma.organizacionMiembro.findMany({
+          where: { organizacionId: tenant.organizacionId, activo: true, rolId: { not: null } },
+          select: { rolId: true },
+        })
+      : []
+    const userRoleRows = await prisma.usuario.findMany({
+      where: { restauranteId: tenant.restauranteId, activo: true },
+      select: { rolId: true },
+    })
+
+    const roleIds = Array.from(
+      new Set(
+        [user.rolId, ...branchRoleRows, ...orgRoleRows, ...userRoleRows]
+          .map((r) => (typeof r === 'string' ? r : r.rolId))
+          .filter((id): id is string => Boolean(id))
+      )
+    )
 
     const roles = await prisma.rol.findMany({
+      where: { id: { in: roleIds } },
       include: {
         _count: {
           select: { usuarios: true },
@@ -48,11 +72,7 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error('Error en GET /api/roles:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/roles:')
   }
 }
 
@@ -62,13 +82,9 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'staff.manage')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'staff.manage')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = createRolSchema.parse(body)
@@ -78,10 +94,7 @@ export async function POST(request: NextRequest) {
         where: { codigo: data.codigo },
       })
       if (existente) {
-        return NextResponse.json(
-          { success: false, error: 'Ya existe un rol con ese código' },
-          { status: 400 }
-        )
+        raise(400, 'Ya existe un rol con ese código')
       }
     }
 
@@ -108,16 +121,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en POST /api/roles:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/roles:')
   }
 }

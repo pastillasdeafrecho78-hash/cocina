@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
-import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
+import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
+import { resolveEffectiveMenu } from '@/lib/menu-effective'
 
 const createCategoriaSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
@@ -23,25 +23,10 @@ const updateCategoriaSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.view')
 
-    if (!tienePermiso(user, 'menu.view')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para ver la carta' },
-        { status: 403 }
-      )
-    }
-
-    const menuCtx = await getMenuContext(user.restauranteId)
-    if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
-    }
+    const menuCtx = await resolveEffectiveMenu(user.restauranteId)
 
     const categorias = await prisma.categoria.findMany({
       where: {
@@ -78,43 +63,20 @@ export async function GET(request: NextRequest) {
       data: categorias,
     })
   } catch (error) {
-    console.error('Error en GET /api/categorias:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/categorias:')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
 
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para crear categorías' },
-        { status: 403 }
-      )
-    }
-
-    const menuCtx = await getMenuContext(user.restauranteId)
-    if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
-    }
+    const menuCtx = await resolveEffectiveMenu(user.restauranteId)
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'Esta sucursal usa carta compartida. No puedes editarla directamente; usa la sucursal fuente o clona la carta.',
-        },
-        { status: 409 }
+      raise(
+        409,
+        'Esta sucursal usa carta compartida. No puedes editarla directamente; usa la sucursal fuente o clona la carta.'
       )
     }
 
@@ -131,10 +93,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (categoriaExistente) {
-      return NextResponse.json(
-        { success: false, error: 'Ya existe una categoría con ese nombre' },
-        { status: 400 }
-      )
+      raise(400, 'Ya existe una categoría con ese nombre')
     }
 
     // Obtener el máximo orden para poner la nueva categoría al final
@@ -172,18 +131,7 @@ export async function POST(request: NextRequest) {
       data: categoria,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/categorias:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/categorias:')
   }
 }
 

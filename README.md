@@ -124,6 +124,7 @@ npm run db:seed
 - El contexto activo vive en `activeRestauranteId` / `activeOrganizacionId`.
 - El rol efectivo para autorización se resuelve desde la membresía de la sucursal activa (`SucursalMiembro.rolId`) con fallback de compatibilidad.
 - Los permisos se evalúan con capa híbrida (`lib/permisos.ts`): módulos legacy + capacidades granulares.
+- La capa de guardas reutilizables vive en `lib/authz/*` y se usa para estandarizar auth/tenant/capability/scope en APIs sensibles.
 
 ## 📝 Scripts Disponibles
 
@@ -141,6 +142,10 @@ npm run db:seed          # Ejecutar seed (crear datos iniciales)
 # Producción
 npm run build            # Construir para producción
 npm start                # Iniciar servidor de producción
+
+# Tests
+npm test                 # Ejecutar pruebas Vitest
+npm run test:watch       # Modo watch
 ```
 
 ## 🗺️ Roadmap MVP (POS desacoplado)

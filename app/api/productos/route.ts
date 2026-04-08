@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
+import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 const createProductoSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido'),
@@ -17,24 +17,12 @@ const createProductoSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'menu.view')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para ver productos de la carta' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.view')
 
     const menuCtx = await getMenuContext(user.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
 
     const { searchParams } = new URL(request.url)
@@ -81,43 +69,23 @@ export async function GET(request: NextRequest) {
       data: productos,
     })
   } catch (error) {
-    console.error('Error en GET /api/productos:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/productos:')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para crear productos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
 
     const menuCtx = await getMenuContext(user.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'Esta sucursal usa carta compartida. No puedes editarla directamente; usa la sucursal fuente o clona la carta.',
-        },
-        { status: 409 }
+      raise(
+        409,
+        'Esta sucursal usa carta compartida. No puedes editarla directamente; usa la sucursal fuente o clona la carta.'
       )
     }
 
@@ -130,10 +98,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (!categoria) {
-      return NextResponse.json(
-        { success: false, error: 'Categoría no encontrada' },
-        { status: 404 }
-      )
+      raise(404, 'Categoría no encontrada')
     }
 
     // Crear el producto
@@ -168,18 +133,7 @@ export async function POST(request: NextRequest) {
       data: producto,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/productos:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/productos:')
   }
 }
 

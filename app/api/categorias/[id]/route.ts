@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getMenuContext } from '@/lib/menu-context'
 import { z } from 'zod'
+import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 const updateCategoriaSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').optional(),
@@ -18,30 +18,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para editar categorías' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
 
     const menuCtx = await getMenuContext(user.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     const body = await request.json()
@@ -53,10 +38,7 @@ export async function PATCH(
     })
 
     if (!categoriaExistente) {
-      return NextResponse.json(
-        { success: false, error: 'Categoría no encontrada' },
-        { status: 404 }
-      )
+      raise(404, 'Categoría no encontrada')
     }
 
     // Si se está cambiando el nombre, verificar que no exista otra con ese nombre
@@ -71,10 +53,7 @@ export async function PATCH(
       })
 
       if (nombreExistente) {
-        return NextResponse.json(
-          { success: false, error: 'Ya existe una categoría con ese nombre' },
-          { status: 400 }
-        )
+        raise(400, 'Ya existe una categoría con ese nombre')
       }
     }
 
@@ -105,17 +84,10 @@ export async function PATCH(
       data: categoria,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en PATCH /api/categorias/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en PATCH /api/categorias/[id]:'
     )
   }
 }
@@ -125,30 +97,15 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'menu.manage')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para eliminar categorías' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'menu.manage')
 
     const menuCtx = await getMenuContext(user.restauranteId)
     if (!menuCtx) {
-      return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
+      raise(404, 'Sucursal no encontrada')
     }
     if (menuCtx.isSharedConsumer) {
-      return NextResponse.json(
-        { success: false, error: 'La carta es compartida y no puede editarse desde esta sucursal' },
-        { status: 409 }
-      )
+      raise(409, 'La carta es compartida y no puede editarse desde esta sucursal')
     }
 
     // Verificar que la categoría existe
@@ -162,10 +119,7 @@ export async function DELETE(
     })
 
     if (!categoria) {
-      return NextResponse.json(
-        { success: false, error: 'Categoría no encontrada' },
-        { status: 404 }
-      )
+      raise(404, 'Categoría no encontrada')
     }
 
     // Si tiene productos activos, no se puede eliminar, solo desactivar
@@ -215,10 +169,10 @@ export async function DELETE(
       message: 'Categoría eliminada exitosamente',
     })
   } catch (error) {
-    console.error('Error en DELETE /api/categorias/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en DELETE /api/categorias/[id]:'
     )
   }
 }
