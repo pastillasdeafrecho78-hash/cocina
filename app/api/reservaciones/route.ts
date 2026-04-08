@@ -41,10 +41,16 @@ async function ensureReservationsTable() {
       "notes" text null,
       "createdAt" timestamp without time zone not null default current_timestamp,
       "updatedAt" timestamp without time zone not null default current_timestamp
-    );
-    create index if not exists "Reservacion_restauranteId_idx" on "Reservacion" ("restauranteId");
-    create index if not exists "Reservacion_reservedFor_idx" on "Reservacion" ("reservedFor");
-    create index if not exists "Reservacion_status_idx" on "Reservacion" ("status");
+    )
+  `)
+  await prisma.$executeRawUnsafe(`
+    create index if not exists "Reservacion_restauranteId_idx" on "Reservacion" ("restauranteId")
+  `)
+  await prisma.$executeRawUnsafe(`
+    create index if not exists "Reservacion_reservedFor_idx" on "Reservacion" ("reservedFor")
+  `)
+  await prisma.$executeRawUnsafe(`
+    create index if not exists "Reservacion_status_idx" on "Reservacion" ("status")
   `)
 }
 
