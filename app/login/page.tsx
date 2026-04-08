@@ -357,34 +357,40 @@ export default function LoginPage() {
                     : 'Iniciar sesión'}
               </button>
 
-              {step === 'form' && (googleEnabled || metaEnabled) && (
+              {step === 'form' && (
                 <>
                   <div className="relative py-2 text-center text-xs text-stone-500">o</div>
                   <p className="text-center text-xs text-stone-500">
                     El acceso con Google o Meta requiere invitación o cuenta existente.
                   </p>
-                  <div className="space-y-2">
-                    {googleEnabled && (
-                      <button
-                        type="button"
-                        disabled={loading}
-                        onClick={() => void handleGoogle()}
-                        className="app-btn-secondary w-full border-stone-300"
-                      >
-                        Continuar con Google
-                      </button>
-                    )}
-                    {metaEnabled && (
-                      <button
-                        type="button"
-                        disabled={loading}
-                        onClick={() => void handleMeta()}
-                        className="app-btn-secondary w-full border-stone-300"
-                      >
-                        Continuar con Meta
-                      </button>
-                    )}
-                  </div>
+                  {googleEnabled || metaEnabled ? (
+                    <div className="space-y-2">
+                      {googleEnabled && (
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => void handleGoogle()}
+                          className="app-btn-secondary w-full border-stone-300"
+                        >
+                          Continuar con Google
+                        </button>
+                      )}
+                      {metaEnabled && (
+                        <button
+                          type="button"
+                          disabled={loading}
+                          onClick={() => void handleMeta()}
+                          className="app-btn-secondary w-full border-stone-300"
+                        >
+                          Continuar con Meta
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-center text-xs text-stone-500">
+                      Google y Meta no están habilitados en este entorno todavía.
+                    </p>
+                  )}
                 </>
               )}
             </form>
