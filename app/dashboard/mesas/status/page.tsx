@@ -204,6 +204,12 @@ export default function MesasStatusPage() {
           </div>
           <div className="flex flex-wrap gap-2">
           <button
+            onClick={() => router.push('/dashboard/mesas/reservaciones')}
+            className="app-btn-secondary"
+          >
+            Reservaciones
+          </button>
+          <button
             onClick={() => setMostrarConfigTiempos(!mostrarConfigTiempos)}
             className="app-btn-secondary"
           >

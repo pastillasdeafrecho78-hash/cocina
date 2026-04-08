@@ -32,6 +32,9 @@ export const CAPACIDADES = [
   'settings.manage',
   'staff.view',
   'staff.manage',
+  'reservations.view',
+  'reservations.manage',
+  'benefits.grant',
 ] as const
 
 export const MODULOS = [...MODULOS_LEGACY, ...CAPACIDADES] as const
@@ -48,6 +51,7 @@ const LEGACY_TO_CAPABILITIES: Record<string, readonly string[]> = {
   reportes: ['reports.view'],
   configuracion: ['settings.view', 'settings.manage'],
   usuarios_roles: ['staff.view', 'staff.manage'],
+  mesas: ['reservations.view', 'reservations.manage'],
 }
 
 const CAPABILITY_TO_LEGACY: Record<string, readonly string[]> = {
@@ -66,6 +70,9 @@ const CAPABILITY_TO_LEGACY: Record<string, readonly string[]> = {
   'settings.manage': ['configuracion'],
   'staff.view': ['usuarios_roles'],
   'staff.manage': ['usuarios_roles'],
+  'reservations.view': ['mesas'],
+  'reservations.manage': ['mesas'],
+  'benefits.grant': ['configuracion'],
 }
 
 export const PERMISSION_LABELS: Record<string, string> = {
@@ -93,6 +100,9 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'settings.manage': 'Gestionar configuración',
   'staff.view': 'Ver staff y roles',
   'staff.manage': 'Gestionar staff y roles',
+  'reservations.view': 'Ver reservaciones',
+  'reservations.manage': 'Gestionar reservaciones',
+  'benefits.grant': 'Otorgar beneficios especiales',
 }
 
 export interface RolConPermisos {
