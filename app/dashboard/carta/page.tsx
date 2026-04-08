@@ -82,6 +82,58 @@ const TIPO_MODIFICADOR_COLOR: Record<string, string> = {
   EXTRAS: 'bg-purple-100 text-purple-800',
 }
 
+const MAX_IMAGE_BYTES = 340 * 1024
+const MAX_IMAGE_DIMENSION = 1280
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('No fue posible leer la imagen'))
+      }
+    }
+    reader.onerror = () => reject(new Error('No fue posible leer la imagen'))
+    reader.readAsDataURL(file)
+  })
+
+const compressImage = async (file: File): Promise<string> => {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('El archivo debe ser una imagen')
+  }
+
+  const source = await fileToDataUrl(file)
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error('No se pudo procesar la imagen'))
+    img.src = source
+  })
+
+  const ratio = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(image.width, image.height))
+  const width = Math.max(1, Math.round(image.width * ratio))
+  const height = Math.max(1, Math.round(image.height * ratio))
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('No se pudo preparar el canvas')
+  ctx.drawImage(image, 0, 0, width, height)
+
+  let quality = 0.88
+  let output = canvas.toDataURL('image/webp', quality)
+  while (output.length > MAX_IMAGE_BYTES * 1.37 && quality > 0.52) {
+    quality -= 0.08
+    output = canvas.toDataURL('image/webp', quality)
+  }
+  if (output.length > MAX_IMAGE_BYTES * 1.37) {
+    throw new Error('La imagen sigue siendo pesada. Usa una más ligera o recórtala.')
+  }
+  return output
+}
+
 export default function CartaPage() {
   const router = useRouter()
   const [categorias, setCategorias] = useState<Categoria[]>([])
@@ -139,6 +191,7 @@ export default function CartaPage() {
   const [nuevoTamanoNombre, setNuevoTamanoNombre] = useState('')
   const [nuevoTamanoPrecio, setNuevoTamanoPrecio] = useState('')
   const [agregandoTamano, setAgregandoTamano] = useState<string | null>(null)
+  const [subiendoImagenProductoId, setSubiendoImagenProductoId] = useState<string | null>(null)
 
   // Estados para input de categoría con autocompletado en formulario de producto
   const [busquedaCategoria, setBusquedaCategoria] = useState('')
@@ -465,6 +518,17 @@ export default function CartaPage() {
     }
   }
 
+  const handleImageFileForNewProduct = async (file?: File) => {
+    if (!file) return
+    try {
+      const imageDataUrl = await compressImage(file)
+      setFormData((prev) => ({ ...prev, imagenUrl: imageDataUrl }))
+      toast.success('Imagen lista para guardar con el producto')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo procesar la imagen')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.nombre || !formData.precio || !formData.categoriaId) {
@@ -504,6 +568,52 @@ export default function CartaPage() {
       toast.error('Error al crear producto')
     } finally {
       setGuardando(false)
+    }
+  }
+
+  const handleUploadImageProducto = async (productoId: string, file?: File) => {
+    if (!file) return
+    setSubiendoImagenProductoId(productoId)
+    try {
+      const imageDataUrl = await compressImage(file)
+      const response = await apiFetch(`/api/productos/${productoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagenUrl: imageDataUrl }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        toast.success('Imagen actualizada')
+        fetchProductos()
+      } else {
+        toast.error(data.error || 'No se pudo guardar la imagen')
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo subir la imagen')
+    } finally {
+      setSubiendoImagenProductoId(null)
+    }
+  }
+
+  const handleRemoveImageProducto = async (productoId: string) => {
+    setSubiendoImagenProductoId(productoId)
+    try {
+      const response = await apiFetch(`/api/productos/${productoId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imagenUrl: '' }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        toast.success('Imagen eliminada')
+        fetchProductos()
+      } else {
+        toast.error(data.error || 'No se pudo eliminar la imagen')
+      }
+    } catch {
+      toast.error('No se pudo eliminar la imagen')
+    } finally {
+      setSubiendoImagenProductoId(null)
     }
   }
 
@@ -1200,8 +1310,31 @@ export default function CartaPage() {
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">URL de Imagen (opcional)</label>
-                <input type="url" value={formData.imagenUrl} onChange={(e) => setFormData({ ...formData, imagenUrl: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black" placeholder="https://ejemplo.com/imagen.jpg" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Imagen del producto (opcional)</label>
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => void handleImageFileForNewProduct(e.target.files?.[0])}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black bg-white"
+                  />
+                  <input
+                    type="url"
+                    value={formData.imagenUrl}
+                    onChange={(e) => setFormData({ ...formData, imagenUrl: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black"
+                    placeholder="https://ejemplo.com/imagen.jpg o se autocompleta al subir archivo"
+                  />
+                  {formData.imagenUrl && (
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-2">
+                      <img
+                        src={formData.imagenUrl}
+                        alt="Preview de imagen"
+                        className="h-28 w-full object-cover rounded-md"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="md:col-span-2 flex items-center gap-2">
@@ -1345,6 +1478,30 @@ export default function CartaPage() {
                   {/* Panel de extras y tamaños del producto */}
                   {panelAbierto && (
                     <div className="border-t border-indigo-100 bg-indigo-50 p-4 space-y-4 pb-6 sm:pb-4">
+                      <div>
+                        <h4 className="text-sm font-semibold text-indigo-900 mb-2">Imagen del producto</h4>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="file"
+                            accept="image/png,image/jpeg,image/webp,image/gif"
+                            onChange={(e) => void handleUploadImageProducto(producto.id, e.target.files?.[0])}
+                            className="flex-1 px-3 py-2 text-sm border border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 text-black bg-white"
+                          />
+                          <button
+                            onClick={() => void handleRemoveImageProducto(producto.id)}
+                            disabled={subiendoImagenProductoId === producto.id || !producto.imagenUrl}
+                            className="px-3 py-2 bg-white text-indigo-800 text-sm rounded-md border border-indigo-300 hover:bg-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Quitar imagen
+                          </button>
+                        </div>
+                        {subiendoImagenProductoId === producto.id && (
+                          <p className="mt-2 text-xs text-indigo-700">Procesando imagen...</p>
+                        )}
+                      </div>
+
+                      <hr className="border-indigo-200" />
+
                       {/* Tamaños por producto */}
                       <div>
                         <h4 className="text-sm font-semibold text-indigo-900 mb-2">

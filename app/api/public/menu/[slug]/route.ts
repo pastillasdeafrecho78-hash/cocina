@@ -30,13 +30,26 @@ export async function GET(_request: Request, { params }: { params: { slug: strin
         activa: true,
       },
       orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
-      include: {
+      select: {
+        id: true,
+        nombre: true,
         productos: {
           where: { activo: true },
           orderBy: { nombre: 'asc' },
-          include: {
+          select: {
+            id: true,
+            nombre: true,
+            descripcion: true,
+            precio: true,
+            imagenUrl: true,
             tamanos: {
               orderBy: { orden: 'asc' },
+              select: {
+                id: true,
+                nombre: true,
+                precio: true,
+                orden: true,
+              },
             },
           },
         },

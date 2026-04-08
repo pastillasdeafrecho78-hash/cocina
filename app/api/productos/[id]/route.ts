@@ -5,12 +5,23 @@ import { z } from 'zod'
 import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
 
+const imagenSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) =>
+      value.length === 0 ||
+      /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(value) ||
+      z.string().url().safeParse(value).success,
+    'Imagen inválida: usa URL pública o data:image base64'
+  )
+
 const updateProductoSchema = z.object({
   nombre: z.string().min(1, 'El nombre es requerido').optional(),
   descripcion: z.string().optional(),
   precio: z.number().positive('El precio debe ser mayor a 0').optional(),
   categoriaId: z.string().min(1, 'La categoría es requerida').optional(),
-  imagenUrl: z.string().url().optional().or(z.literal('')),
+  imagenUrl: imagenSchema.optional().or(z.literal('')),
   activo: z.boolean().optional(),
   listoPorDefault: z.boolean().optional(),
 })
