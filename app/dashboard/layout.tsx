@@ -314,9 +314,7 @@ export default function DashboardLayout({
           className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:flex-wrap xl:items-center xl:justify-start xl:gap-x-6 xl:gap-y-3 transition-all duration-300 ${headerCompact ? 'gap-2 py-2 xl:gap-x-6 xl:gap-y-2 xl:py-4' : 'gap-4 py-4'}`}
         >
           <div
-            className={`flex min-w-0 max-w-[min(100%,520px)] shrink-0 items-center gap-5 transition-all duration-300 ${
-              headerCompact ? 'gap-2 xl:gap-5' : ''
-            }`}
+            className={`flex min-w-0 max-w-[min(100%,620px)] shrink-0 items-center transition-all duration-300`}
           >
             <div className="shrink-0">
               <BrandLogo
@@ -324,27 +322,10 @@ export default function DashboardLayout({
                 priority
                 className={
                   headerCompact
-                    ? 'h-9 w-32 xl:h-[72px] xl:w-[280px] xl:max-w-[min(38vw,300px)]'
-                    : 'h-[72px] w-[280px] max-w-[min(38vw,300px)] xl:h-[72px] xl:w-[280px]'
+                    ? 'h-11 w-40 xl:h-[84px] xl:w-[340px] xl:max-w-[min(46vw,360px)]'
+                    : 'h-[88px] w-[340px] max-w-[min(46vw,360px)] xl:h-[96px] xl:w-[380px] xl:max-w-[min(50vw,400px)]'
                 }
               />
-            </div>
-            <div className={`min-w-0 ${headerCompact ? 'hidden xl:block' : 'block'}`}>
-              <p className="app-kicker">Operación y servicio inteligente</p>
-              <p className="text-lg font-semibold text-stone-900 dark:text-stone-50">
-                {user.nombre} {user.apellido}
-              </p>
-              <p className="text-sm text-stone-500 dark:text-stone-400">{user.rol?.nombre || 'Sin rol'}</p>
-              {tenantData?.current && (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <span className="app-badge border border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/35 dark:bg-sky-950/55 dark:text-sky-200">
-                    Org: {tenantData.current.organizacionNombre ?? 'Sin organización'}
-                  </span>
-                  <span className="app-badge border border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-400/40 dark:bg-amber-950/50 dark:text-amber-100">
-                    Sucursal: {tenantData.current.restauranteNombre}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
