@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { generarNumeroComanda, calcularTotal, getDestinoFromCategoria } from '@/lib/comanda-helpers'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,19 +30,9 @@ const createComandaSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'comandas') && !tienePermiso(user, 'reportes')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['comandas', 'reportes'])
+    const tenant = requireActiveTenant(user)
 
     const { searchParams } = new URL(request.url)
     const estado = searchParams.get('estado')
@@ -48,7 +43,7 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    const rid = user.restauranteId
+    const rid = tenant.restauranteId
     const where: any = { restauranteId: rid }
     if (estado) {
       // Si hay múltiples estados separados por coma
@@ -133,40 +128,19 @@ export async function GET(request: NextRequest) {
       limit,
     })
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('Error en GET /api/comandas:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Error interno del servidor',
-        debug: msg,
-      },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/comandas:')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    // Verificar permisos
-    if (!tienePermiso(user, 'comandas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'comandas')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = createComandaSchema.parse(body)
-    const rid = user.restauranteId
+    const rid = tenant.restauranteId
 
     if (data.mesaId) {
       const mesaOk = await prisma.mesa.findFirst({
@@ -364,17 +338,6 @@ export async function POST(request: NextRequest) {
       data: comanda,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/comandas:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/comandas:')
   }
 }

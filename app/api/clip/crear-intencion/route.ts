@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKey } from '@/lib/clip-config'
 import { clipPinpadCreatePayment, extractPinpadRequestId } from '@/lib/clip-payclip'
 import { getPublicBaseUrl } from '@/lib/public-base-url'
 import { listClipTerminals } from '@/lib/clip-terminal-compat'
 import { formatClipPaymentErrorForUser } from '@/lib/clip-error-messages'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { toErrorResponse, raise } from '@/lib/authz/http'
 
 const schema = z.object({
   comandaId: z.string().min(1),
@@ -26,19 +30,15 @@ function montoComanda(comanda: { total: number; propina: number | null; descuent
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user || (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas'))) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
-    const rid = user.restauranteId
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['caja', 'comandas'])
+    const tenant = requireActiveTenant(user)
+    const rid = tenant.restauranteId
     const body = schema.parse(await request.json())
 
     const apiKey = await getClipApiKey(rid)
     if (!apiKey) {
-      return NextResponse.json(
-        { success: false, error: 'Clip no configurado o inactivo. Configura la API key en Configuración.' },
-        { status: 400 }
-      )
+      raise(400, 'Clip no configurado o inactivo. Configura la API key en Configuración.')
     }
 
     const restaurante = await prisma.restaurante.findUnique({
@@ -52,19 +52,16 @@ export async function POST(request: NextRequest) {
       include: { items: true },
     })
     if (!comanda) {
-      return NextResponse.json({ success: false, error: 'Comanda no encontrada' }, { status: 404 })
+      raise(404, 'Comanda no encontrada')
     }
     if (comanda.estado === 'PAGADO') {
-      return NextResponse.json({ success: false, error: 'La comanda ya está pagada' }, { status: 400 })
+      raise(400, 'La comanda ya está pagada')
     }
     const pendientes = comanda.items.filter(
       (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
     )
     if (pendientes.length > 0) {
-      return NextResponse.json(
-        { success: false, error: 'Todos los productos deben estar listos o entregados antes de cobrar.' },
-        { status: 400 }
-      )
+      raise(400, 'Todos los productos deben estar listos o entregados antes de cobrar.')
     }
 
     const terminalesActivas = (await listClipTerminals(prisma, rid))
@@ -74,10 +71,7 @@ export async function POST(request: NextRequest) {
         return a.createdAt.getTime() - b.createdAt.getTime()
       })
     if (terminalesActivas.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'No hay terminales activas. Regístralas en Configuración.' },
-        { status: 400 }
-      )
+      raise(400, 'No hay terminales activas. Regístralas en Configuración.')
     }
 
     let serialSeleccionado = body.serialNumber?.trim() || ''
@@ -89,20 +83,14 @@ export async function POST(request: NextRequest) {
         if (defaultTerminal) {
           serialSeleccionado = defaultTerminal.serialNumber
         } else {
-          return NextResponse.json(
-            { success: false, error: 'Selecciona una terminal para cobrar con tarjeta.' },
-            { status: 400 }
-          )
+          raise(400, 'Selecciona una terminal para cobrar con tarjeta.')
         }
       }
     }
 
     const ok = terminalesActivas.find((t) => t.serialNumber === serialSeleccionado)
     if (!ok) {
-      return NextResponse.json(
-        { success: false, error: 'La terminal seleccionada no está activa para este restaurante.' },
-        { status: 400 }
-      )
+      raise(400, 'La terminal seleccionada no está activa para este restaurante.')
     }
 
     const amount = montoComanda(comanda)
@@ -173,21 +161,10 @@ export async function POST(request: NextRequest) {
         { status: 502 }
       )
     }
-  } catch (e) {
-    if (e instanceof z.ZodError) {
+  } catch (error) {
+    if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
     }
-    console.error(e)
-    const msg = e instanceof Error ? e.message : 'Error interno'
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          msg.length < 280
-            ? msg
-            : 'Error al preparar el cobro. Revisa PUBLIC_BACKEND_BASE_URL o los logs del servidor.',
-      },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error al preparar el cobro', 'Error en POST /api/clip/crear-intencion:')
   }
 }

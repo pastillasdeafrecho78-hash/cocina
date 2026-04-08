@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 const createPlantaSchema = z.object({
   nombre: z.string().min(1),
@@ -27,17 +32,13 @@ const createPlantaSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['mesas', 'comandas', 'reportes', 'caja'])
+    const tenant = requireActiveTenant(user)
 
     const plantas = await prisma.plantaRestaurante.findMany({
       where: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         activa: true,
       },
       include: {
@@ -57,45 +58,27 @@ export async function GET(request: NextRequest) {
       data: plantas,
     })
   } catch (error) {
-    console.error('Error en GET /api/plantas:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/plantas:')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'mesas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para crear plantas' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'mesas')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = createPlantaSchema.parse(body)
 
     // Validar que el polígono esté cerrado
     if (data.edges && data.edges.length < data.vertices.length) {
-      return NextResponse.json(
-        { success: false, error: 'El polígono debe estar cerrado' },
-        { status: 400 }
-      )
+      raise(400, 'El polígono debe estar cerrado')
     }
 
     const planta = await prisma.plantaRestaurante.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         nombre: data.nombre,
         vertices: data.vertices as any,
         edges: (data.edges || []) as any,
@@ -111,7 +94,7 @@ export async function POST(request: NextRequest) {
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'CREAR_PLANTA',
         entidad: 'PlantaRestaurante',
@@ -124,17 +107,6 @@ export async function POST(request: NextRequest) {
       data: planta,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/plantas:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/plantas:')
   }
 }

@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
 import { prisma } from '@/lib/prisma'
-import { tienePermiso } from '@/lib/permisos'
 import { allocateUniqueRestaurantSlug } from '@/lib/slug'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireBranchMembership,
+  requireCapability,
+  requireOrganizationMembership,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,16 +22,16 @@ const schema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-  if (!tienePermiso(user, 'settings.manage')) {
-    return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-  }
-
   try {
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'settings.manage')
+    const tenant = requireActiveTenant(user)
     const body = schema.parse(await request.json())
+    if (body.organizacionId) {
+      await requireOrganizationMembership(user.id, body.organizacionId)
+    } else if (tenant.organizacionId) {
+      await requireOrganizationMembership(user.id, tenant.organizacionId)
+    }
     const actorRolId = user.effectiveRolId ?? user.rolId
     const orgId = body.organizacionId ?? user.activeOrganizacionId ?? undefined
     const shouldUseSource = body.menuStrategy === 'clone' || body.menuStrategy === 'shared'
@@ -75,6 +81,7 @@ export async function POST(request: NextRequest) {
       | null = null
 
     if (shouldUseSource && body.menuSourceRestauranteId) {
+      await requireBranchMembership(user.id, body.menuSourceRestauranteId)
       sourceData = await prisma.restaurante.findFirst({
         where: {
           id: body.menuSourceRestauranteId,
@@ -289,17 +296,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: created })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('POST /api/auth/branches', error)
-    return NextResponse.json(
-      { success: false, error: 'No se pudo crear la sucursal' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'No se pudo crear la sucursal', 'POST /api/auth/branches')
   }
 }
 
@@ -310,16 +307,11 @@ const deleteSchema = z.object({
 })
 
 export async function DELETE(request: NextRequest) {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-  if (!tienePermiso(user, 'settings.manage')) {
-    return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-  }
-
   try {
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'settings.manage')
     const input = deleteSchema.parse(await request.json())
+    await requireBranchMembership(user.id, input.restauranteId)
     const target = await prisma.restaurante.findFirst({
       where: {
         id: input.restauranteId,
@@ -409,16 +401,6 @@ export async function DELETE(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('DELETE /api/auth/branches', error)
-    return NextResponse.json(
-      { success: false, error: 'No se pudo cerrar la sucursal' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'No se pudo cerrar la sucursal', 'DELETE /api/auth/branches')
   }
 }

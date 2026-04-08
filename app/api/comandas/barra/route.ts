@@ -1,27 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
+import { requireActiveTenant, requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
-import { tienePermiso } from '@/lib/permisos'
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    // Verificar rol
-    if (!tienePermiso(user, 'barra')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'barra')
+    const tenant = requireActiveTenant(user)
 
     const items = await prisma.comandaItem.findMany({
       where: {
@@ -29,7 +17,7 @@ export async function GET(request: NextRequest) {
         estado: {
           in: ['PENDIENTE', 'EN_PREPARACION', 'LISTO'],
         },
-        comanda: { restauranteId: user.restauranteId },
+        comanda: { restauranteId: tenant.restauranteId },
       },
       include: {
         producto: {
@@ -61,11 +49,7 @@ export async function GET(request: NextRequest) {
       data: items,
     })
   } catch (error) {
-    console.error('Error en GET /api/comandas/barra:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/comandas/barra:')
   }
 }
 

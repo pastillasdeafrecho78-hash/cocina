@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 /**
  * GET /api/facturas/[uuid]
@@ -11,18 +16,14 @@ export async function GET(
   { params }: { params: { uuid: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['reportes', 'caja', 'comandas'])
+    const tenant = requireActiveTenant(user)
 
     const factura = await prisma.factura.findFirst({
       where: {
         uuid: params.uuid,
-        comanda: { restauranteId: user.restauranteId },
+        comanda: { restauranteId: tenant.restauranteId },
       },
       include: {
         comanda: {
@@ -68,10 +69,7 @@ export async function GET(
         }
       },
     })
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+  } catch (error) {
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/facturas/[uuid]:')
   }
 }

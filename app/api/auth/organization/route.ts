@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
 import { prisma } from '@/lib/prisma'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireAuthenticatedUser,
+  requireCapability,
+  requireOrganizationMembership,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,15 +21,9 @@ const patchSchema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-  if (!tienePermiso(user, 'settings.manage')) {
-    return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-  }
-
   try {
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'settings.manage')
     const input = createSchema.parse(await request.json())
     const actorRolId = user.effectiveRolId ?? user.rolId
     const created = await prisma.$transaction(async (tx) => {
@@ -64,39 +62,16 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: created })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('POST /api/auth/organization', error)
-    return NextResponse.json({ success: false, error: 'No se pudo crear organización' }, { status: 500 })
+    return toErrorResponse(error, 'No se pudo crear organización', 'POST /api/auth/organization')
   }
 }
 
 export async function PATCH(request: NextRequest) {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-  if (!tienePermiso(user, 'settings.manage')) {
-    return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-  }
-
   try {
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'settings.manage')
     const input = patchSchema.parse(await request.json())
-    const membership = await prisma.organizacionMiembro.findFirst({
-      where: {
-        usuarioId: user.id,
-        organizacionId: input.organizacionId,
-        activo: true,
-      },
-      select: { id: true, esOwner: true },
-    })
-    if (!membership) {
-      return NextResponse.json({ success: false, error: 'No tienes acceso a esta organización' }, { status: 403 })
-    }
+    await requireOrganizationMembership(user.id, input.organizacionId)
 
     const updated = await prisma.organizacion.update({
       where: { id: input.organizacionId },
@@ -106,14 +81,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('PATCH /api/auth/organization', error)
-    return NextResponse.json({ success: false, error: 'No se pudo actualizar organización' }, { status: 500 })
+    return toErrorResponse(error, 'No se pudo actualizar organización', 'PATCH /api/auth/organization')
   }
 }
 
@@ -124,16 +92,11 @@ const deleteSchema = z.object({
 })
 
 export async function DELETE(request: NextRequest) {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-  if (!tienePermiso(user, 'settings.manage')) {
-    return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-  }
-
   try {
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'settings.manage')
     const input = deleteSchema.parse(await request.json())
+    await requireOrganizationMembership(user.id, input.organizacionId)
     const org = await prisma.organizacion.findFirst({
       where: {
         id: input.organizacionId,
@@ -221,16 +184,6 @@ export async function DELETE(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('DELETE /api/auth/organization', error)
-    return NextResponse.json(
-      { success: false, error: 'No se pudo cerrar la organización' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'No se pudo cerrar la organización', 'DELETE /api/auth/organization')
   }
 }

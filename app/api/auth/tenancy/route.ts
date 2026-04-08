@@ -1,16 +1,14 @@
 import { NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-server'
 import { prisma } from '@/lib/prisma'
+import { requireAuthenticatedUser } from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
+    const user = await requireAuthenticatedUser()
 
     const freshUser = await prisma.usuario.findUnique({
       where: { id: user.id },
@@ -138,10 +136,10 @@ export async function GET() {
       },
     })
   } catch (error) {
-    console.error('Error en /api/auth/tenancy:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error al obtener contexto multitenant' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error al obtener contexto multitenant',
+      'Error en /api/auth/tenancy:'
     )
   }
 }

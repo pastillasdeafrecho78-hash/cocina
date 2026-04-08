@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 const updateComandaSchema = z.object({
   estado: z.enum(['PENDIENTE', 'EN_PREPARACION', 'LISTO', 'SERVIDO', 'PAGADO', 'CANCELADO']).optional(),
@@ -17,22 +22,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'comandas') && !tienePermiso(user, 'reportes')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['comandas', 'reportes'])
+    const tenant = requireActiveTenant(user)
 
     const comanda = await prisma.comanda.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
       include: {
         mesa: true,
         cliente: true,
@@ -99,11 +94,7 @@ export async function GET(
       data: comanda,
     })
   } catch (error) {
-    console.error('Error en GET /api/comandas/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/comandas/[id]:')
   }
 }
 
@@ -112,25 +103,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'comandas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'comandas')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = updateComandaSchema.parse(body)
 
     const comanda = await prisma.comanda.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
       include: {
         items: {
           include: {
@@ -251,7 +232,7 @@ export async function PATCH(
       if (data.estado === 'CANCELADO') {
         await prisma.auditoria.create({
           data: {
-            restauranteId: user.restauranteId,
+            restauranteId: tenant.restauranteId,
             usuarioId: user.id,
             accion: 'CANCELAR_COMANDA',
             entidad: 'Comanda',
@@ -271,18 +252,7 @@ export async function PATCH(
       data: updated,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en PATCH /api/comandas/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en PATCH /api/comandas/[id]:')
   }
 }
 

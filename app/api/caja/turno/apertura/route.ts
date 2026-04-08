@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,37 +15,27 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'caja')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'caja')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const fondoInicial = Number(body.fondoInicial)
 
     if (!Number.isFinite(fondoInicial) || fondoInicial < 0) {
-      return NextResponse.json(
-        { success: false, error: 'fondoInicial debe ser un número >= 0' },
-        { status: 400 }
-      )
+      raise(400, 'fondoInicial debe ser un número >= 0')
     }
 
     const turnoAbierto = await prisma.turnoCaja.findFirst({
-      where: { restauranteId: user.restauranteId, fechaCierre: null },
+      where: { restauranteId: tenant.restauranteId, fechaCierre: null },
     })
     if (turnoAbierto) {
-      return NextResponse.json(
-        { success: false, error: 'Ya hay un turno abierto. Ciérralo antes de abrir uno nuevo.' },
-        { status: 400 }
-      )
+      raise(400, 'Ya hay un turno abierto. Ciérralo antes de abrir uno nuevo.')
     }
 
     const turno = await prisma.turnoCaja.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         fondoInicial,
       },
@@ -49,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'TURNO_APERTURA',
         entidad: 'TurnoCaja',
@@ -66,10 +60,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error en POST /api/caja/turno/apertura:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/caja/turno/apertura:')
   }
 }

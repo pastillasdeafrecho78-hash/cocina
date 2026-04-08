@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { prisma } from '@/lib/prisma'
 import { getPaymentProvider } from '@/lib/payments'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 /**
  * POST /api/pagos/stripe/create-payment-intent
@@ -10,85 +14,45 @@ import { getPaymentProvider } from '@/lib/payments'
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Token requerido' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para procesar pagos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['caja', 'comandas'])
+    const tenant = requireActiveTenant(user)
 
     const provider = getPaymentProvider('stripe')
     if (!provider) {
-      return NextResponse.json(
-        { success: false, error: 'Stripe no configurado. Añade STRIPE_SECRET_KEY en .env.local' },
-        { status: 500 }
-      )
+      raise(500, 'Stripe no configurado. Añade STRIPE_SECRET_KEY en .env.local')
     }
 
     const body = await request.json()
     const { comandaId } = body
 
     if (!comandaId) {
-      return NextResponse.json(
-        { success: false, error: 'comandaId es requerido' },
-        { status: 400 }
-      )
+      raise(400, 'comandaId es requerido')
     }
 
     const comanda = await prisma.comanda.findFirst({
-      where: { id: comandaId, restauranteId: user.restauranteId },
+      where: { id: comandaId, restauranteId: tenant.restauranteId },
       include: { items: true },
     })
 
     if (!comanda) {
-      return NextResponse.json(
-        { success: false, error: 'Comanda no encontrada' },
-        { status: 404 }
-      )
+      raise(404, 'Comanda no encontrada')
     }
 
     const itemsPendientes = comanda.items.filter(
       (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
     )
     if (itemsPendientes.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'No se puede pagar hasta que todos los productos estén marcados como listos.',
-        },
-        { status: 400 }
-      )
+      raise(400, 'No se puede pagar hasta que todos los productos estén marcados como listos.')
     }
 
     if (comanda.estado === 'PAGADO') {
-      return NextResponse.json(
-        { success: false, error: 'Esta comanda ya está pagada' },
-        { status: 400 }
-      )
+      raise(400, 'Esta comanda ya está pagada')
     }
 
     const total = comanda.total + (comanda.propina || 0) - (comanda.descuento || 0)
     if (total <= 0) {
-      return NextResponse.json(
-        { success: false, error: 'El total debe ser mayor a 0' },
-        { status: 400 }
-      )
+      raise(400, 'El total debe ser mayor a 0')
     }
 
     const result = await provider.createPayment({
@@ -105,11 +69,11 @@ export async function POST(request: NextRequest) {
         amount: result.amount,
       },
     })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error al crear intención de pago'
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
+  } catch (error) {
+    return toErrorResponse(
+      error,
+      'Error al crear intención de pago',
+      'Error en POST /api/pagos/stripe/create-payment-intent:'
     )
   }
 }

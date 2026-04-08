@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ZodError } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
+import { toErrorResponse } from '@/lib/authz/http'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
 import { reportQuerySchema } from '@/lib/reportes/schemas'
 import {
   aggregateCancelledWidgetData,
@@ -12,13 +15,9 @@ import {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'reportes')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'reportes')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = reportQuerySchema.parse(body)
@@ -26,11 +25,11 @@ export async function POST(request: NextRequest) {
     const result =
       data.widget.metric === 'comandasCanceladas'
         ? aggregateCancelledWidgetData(
-            await fetchCancelledReportBaseData(data.filters, user.restauranteId),
+            await fetchCancelledReportBaseData(data.filters, tenant.restauranteId),
             data.widget
           )
         : aggregateWidgetData(
-            await fetchReportBaseData(data.filters, user.restauranteId),
+            await fetchReportBaseData(data.filters, tenant.restauranteId),
             data.widget
           )
 
@@ -39,17 +38,6 @@ export async function POST(request: NextRequest) {
       data: result,
     })
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Consulta inválida', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/reportes/query:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/reportes/query:')
   }
 }

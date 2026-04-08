@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { guardarConfiguracion } from '@/lib/configuracion-restaurante'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,13 +17,9 @@ export const dynamic = 'force-dynamic'
  */
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'caja') && !tienePermiso(user, 'configuracion')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['caja', 'configuracion'])
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const alertaEfectivoMinimo = body.alertaEfectivoMinimo
@@ -27,14 +27,11 @@ export async function PATCH(request: NextRequest) {
     if (alertaEfectivoMinimo !== undefined && alertaEfectivoMinimo !== null) {
       const num = Number(alertaEfectivoMinimo)
       if (!Number.isFinite(num) || num < 0) {
-        return NextResponse.json(
-          { success: false, error: 'alertaEfectivoMinimo debe ser un número >= 0' },
-          { status: 400 }
-        )
+        raise(400, 'alertaEfectivoMinimo debe ser un número >= 0')
       }
     }
 
-    await guardarConfiguracion(user.restauranteId, {
+    await guardarConfiguracion(tenant.restauranteId, {
       alertaEfectivoMinimo:
         alertaEfectivoMinimo === '' || alertaEfectivoMinimo === null || alertaEfectivoMinimo === undefined
           ? null
@@ -43,10 +40,6 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error en PATCH /api/configuracion/caja:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en PATCH /api/configuracion/caja:')
   }
 }

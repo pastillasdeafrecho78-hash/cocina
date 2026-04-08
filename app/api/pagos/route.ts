@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { procesarPago, guardarPago } from '@/lib/pagos'
 import { timbrarCFDI, almacenarCFDI, generarPDFCFDI } from '@/lib/facturacion'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { prisma } from '@/lib/prisma'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 /**
  * POST /api/pagos
@@ -11,19 +15,9 @@ import { prisma } from '@/lib/prisma'
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para procesar pagos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['caja', 'comandas'])
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const {
@@ -38,37 +32,24 @@ export async function POST(request: NextRequest) {
     } = body
 
     if (!comandaId || !metodo) {
-      return NextResponse.json(
-        { success: false, error: 'comandaId y metodo son requeridos' },
-        { status: 400 }
-      )
+      raise(400, 'comandaId y metodo son requeridos')
     }
 
     // Obtener comanda con ítems
     const comanda = await prisma.comanda.findFirst({
-      where: { id: comandaId, restauranteId: user.restauranteId },
+      where: { id: comandaId, restauranteId: tenant.restauranteId },
       include: { items: true },
     })
 
     if (!comanda) {
-      return NextResponse.json(
-        { success: false, error: 'Comanda no encontrada' },
-        { status: 404 }
-      )
+      raise(404, 'Comanda no encontrada')
     }
 
     const itemsPendientes = comanda.items.filter(
       (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
     )
     if (itemsPendientes.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'No se puede pagar hasta que todos los productos estén marcados como listos.',
-        },
-        { status: 400 }
-      )
+      raise(400, 'No se puede pagar hasta que todos los productos estén marcados como listos.')
     }
 
     // Calcular monto total: subtotal * (1 + propina%) - descuento
@@ -139,10 +120,7 @@ export async function POST(request: NextRequest) {
         } : null,
       },
     })
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+  } catch (error) {
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/pagos:')
   }
 }

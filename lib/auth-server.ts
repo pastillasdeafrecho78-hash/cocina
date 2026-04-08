@@ -86,6 +86,7 @@ export async function getSessionUser() {
     activeOrganizacionId = null
   }
 
+  // Prefer role from active branch membership; Usuario.rolId remains temporary fallback.
   const { effectiveRolId, usedLegacyFallback } = resolveEffectiveRoleId(
     activeRestauranteId,
     user.sucursales.map((m) => ({ restauranteId: m.restauranteId, rolId: m.rolId ?? null })),
@@ -105,6 +106,7 @@ export async function getSessionUser() {
     select: { id: true, nombre: true, permisos: true },
   })
   if (!rol && effectiveRolId !== user.rolId) {
+    // LEGACY_COMPAT: tolerate stale membership role references during transition.
     rol = await prisma.rol.findUnique({
       where: { id: user.rolId },
       select: { id: true, nombre: true, permisos: true },

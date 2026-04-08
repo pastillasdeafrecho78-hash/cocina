@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 /** POST: Marca todos los items en estado LISTO como ENTREGADO (confirmación de recogida por mesero). */
 export async function POST(
@@ -9,16 +13,12 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'comandas')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'comandas')
+    const tenant = requireActiveTenant(user)
 
     const comanda = await prisma.comanda.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
       include: {
         items: {
           where: { estado: 'LISTO' },
@@ -76,10 +76,6 @@ export async function POST(
       data: { actualizados: itemsListos.length },
     })
   } catch (error) {
-    console.error('Error en POST /api/comandas/[id]/entregar:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/comandas/[id]/entregar:')
   }
 }

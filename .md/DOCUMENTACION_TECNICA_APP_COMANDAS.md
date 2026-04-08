@@ -109,6 +109,18 @@ Regla operativa:
 - Cada handler debe validar permisos/capacidad y alcance de tenant/recurso.
 - Endpoints migrados usan guardas reutilizables (`lib/authz/guards.ts`) para reducir validaciones ad-hoc.
 
+### 4.4 Cierre de fase tenancy/authz (última pasada)
+
+- Se reforzó el patrón de guardas en rutas tenant-scoped de `mesas`, `comandas`, `caja`, `configuracion` y `reportes`.
+- El tenant operativo se deriva del contexto activo validado en servidor (`requireActiveTenant`).
+- Se añadieron índices de lookup para membresías activas:
+  - `SucursalMiembro(restauranteId, activo)`
+  - `SucursalMiembro(usuarioId, activo)`
+  - `OrganizacionMiembro(organizacionId, activo)`
+  - `OrganizacionMiembro(usuarioId, activo)`
+- `legacy_role_fallback` ahora se traza tanto en resolución de sesión (`getSessionUser`) como en callback JWT (`auth.ts`).
+- `Usuario.rolId` y `Usuario.restauranteId` siguen como compatibilidad temporal (marcados como `LEGACY_COMPAT` en schema).
+
 ## 5. Multitenancy operativo
 
 ## 5.1 Reglas de acceso

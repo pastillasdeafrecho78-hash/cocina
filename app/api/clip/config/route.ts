@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { encryptSecret } from '@/lib/configuracion-restaurante'
 import { getClipApiKeyStatus } from '@/lib/clip-config'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 const patchSchema = z.object({
   /** Credencial completa (Basic/Bearer) o token ya armado — alternativa a clipApiKey+clipSecretKey */
@@ -29,15 +33,14 @@ function normalizeCredentialInput(raw: string): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'configuracion')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'configuracion')
+    const tenant = requireActiveTenant(user)
     const row = await prisma.integracionClip.findUnique({
-      where: { restauranteId: user.restauranteId },
+      where: { restauranteId: tenant.restauranteId },
     })
-    const keyStatus = await getClipApiKeyStatus(user.restauranteId)
-    const n = await prisma.clipTerminal.count({ where: { restauranteId: user.restauranteId, activo: true } })
+    const keyStatus = await getClipApiKeyStatus(tenant.restauranteId)
+    const n = await prisma.clipTerminal.count({ where: { restauranteId: tenant.restauranteId, activo: true } })
     return NextResponse.json({
       success: true,
       data: {
@@ -50,18 +53,16 @@ export async function GET(request: NextRequest) {
         terminalesRegistradas: n,
       },
     })
-  } catch (e) {
-    console.error(e)
-    return NextResponse.json({ success: false, error: 'Error interno' }, { status: 500 })
+  } catch (error) {
+    return toErrorResponse(error, 'Error interno', 'Error en GET /api/clip/config:')
   }
 }
 
 export async function PATCH(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'configuracion')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'configuracion')
+    const tenant = requireActiveTenant(user)
     const body = patchSchema.parse(await request.json())
     const data: {
       apiKeyEncrypted?: string | null
@@ -100,9 +101,9 @@ export async function PATCH(request: NextRequest) {
       data.activo = body.activo
     }
     await prisma.integracionClip.upsert({
-      where: { restauranteId: user.restauranteId },
+      where: { restauranteId: tenant.restauranteId },
       create: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         apiKeyEncrypted: data.apiKeyEncrypted ?? null,
         webhookSecret: data.webhookSecret ?? null,
         activo: data.activo ?? false,
@@ -111,19 +112,18 @@ export async function PATCH(request: NextRequest) {
     })
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'ACTUALIZAR_CLIP_CONFIG',
         entidad: 'IntegracionClip',
-        entidadId: user.restauranteId,
+        entidadId: tenant.restauranteId,
       },
     })
     return NextResponse.json({ success: true })
-  } catch (e) {
-    if (e instanceof z.ZodError) {
+  } catch (error) {
+    if (error instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: 'Datos inválidos' }, { status: 400 })
     }
-    console.error(e)
-    return NextResponse.json({ success: false, error: 'Error interno' }, { status: 500 })
+    return toErrorResponse(error, 'Error interno', 'Error en PATCH /api/clip/config:')
   }
 }

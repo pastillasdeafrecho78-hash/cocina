@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { calcularReportePeriodo } from '@/lib/caja-helpers'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,15 +16,10 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
-
-    const rid = user.restauranteId
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['caja', 'comandas'])
+    const tenant = requireActiveTenant(user)
+    const rid = tenant.restauranteId
 
     const [turnoAbierto, ultimoCerrado, config] = await Promise.all([
       prisma.turnoCaja.findFirst({
@@ -79,10 +78,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error en GET /api/caja/turno:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/caja/turno:')
   }
 }

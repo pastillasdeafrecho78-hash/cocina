@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKeyStatus } from '@/lib/clip-config'
 import { clipDevicesStatus, ClipProviderError } from '@/lib/clip-payclip'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user || !tienePermiso(user, 'configuracion')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
-    const status = await getClipApiKeyStatus(user.restauranteId)
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'configuracion')
+    const tenant = requireActiveTenant(user)
+    const status = await getClipApiKeyStatus(tenant.restauranteId)
     if (!status.ok) {
       const errorByReason: Record<string, string> = {
         INACTIVE: 'Clip está inactivo. Actívalo desde Configuración.',
@@ -26,17 +29,13 @@ export async function GET(request: NextRequest) {
     }
     const data = await clipDevicesStatus(status.apiKey)
     return NextResponse.json({ success: true, data })
-  } catch (e: any) {
-    console.error(e)
-    if (e instanceof ClipProviderError) {
+  } catch (error) {
+    if (error instanceof ClipProviderError) {
       return NextResponse.json(
-        { success: false, error: e.message || 'Error al consultar dispositivos Clip' },
-        { status: e.status >= 400 && e.status < 600 ? e.status : 502 }
+        { success: false, error: error.message || 'Error al consultar dispositivos Clip' },
+        { status: error.status >= 400 && error.status < 600 ? error.status : 502 }
       )
     }
-    return NextResponse.json(
-      { success: false, error: e?.message || 'Error al consultar dispositivos Clip' },
-      { status: 502 }
-    )
+    return toErrorResponse(error, 'Error al consultar dispositivos Clip', 'Error en GET /api/clip/dispositivos:')
   }
 }

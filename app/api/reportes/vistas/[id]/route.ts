@@ -1,9 +1,12 @@
 import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
-import { ZodError } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
+import { toErrorResponse } from '@/lib/authz/http'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
 import { prisma } from '@/lib/prisma'
-import { tienePermiso } from '@/lib/permisos'
 import { dashboardVistaSchema } from '@/lib/reportes/schemas'
 
 interface RouteContext {
@@ -12,11 +15,12 @@ interface RouteContext {
   }
 }
 
-async function getVistaOrThrow(id: string, usuarioId: string) {
+async function getVistaOrThrow(id: string, usuarioId: string, restauranteId: string) {
   const vista = await prisma.dashboardVista.findFirst({
     where: {
       id,
       usuarioId,
+      restauranteId,
       modulo: 'reportes',
       scope: 'USER',
       activa: true,
@@ -26,10 +30,11 @@ async function getVistaOrThrow(id: string, usuarioId: string) {
   return vista
 }
 
-async function clearDefaultViews(usuarioId: string, excludeId?: string) {
+async function clearDefaultViews(usuarioId: string, restauranteId: string, excludeId?: string) {
   await prisma.dashboardVista.updateMany({
     where: {
       usuarioId,
+      restauranteId,
       modulo: 'reportes',
       scope: 'USER',
       NOT: excludeId ? { id: excludeId } : undefined,
@@ -42,15 +47,11 @@ async function clearDefaultViews(usuarioId: string, excludeId?: string) {
 
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'reportes')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'reportes')
+    const tenant = requireActiveTenant(user)
 
-    const existente = await getVistaOrThrow(params.id, user.id)
+    const existente = await getVistaOrThrow(params.id, user.id, tenant.restauranteId)
     if (!existente) {
       return NextResponse.json({ success: false, error: 'Vista no encontrada' }, { status: 404 })
     }
@@ -59,7 +60,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     const data = dashboardVistaSchema.parse(body)
 
     if (data.esDefault) {
-      await clearDefaultViews(user.id, existente.id)
+      await clearDefaultViews(user.id, tenant.restauranteId, existente.id)
     }
 
     const vista = await prisma.dashboardVista.update({
@@ -78,32 +79,17 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
       data: vista,
     })
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en PUT /api/reportes/vistas/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en PUT /api/reportes/vistas/[id]:')
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'reportes')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'reportes')
+    const tenant = requireActiveTenant(user)
 
-    const existente = await getVistaOrThrow(params.id, user.id)
+    const existente = await getVistaOrThrow(params.id, user.id, tenant.restauranteId)
     if (!existente) {
       return NextResponse.json({ success: false, error: 'Vista no encontrada' }, { status: 404 })
     }
@@ -119,6 +105,7 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
     const nextDefault = await prisma.dashboardVista.findFirst({
       where: {
         usuarioId: user.id,
+        restauranteId: tenant.restauranteId,
         modulo: 'reportes',
         scope: 'USER',
         activa: true,
@@ -137,10 +124,6 @@ export async function DELETE(request: NextRequest, { params }: RouteContext) {
       success: true,
     })
   } catch (error) {
-    console.error('Error en DELETE /api/reportes/vistas/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en DELETE /api/reportes/vistas/[id]:')
   }
 }

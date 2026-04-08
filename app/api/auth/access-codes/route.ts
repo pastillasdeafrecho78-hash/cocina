@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
 import { prisma } from '@/lib/prisma'
-import { tienePermiso } from '@/lib/permisos'
 import { createAccessCode, hashAccessCode } from '@/lib/access-code'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+  requireOrganizationMembership,
+  requireRoleScopedToTenant,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,69 +21,62 @@ const createSchema = z.object({
 })
 
 export async function GET() {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-  if (!tienePermiso(user, 'usuarios_roles')) {
-    return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-  }
-  if (!user.activeRestauranteId) {
-    return NextResponse.json(
-      { success: false, error: 'No hay sucursal activa para listar códigos' },
-      { status: 400 }
-    )
-  }
+  try {
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'usuarios_roles')
+    const tenant = requireActiveTenant(user)
 
-  const now = new Date()
-  const rows = await prisma.codigoVinculacionSucursal.findMany({
-    where: { restauranteId: user.activeRestauranteId },
-    include: {
-      rol: { select: { id: true, nombre: true } },
-      organizacion: { select: { id: true, nombre: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-  })
+    const now = new Date()
+    const rows = await prisma.codigoVinculacionSucursal.findMany({
+      where: { restauranteId: tenant.restauranteId },
+      include: {
+        rol: { select: { id: true, nombre: true } },
+        organizacion: { select: { id: true, nombre: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })
 
-  return NextResponse.json({
-    success: true,
-    data: rows.map((r) => ({
-      id: r.id,
-      expiraEn: r.expiraEn,
-      usadaEn: r.usadaEn,
-      createdAt: r.createdAt,
-      rol: r.rol,
-      organizacion: r.organizacion,
-      estado: r.usadaEn ? 'USADA' : r.expiraEn < now ? 'EXPIRADA' : 'ACTIVA',
-    })),
-  })
+    return NextResponse.json({
+      success: true,
+      data: rows.map((r) => ({
+        id: r.id,
+        expiraEn: r.expiraEn,
+        usadaEn: r.usadaEn,
+        createdAt: r.createdAt,
+        rol: r.rol,
+        organizacion: r.organizacion,
+        estado: r.usadaEn ? 'USADA' : r.expiraEn < now ? 'EXPIRADA' : 'ACTIVA',
+      })),
+    })
+  } catch (error) {
+    return toErrorResponse(error, 'No se pudo listar códigos', 'GET /api/auth/access-codes')
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-  if (!tienePermiso(user, 'usuarios_roles')) {
-    return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-  }
-  if (!user.activeRestauranteId) {
-    return NextResponse.json(
-      { success: false, error: 'No hay sucursal activa para generar código' },
-      { status: 400 }
-    )
-  }
-
   try {
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'usuarios_roles')
+    const tenant = requireActiveTenant(user)
     const input = createSchema.parse(await request.json())
+    if (input.rolId) {
+      await requireRoleScopedToTenant(input.rolId, {
+        restauranteId: tenant.restauranteId,
+        organizacionId: tenant.organizacionId,
+        actorRoleId: user.rolId,
+      })
+    }
+    if (input.organizacionId) {
+      await requireOrganizationMembership(user.id, input.organizacionId)
+    }
     const code = createAccessCode(8)
     const expiraEn = new Date(Date.now() + input.expiraEnMinutos * 60 * 1000)
     const codigoHash = hashAccessCode(code)
 
     const record = await prisma.codigoVinculacionSucursal.create({
       data: {
-        restauranteId: user.activeRestauranteId,
+        restauranteId: tenant.restauranteId,
         codigoHash,
         expiraEn,
         creadoPorId: user.id,
@@ -98,16 +97,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('POST /api/auth/access-codes', error)
-    return NextResponse.json(
-      { success: false, error: 'No se pudo generar el código' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'No se pudo generar el código', 'POST /api/auth/access-codes')
   }
 }

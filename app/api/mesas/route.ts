@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,17 +20,13 @@ const createMesaSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['mesas', 'comandas', 'reportes', 'caja'])
+    const tenant = requireActiveTenant(user)
 
     const mesas = await prisma.mesa.findMany({
       where: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         activa: true,
       },
       include: {
@@ -87,40 +88,20 @@ export async function GET(request: NextRequest) {
       data: mesasConComanda,
     })
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('Error en GET /api/mesas:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Error interno del servidor',
-        debug: msg,
-      },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/mesas:')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'mesas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para crear mesas' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'mesas')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = createMesaSchema.parse(body)
 
-    const rid = user.restauranteId
+    const rid = tenant.restauranteId
     const mesaExistente = await prisma.mesa.findFirst({
       where: { restauranteId: rid, numero: data.numero },
     })
@@ -162,7 +143,7 @@ export async function POST(request: NextRequest) {
     // Registrar auditoría
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'CREAR_MESA',
         entidad: 'Mesa',
@@ -175,18 +156,7 @@ export async function POST(request: NextRequest) {
       data: mesa,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/mesas:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/mesas:')
   }
 }
 

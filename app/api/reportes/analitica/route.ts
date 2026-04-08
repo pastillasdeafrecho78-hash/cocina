@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-server'
+import { toErrorResponse } from '@/lib/authz/http'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
 
 export const dynamic = 'force-dynamic'
-import { tienePermiso } from '@/lib/permisos'
 import { buildLegacyAnaliticaData, normalizeReportFilters } from '@/lib/reportes/server'
 
 /**
@@ -12,13 +16,9 @@ import { buildLegacyAnaliticaData, normalizeReportFilters } from '@/lib/reportes
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'reportes')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'reportes')
+    const tenant = requireActiveTenant(user)
 
     const { searchParams } = new URL(request.url)
     const filters = normalizeReportFilters({
@@ -27,17 +27,13 @@ export async function GET(request: NextRequest) {
       tipoPedido: searchParams.getAll('tipoPedido'),
       metodoPago: searchParams.getAll('metodoPago'),
     })
-    const data = await buildLegacyAnaliticaData(filters, user.restauranteId)
+    const data = await buildLegacyAnaliticaData(filters, tenant.restauranteId)
 
     return NextResponse.json({
       success: true,
       data,
     })
   } catch (error) {
-    console.error('Error en GET /api/reportes/analitica:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/reportes/analitica:')
   }
 }

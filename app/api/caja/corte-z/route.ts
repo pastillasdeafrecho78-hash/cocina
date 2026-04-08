@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import {
   calcularReportePeriodo,
   obtenerComandasPendientesParaCorteZ,
   obtenerInicioPeriodoActual,
 } from '@/lib/caja-helpers'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 /**
  * POST /api/caja/corte-z
@@ -15,15 +19,11 @@ import {
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'caja')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos para Corte Z' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'caja')
+    const tenant = requireActiveTenant(user)
 
-    const rid = user.restauranteId
+    const rid = tenant.restauranteId
 
     const comandasPendientes = await obtenerComandasPendientesParaCorteZ(rid)
     if (comandasPendientes.length > 0) {
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     const corteZ = await prisma.corteZ.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         totalVentas: reporte.totalVentas,
         totalEfectivo: reporte.totalEfectivo,
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'CORTE_Z',
         entidad: 'CorteZ',
@@ -100,10 +100,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error en POST /api/caja/corte-z:', error)
-    return NextResponse.json(
-      { success: false, error: error instanceof Error ? error.message : 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/caja/corte-z:')
   }
 }

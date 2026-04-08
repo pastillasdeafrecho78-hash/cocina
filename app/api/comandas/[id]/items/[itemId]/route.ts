@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
 import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 const updateItemSchema = z.object({
   estado: z.enum(['PENDIENTE', 'EN_PREPARACION', 'LISTO', 'ENTREGADO']),
@@ -13,13 +18,9 @@ export async function PATCH(
   { params }: { params: { id: string; itemId: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['comandas', 'cocina', 'barra'])
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const { estado } = updateItemSchema.parse(body)
@@ -28,7 +29,7 @@ export async function PATCH(
       where: {
         id: params.itemId,
         comandaId: params.id,
-        comanda: { restauranteId: user.restauranteId },
+        comanda: { restauranteId: tenant.restauranteId },
       },
       include: {
         comanda: true,
@@ -82,7 +83,7 @@ export async function PATCH(
 
     // Sincronizar estado de comanda según items
     const comanda = await prisma.comanda.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
       select: { estado: true },
     })
     if (comanda) {
@@ -132,17 +133,10 @@ export async function PATCH(
       data: updated,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en PATCH /api/comandas/[id]/items/[itemId]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
+    return toErrorResponse(
+      error,
+      'Error interno del servidor',
+      'Error en PATCH /api/comandas/[id]/items/[itemId]:'
     )
   }
 }

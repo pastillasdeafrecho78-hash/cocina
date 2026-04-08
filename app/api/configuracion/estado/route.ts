@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { verificarConfiguracionCompleta, obtenerConfiguracion } from '@/lib/configuracion-restaurante'
-import { getSessionUser } from '@/lib/auth-server'
 import { getClipApiKeyStatus } from '@/lib/clip-config'
+import { requireActiveTenant, requireAuthenticatedUser } from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 /**
  * GET /api/configuracion/estado
@@ -9,15 +10,10 @@ import { getClipApiKeyStatus } from '@/lib/clip-config'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    const tenant = requireActiveTenant(user)
 
-    const rid = user.restauranteId
+    const rid = tenant.restauranteId
     const config = await obtenerConfiguracion(rid)
     const completa = await verificarConfiguracionCompleta(rid)
     const clipStatus = await getClipApiKeyStatus(rid)
@@ -33,10 +29,7 @@ export async function GET(request: NextRequest) {
         clipListo: clipStatus.ok,
       },
     })
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+  } catch (error) {
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/configuracion/estado:')
   }
 }

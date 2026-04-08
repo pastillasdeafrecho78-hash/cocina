@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { prisma } from '@/lib/prisma'
 import { getPaymentProvider } from '@/lib/payments'
 import { timbrarCFDI, almacenarCFDI, generarPDFCFDI } from '@/lib/facturacion'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 /**
  * POST /api/pagos/stripe/confirm
@@ -12,34 +16,13 @@ import { timbrarCFDI, almacenarCFDI, generarPDFCFDI } from '@/lib/facturacion'
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Token requerido' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Token inválido' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para procesar pagos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['caja', 'comandas'])
+    const tenant = requireActiveTenant(user)
 
     const provider = getPaymentProvider('stripe')
     if (!provider) {
-      return NextResponse.json(
-        { success: false, error: 'Stripe no configurado' },
-        { status: 500 }
-      )
+      raise(500, 'Stripe no configurado')
     }
 
     const body = await request.json()
@@ -54,68 +37,43 @@ export async function POST(request: NextRequest) {
     } = body
 
     if (!comandaId || !paymentIntentId) {
-      return NextResponse.json(
-        { success: false, error: 'comandaId y paymentIntentId son requeridos' },
-        { status: 400 }
-      )
+      raise(400, 'comandaId y paymentIntentId son requeridos')
     }
 
     const comanda = await prisma.comanda.findFirst({
-      where: { id: comandaId, restauranteId: user.restauranteId },
+      where: { id: comandaId, restauranteId: tenant.restauranteId },
       include: { items: true },
     })
 
     if (!comanda) {
-      return NextResponse.json(
-        { success: false, error: 'Comanda no encontrada' },
-        { status: 404 }
-      )
+      raise(404, 'Comanda no encontrada')
     }
 
     const itemsPendientes = comanda.items.filter(
       (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
     )
     if (itemsPendientes.length > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          error:
-            'No se puede pagar hasta que todos los productos estén marcados como listos.',
-        },
-        { status: 400 }
-      )
+      raise(400, 'No se puede pagar hasta que todos los productos estén marcados como listos.')
     }
 
     if (comanda.estado === 'PAGADO') {
-      return NextResponse.json(
-        { success: false, error: 'Esta comanda ya está pagada' },
-        { status: 400 }
-      )
+      raise(400, 'Esta comanda ya está pagada')
     }
 
     const secretKey = process.env.STRIPE_SECRET_KEY
     if (!secretKey) {
-      return NextResponse.json(
-        { success: false, error: 'Stripe no configurado' },
-        { status: 500 }
-      )
+      raise(500, 'Stripe no configurado')
     }
 
     const stripe = new Stripe(secretKey)
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
 
     if (paymentIntent.metadata?.comandaId !== comandaId) {
-      return NextResponse.json(
-        { success: false, error: 'El pago no corresponde a esta comanda' },
-        { status: 400 }
-      )
+      raise(400, 'El pago no corresponde a esta comanda')
     }
 
     if (paymentIntent.status !== 'succeeded') {
-      return NextResponse.json(
-        { success: false, error: 'El pago aún no ha sido completado' },
-        { status: 400 }
-      )
+      raise(400, 'El pago aún no ha sido completado')
     }
 
     const monto = (paymentIntent.amount ?? 0) / 100
@@ -175,11 +133,7 @@ export async function POST(request: NextRequest) {
           : null,
       },
     })
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Error al confirmar pago'
-    return NextResponse.json(
-      { success: false, error: message },
-      { status: 500 }
-    )
+  } catch (error) {
+    return toErrorResponse(error, 'Error al confirmar pago', 'Error en POST /api/pagos/stripe/confirm:')
   }
 }

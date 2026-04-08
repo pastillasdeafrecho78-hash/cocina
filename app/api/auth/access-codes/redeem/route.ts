@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
 import { hashAccessCode, normalizeAccessCode } from '@/lib/access-code'
+import { requireAuthenticatedUser } from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,12 +13,8 @@ const schema = z.object({
 })
 
 export async function POST(request: NextRequest) {
-  const user = await getSessionUser()
-  if (!user) {
-    return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-  }
-
   try {
+    const user = await requireAuthenticatedUser()
     const { code } = schema.parse(await request.json())
     const normalized = normalizeAccessCode(code)
     const hash = hashAccessCode(normalized)
@@ -96,6 +93,7 @@ export async function POST(request: NextRequest) {
       await tx.usuario.update({
         where: { id: user.id },
         data: {
+          // LEGACY_AUTHZ_DEBT: mantener restauranteId/rolId por compatibilidad hasta deprecación total.
           restauranteId: codeRow.restauranteId,
           activeRestauranteId: codeRow.restauranteId,
           activeOrganizacionId: orgId ?? null,
@@ -112,19 +110,9 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
     if (error instanceof Error && error.message === 'CODIGO_YA_CONSUMIDO') {
-      return NextResponse.json(
-        { success: false, error: 'Este código ya fue canjeado' },
-        { status: 409 }
-      )
+      return NextResponse.json({ success: false, error: 'Este código ya fue canjeado' }, { status: 409 })
     }
-    console.error('POST /api/auth/access-codes/redeem', error)
-    return NextResponse.json({ success: false, error: 'No se pudo canjear el código' }, { status: 500 })
+    return toErrorResponse(error, 'No se pudo canjear el código', 'POST /api/auth/access-codes/redeem')
   }
 }

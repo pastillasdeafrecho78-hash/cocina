@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getDestinoFromCategoria } from '@/lib/comanda-helpers'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 const addItemsSchema = z.object({
   items: z.array(
@@ -27,22 +31,12 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'comandas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'comandas')
+    const tenant = requireActiveTenant(user)
 
     const comanda = await prisma.comanda.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
       include: { items: true },
     })
 
@@ -74,7 +68,7 @@ export async function POST(
       where: {
         id: { in: data.items.map((i) => i.productoId) },
         activo: true,
-        categoria: { restauranteId: user.restauranteId },
+        categoria: { restauranteId: tenant.restauranteId },
       },
       include: {
         categoria: true,
@@ -141,7 +135,7 @@ export async function POST(
       if (itemData.modificadores && itemData.modificadores.length > 0) {
         for (const modificadorId of itemData.modificadores) {
           const modificador = await prisma.modificador.findFirst({
-            where: { id: modificadorId, restauranteId: user.restauranteId },
+            where: { id: modificadorId, restauranteId: tenant.restauranteId },
           })
           if (modificador && modificador.tipo !== 'TAMANO') {
             precioModificadores += modificador.precioExtra || 0
@@ -209,7 +203,7 @@ export async function POST(
     })
 
     const comandaActualizada = await prisma.comanda.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
       include: {
         items: {
           include: {
@@ -226,16 +220,6 @@ export async function POST(
       data: comandaActualizada,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en POST /api/comandas/[id]/items:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/comandas/[id]/items:')
   }
 }

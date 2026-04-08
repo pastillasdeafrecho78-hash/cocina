@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { calcularReportePeriodo } from '@/lib/caja-helpers'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,39 +16,29 @@ export const dynamic = 'force-dynamic'
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'caja')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'caja')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const fondoCierre = Number(body.fondoCierre)
 
     if (!Number.isFinite(fondoCierre) || fondoCierre < 0) {
-      return NextResponse.json(
-        { success: false, error: 'fondoCierre debe ser un número >= 0' },
-        { status: 400 }
-      )
+      raise(400, 'fondoCierre debe ser un número >= 0')
     }
 
     const turno = await prisma.turnoCaja.findFirst({
-      where: { restauranteId: user.restauranteId, fechaCierre: null },
+      where: { restauranteId: tenant.restauranteId, fechaCierre: null },
       orderBy: { fechaApertura: 'desc' },
     })
     if (!turno) {
-      return NextResponse.json(
-        { success: false, error: 'No hay turno abierto para cerrar' },
-        { status: 400 }
-      )
+      raise(400, 'No hay turno abierto para cerrar')
     }
 
     const { totalEfectivo } = await calcularReportePeriodo(
       turno.fechaApertura,
       new Date(),
-      user.restauranteId
+      tenant.restauranteId
     )
     const efectivoEsperado = turno.fondoInicial + totalEfectivo
     const diferencia = fondoCierre - efectivoEsperado
@@ -59,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'TURNO_CIERRE',
         entidad: 'TurnoCaja',
@@ -78,10 +72,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error en POST /api/caja/turno/cierre:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/caja/turno/cierre:')
   }
 }

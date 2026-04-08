@@ -35,14 +35,9 @@ export async function GET(request: NextRequest) {
           select: { rolId: true },
         })
       : []
-    const userRoleRows = await prisma.usuario.findMany({
-      where: { restauranteId: tenant.restauranteId, activo: true },
-      select: { rolId: true },
-    })
-
     const roleIds = Array.from(
       new Set(
-        [user.rolId, ...branchRoleRows, ...orgRoleRows, ...userRoleRows]
+        [user.rolId, ...branchRoleRows, ...orgRoleRows]
           .map((r) => (typeof r === 'string' ? r : r.rolId))
           .filter((id): id is string => Boolean(id))
       )

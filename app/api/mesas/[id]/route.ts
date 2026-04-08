@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { z } from 'zod'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 const updateMesaSchema = z.object({
   estado: z.enum(['LIBRE', 'OCUPADA', 'CUENTA_PEDIDA', 'RESERVADA']).optional(),
@@ -17,19 +21,15 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'mesas')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = updateMesaSchema.parse(body)
 
     const existente = await prisma.mesa.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
     })
     if (!existente) {
       return NextResponse.json(
@@ -48,18 +48,7 @@ export async function PATCH(
       data: mesa,
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en PATCH /api/mesas/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en PATCH /api/mesas/[id]:')
   }
 }
 
@@ -68,23 +57,12 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-
-    if (!tienePermiso(user, 'mesas')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para eliminar mesas' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'mesas')
+    const tenant = requireActiveTenant(user)
 
     const mesa = await prisma.mesa.findFirst({
-      where: { id: params.id, restauranteId: user.restauranteId },
+      where: { id: params.id, restauranteId: tenant.restauranteId },
       include: {
         comandas: {
           where: { estado: { notIn: ['PAGADO', 'CANCELADO'] } },
@@ -114,7 +92,7 @@ export async function DELETE(
 
     await prisma.auditoria.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         accion: 'ELIMINAR_MESA',
         entidad: 'Mesa',
@@ -124,11 +102,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error en DELETE /api/mesas/[id]:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en DELETE /api/mesas/[id]:')
   }
 }
 

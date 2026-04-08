@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { obtenerConfiguracion, guardarConfiguracion } from '@/lib/configuracion-restaurante'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 /**
  * GET /api/configuracion
@@ -9,18 +13,15 @@ import { tienePermiso } from '@/lib/permisos'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    const tenant = requireActiveTenant(user)
 
-    const config = await obtenerConfiguracion(user.restauranteId)
+    const config = await obtenerConfiguracion(tenant.restauranteId)
 
     // Solo quien tiene configuracion ve la configuración completa; el resto solo tiempos
-    if (!tienePermiso(user, 'configuracion')) {
+    try {
+      requireCapability(user, 'configuracion')
+    } catch {
       return NextResponse.json({
         success: true,
         data: {
@@ -34,11 +35,8 @@ export async function GET(request: NextRequest) {
       success: true,
       data: config,
     })
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+  } catch (error) {
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/configuracion:')
   }
 }
 
@@ -48,32 +46,13 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    
-    if (!token) {
-      return NextResponse.json(
-        { success: false, error: 'Token requerido' },
-        { status: 401 }
-      )
-    }
-
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'No autenticado' },
-        { status: 401 }
-      )
-    }
-    if (!tienePermiso(user, 'configuracion')) {
-      return NextResponse.json(
-        { success: false, error: 'Sin permisos para configurar' },
-        { status: 403 }
-      )
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'configuracion')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
 
-    const config = await guardarConfiguracion(user.restauranteId, {
+    const config = await guardarConfiguracion(tenant.restauranteId, {
       datosFiscales: body.datosFiscales,
       lugarExpedicion: body.lugarExpedicion,
       configuracionComprobante: body.configuracionComprobante,
@@ -96,10 +75,7 @@ export async function POST(request: NextRequest) {
         configuracionCompleta: config.configuracionCompleta,
       },
     })
-  } catch (error: any) {
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    )
+  } catch (error) {
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/configuracion:')
   }
 }

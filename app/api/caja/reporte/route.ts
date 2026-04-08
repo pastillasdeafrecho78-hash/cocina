@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 import { calcularReportePeriodo, obtenerInicioPeriodoActual } from '@/lib/caja-helpers'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'reportes') && !tienePermiso(user, 'caja')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['reportes', 'caja'])
+    const tenant = requireActiveTenant(user)
 
     const { searchParams } = new URL(request.url)
     const fechaInicioParam = searchParams.get('fechaInicio')
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     let fechaInicio: Date
     const fechaFin = fechaFinParam ? new Date(fechaFinParam) : new Date()
 
-    const rid = user.restauranteId
+    const rid = tenant.restauranteId
     if (fechaInicioParam) {
       fechaInicio = new Date(fechaInicioParam)
     } else {
@@ -44,15 +44,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('Error en GET /api/caja/reporte:', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          process.env.NODE_ENV === 'development' ? msg : 'Error interno del servidor',
-      },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/caja/reporte:')
   }
 }

@@ -2,8 +2,13 @@ import { createHash, randomBytes } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+  requireRoleScopedToTenant,
+} from '@/lib/authz/guards'
+import { toErrorResponse } from '@/lib/authz/http'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,16 +25,12 @@ function hashToken(raw: string): string {
 
 export async function GET() {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'usuarios_roles')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'usuarios_roles')
+    const tenant = requireActiveTenant(user)
 
     const invites = await prisma.invitacion.findMany({
-      where: { restauranteId: user.restauranteId },
+      where: { restauranteId: tenant.restauranteId },
       orderBy: { createdAt: 'desc' },
       include: {
         rol: { select: { id: true, nombre: true, codigo: true } },
@@ -39,28 +40,26 @@ export async function GET() {
 
     return NextResponse.json({ success: true, data: invites })
   } catch (error) {
-    console.error('Error en GET /api/auth/invites:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error al listar invitaciones' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error al listar invitaciones', 'Error en GET /api/auth/invites:')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'usuarios_roles')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'usuarios_roles')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = createSchema.parse(body)
     const email = data.email.trim().toLowerCase()
     const expiraHoras = data.expiraHoras ?? 72
+
+    await requireRoleScopedToTenant(data.rolId, {
+      restauranteId: tenant.restauranteId,
+      organizacionId: tenant.organizacionId,
+      actorRoleId: user.rolId,
+    })
 
     const rol = await prisma.rol.findUnique({ where: { id: data.rolId } })
     if (!rol) {
@@ -70,7 +69,7 @@ export async function POST(request: NextRequest) {
     const existingUser = await prisma.usuario.findUnique({
       where: {
         restauranteId_email: {
-          restauranteId: user.restauranteId,
+          restauranteId: tenant.restauranteId,
           email,
         },
       },
@@ -88,7 +87,7 @@ export async function POST(request: NextRequest) {
 
     const invite = await prisma.invitacion.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         email,
         rolId: data.rolId,
         tokenHash,
@@ -114,16 +113,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-    console.error('Error en POST /api/auth/invites:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error al crear invitación' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error al crear invitación', 'Error en POST /api/auth/invites:')
   }
 }

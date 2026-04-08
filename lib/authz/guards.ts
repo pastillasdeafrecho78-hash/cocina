@@ -21,6 +21,18 @@ export function requireCapability(user: SessionUser, permission: string) {
   }
 }
 
+export function requireAnyCapability(user: SessionUser, permissions: string[]) {
+  const allowed = permissions.some((permission) => tienePermiso(user, permission))
+  if (!allowed) {
+    logAuthzEvent('capability_denied', {
+      userId: user.id,
+      permissions,
+      restauranteId: user.restauranteId,
+    })
+    raise(403, 'Sin permisos')
+  }
+}
+
 export function requireActiveTenant(user: SessionUser) {
   if (!user.restauranteId) {
     raise(403, 'No hay sucursal activa')
@@ -28,6 +40,16 @@ export function requireActiveTenant(user: SessionUser) {
   return {
     restauranteId: user.restauranteId,
     organizacionId: user.activeOrganizacionId ?? null,
+  }
+}
+
+export function requireResourceScope(
+  resourceRestauranteId: string,
+  tenantRestauranteId: string,
+  notFoundMessage = 'Recurso no encontrado'
+) {
+  if (resourceRestauranteId !== tenantRestauranteId) {
+    raise(404, notFoundMessage)
   }
 }
 
@@ -96,7 +118,7 @@ export async function requireRoleScopedToTenant(
 
   if (ctx.actorRoleId && roleId === ctx.actorRoleId) return role
 
-  const [branchLinked, orgLinked, userLinked] = await Promise.all([
+  const [branchLinked, orgLinked] = await Promise.all([
     prisma.sucursalMiembro.findFirst({
       where: { restauranteId: ctx.restauranteId, rolId: roleId, activo: true },
       select: { id: true },
@@ -107,13 +129,9 @@ export async function requireRoleScopedToTenant(
           select: { id: true },
         })
       : Promise.resolve(null),
-    prisma.usuario.findFirst({
-      where: { restauranteId: ctx.restauranteId, rolId: roleId, activo: true },
-      select: { id: true },
-    }),
   ])
 
-  if (!branchLinked && !orgLinked && !userLinked) {
+  if (!branchLinked && !orgLinked) {
     logAuthzEvent('role_scope_denied', {
       roleId,
       restauranteId: ctx.restauranteId,

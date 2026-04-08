@@ -157,8 +157,8 @@ model Usuario {
   nombre       String
   apellido     String
   password     String?
-  rolId        String
-  restauranteId String
+  rolId        String // LEGACY_COMPAT: fallback temporal hasta deprecacion total por membresia activa
+  restauranteId String // LEGACY_COMPAT: sucursal base historica, no usar como tenant operativo
   activeOrganizacionId String?
   activeRestauranteId  String?
   activo       Boolean   @default(true)
@@ -207,6 +207,8 @@ model OrganizacionMiembro {
 
   @@unique([usuarioId, organizacionId])
   @@index([organizacionId])
+  @@index([organizacionId, activo])
+  @@index([usuarioId, activo])
   @@index([rolId])
 }
 
@@ -226,6 +228,8 @@ model SucursalMiembro {
 
   @@unique([usuarioId, restauranteId])
   @@index([restauranteId])
+  @@index([restauranteId, activo])
+  @@index([usuarioId, activo])
   @@index([rolId])
 }
 

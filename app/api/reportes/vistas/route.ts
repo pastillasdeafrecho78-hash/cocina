@@ -1,15 +1,19 @@
 import { Prisma } from '@prisma/client'
 import { NextRequest, NextResponse } from 'next/server'
-import { ZodError } from 'zod'
-import { getSessionUser } from '@/lib/auth-server'
+import { toErrorResponse } from '@/lib/authz/http'
+import {
+  requireActiveTenant,
+  requireAuthenticatedUser,
+  requireCapability,
+} from '@/lib/authz/guards'
 import { prisma } from '@/lib/prisma'
-import { tienePermiso } from '@/lib/permisos'
 import { dashboardVistaSchema } from '@/lib/reportes/schemas'
 
-async function clearDefaultViews(usuarioId: string) {
+async function clearDefaultViews(usuarioId: string, restauranteId: string) {
   await prisma.dashboardVista.updateMany({
     where: {
       usuarioId,
+      restauranteId,
       modulo: 'reportes',
       scope: 'USER',
     },
@@ -21,13 +25,9 @@ async function clearDefaultViews(usuarioId: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'reportes')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'reportes')
+    const tenant = requireActiveTenant(user)
 
     const vistas = await prisma.dashboardVista.findMany({
       where: {
@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
         activa: true,
         scope: 'USER',
         usuarioId: user.id,
+        restauranteId: tenant.restauranteId,
       },
       orderBy: [{ esDefault: 'desc' }, { updatedAt: 'desc' }],
     })
@@ -44,34 +45,26 @@ export async function GET(request: NextRequest) {
       data: vistas,
     })
   } catch (error) {
-    console.error('Error en GET /api/reportes/vistas:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en GET /api/reportes/vistas:')
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'No autenticado' }, { status: 401 })
-    }
-    if (!tienePermiso(user, 'reportes')) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireCapability(user, 'reportes')
+    const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = dashboardVistaSchema.parse(body)
 
     if (data.esDefault) {
-      await clearDefaultViews(user.id)
+      await clearDefaultViews(user.id, tenant.restauranteId)
     }
 
     const vista = await prisma.dashboardVista.create({
       data: {
-        restauranteId: user.restauranteId,
+        restauranteId: tenant.restauranteId,
         nombre: data.nombre.trim(),
         descripcion: data.descripcion?.trim() || null,
         modulo: 'reportes',
@@ -91,17 +84,6 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     )
   } catch (error) {
-    if (error instanceof ZodError) {
-      return NextResponse.json(
-        { success: false, error: 'Datos inválidos', details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    console.error('Error en POST /api/reportes/vistas:', error)
-    return NextResponse.json(
-      { success: false, error: 'Error interno del servidor' },
-      { status: 500 }
-    )
+    return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/reportes/vistas:')
   }
 }

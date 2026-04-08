@@ -4,6 +4,8 @@ import Credentials from 'next-auth/providers/credentials'
 import Facebook from 'next-auth/providers/facebook'
 import Google from 'next-auth/providers/google'
 import { PENDING_ACCESS_SLUG, ensurePendingAccessContext } from '@/lib/onboarding'
+import { resolveEffectiveRoleId } from '@/lib/authz/effective-role'
+import { logLegacyFallback } from '@/lib/authz/logging'
 import {
   buildBranchMembershipUpsertData,
   buildOrganizationMembershipUpsertData,
@@ -332,7 +334,21 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
           select: { rolId: true },
         })
-        return membership?.rolId ?? input.fallbackRolId
+        const { effectiveRolId, usedLegacyFallback } = resolveEffectiveRoleId(
+          scopeRestauranteId,
+          membership ? [{ restauranteId: scopeRestauranteId, rolId: membership.rolId ?? null }] : [],
+          input.fallbackRolId
+        )
+        if (usedLegacyFallback) {
+          logLegacyFallback({
+            userId: input.userId,
+            activeRestauranteId: scopeRestauranteId,
+            fallbackRolId: input.fallbackRolId,
+            source: 'jwt_callback',
+            reason: membership ? 'membership_without_role' : 'missing_membership',
+          })
+        }
+        return effectiveRolId
       }
 
       if (account?.provider && isOAuthProvider(account.provider) && account.providerAccountId) {

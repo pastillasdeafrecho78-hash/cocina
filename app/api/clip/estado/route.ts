@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSessionUser } from '@/lib/auth-server'
-import { tienePermiso } from '@/lib/permisos'
 import { getClipApiKey } from '@/lib/clip-config'
 import { clipPaymentDetail } from '@/lib/clip-payclip'
 import { finalizarComandaTrasPagoClip } from '@/lib/clip-finalize'
+import {
+  requireActiveTenant,
+  requireAnyCapability,
+  requireAuthenticatedUser,
+} from '@/lib/authz/guards'
+import { raise, toErrorResponse } from '@/lib/authz/http'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,28 +17,24 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = await getSessionUser()
-    if (!user || (!tienePermiso(user, 'caja') && !tienePermiso(user, 'comandas'))) {
-      return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
-    }
+    const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, ['caja', 'comandas'])
+    const tenant = requireActiveTenant(user)
     const pinpadRequestId = request.nextUrl.searchParams.get('pinpadRequestId')
     const pagoId = request.nextUrl.searchParams.get('pagoId')
     if (!pinpadRequestId || !pagoId) {
-      return NextResponse.json(
-        { success: false, error: 'pinpadRequestId y pagoId requeridos' },
-        { status: 400 }
-      )
+      raise(400, 'pinpadRequestId y pagoId requeridos')
     }
     const pago = await prisma.pago.findFirst({
       where: {
         id: pagoId,
         procesador: 'clip',
-        comanda: { restauranteId: user.restauranteId },
+        comanda: { restauranteId: tenant.restauranteId },
       },
       include: { comanda: true },
     })
     if (!pago) {
-      return NextResponse.json({ success: false, error: 'Pago no encontrado' }, { status: 404 })
+      raise(404, 'Pago no encontrado')
     }
     if (pago.estado === 'COMPLETADO') {
       return NextResponse.json({
@@ -42,9 +42,9 @@ export async function GET(request: NextRequest) {
         data: { status: 'COMPLETADO', yaCompletado: true },
       })
     }
-    const apiKey = await getClipApiKey(user.restauranteId)
+    const apiKey = await getClipApiKey(tenant.restauranteId)
     if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'Clip no configurado' }, { status: 400 })
+      raise(400, 'Clip no configurado')
     }
     const detail = await clipPaymentDetail(apiKey, pinpadRequestId)
     const raw =
@@ -82,11 +82,7 @@ export async function GET(request: NextRequest) {
       success: true,
       data: { status: status || 'PENDIENTE', detail },
     })
-  } catch (e: any) {
-    console.error(e)
-    return NextResponse.json(
-      { success: false, error: e?.message || 'Error consultando estado' },
-      { status: 502 }
-    )
+  } catch (error) {
+    return toErrorResponse(error, 'Error consultando estado', 'Error en GET /api/clip/estado:')
   }
 }
