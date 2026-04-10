@@ -14,6 +14,7 @@
     "db:baseline:resolve-all": "bash scripts/prisma-baseline-resolve-all.sh",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:seed": "dotenv -e .env.local -- tsx scripts/seed.ts",
+    "ensure:external-order-actors": "dotenv -e .env.local -- tsx scripts/ensure-external-order-actors.ts",
     "verify:env": "tsx scripts/verify-env.ts",
     "tunnel": "node scripts/start-tunnel.js",
     "tunnel:simple": "node scripts/ngrok-simple.js",

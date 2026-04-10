@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { resolveExternalOrderActorUserId } from '../lib/orders/external-order-actor'
 
 const prisma = new PrismaClient()
 
@@ -226,6 +227,9 @@ async function main() {
       },
     })
   }
+
+  await resolveExternalOrderActorUserId(prisma, rid)
+  console.log('✅ Usuario técnico pedidos externos (integración API / público)')
 
   console.log('🎉 Seed OK — Admin admin@restaurante.com / admin123')
 }

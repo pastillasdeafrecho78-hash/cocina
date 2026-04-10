@@ -7,6 +7,7 @@ import {
   normalizeTipoPedido,
 } from '@/lib/orders/public-contract'
 import { raiseApiError } from '@/lib/orders/public-errors'
+import { resolveExternalOrderActorUserId } from '@/lib/orders/external-order-actor'
 
 type CreateExternalOrderInput = {
   restauranteId: string
@@ -52,12 +53,10 @@ export async function createExternalOrder(input: CreateExternalOrderInput) {
     }
   }
 
-  const fallbackUser = await prisma.usuario.findFirst({
-    where: { restauranteId: input.restauranteId, activo: true },
-    select: { id: true },
-    orderBy: { createdAt: 'asc' },
-  })
-  if (!fallbackUser) {
+  let actorUserId: string
+  try {
+    actorUserId = await resolveExternalOrderActorUserId(prisma, input.restauranteId)
+  } catch {
     raiseApiError(409, 'branch_without_operator', 'Sucursal sin usuarios operativos')
   }
 
@@ -197,7 +196,7 @@ export async function createExternalOrder(input: CreateExternalOrderInput) {
           observaciones: input.data.observaciones?.trim() || null,
           externalOrderId: input.data.externalOrderId,
           externalSource: input.data.source ?? input.data.canal ?? 'external-app-v1',
-          creadoPorId: fallbackUser.id,
+          creadoPorId: actorUserId,
           items: {
             create: comandaItems.map((item) => ({
               productoId: item.productoId,
@@ -217,7 +216,7 @@ export async function createExternalOrder(input: CreateExternalOrderInput) {
             create: {
               accion: 'CREADA',
               descripcion: `Comanda creada por API externa (${input.data.source ?? input.data.canal ?? 'external-app-v1'})`,
-              usuarioId: fallbackUser.id,
+              usuarioId: actorUserId,
             },
           },
         },

@@ -113,6 +113,21 @@ describe('POST /api/public/integraciones/pedidos/orders critical cases', () => {
     expect(body.data.origen).toBe('EXTERNAL_API')
   })
 
+  it('resuelve creador vía usuario técnico pedidos-externos@servimos.internal', async () => {
+    vi.resetModules()
+    const { POST } = await import('@/app/api/public/integraciones/pedidos/orders/route')
+    await POST(buildValidRequest() as any)
+
+    expect(findFirstUsuario).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          restauranteId: 'r1',
+          email: 'pedidos-externos.r1@servimos.internal',
+        }),
+      })
+    )
+  })
+
   it('duplicate/idempotent retry devuelve 200 con idempotent=true', async () => {
     findFirstComanda.mockResolvedValue({
       id: 'order-existing',

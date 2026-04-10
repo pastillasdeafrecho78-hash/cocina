@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import {
@@ -156,6 +157,9 @@ export async function POST(request: NextRequest) {
       data: mesa,
     })
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      console.error('Error en POST /api/mesas [Prisma]', error.code, error.meta)
+    }
     return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/mesas:')
   }
 }

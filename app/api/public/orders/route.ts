@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { calcularTotal, generarNumeroComanda, getDestinoFromCategoria } from '@/lib/comanda-helpers'
 import { createPublicTrackingToken } from '@/lib/public-ordering'
+import { resolveExternalOrderActorUserId } from '@/lib/orders/external-order-actor'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -47,12 +48,10 @@ export async function POST(request: NextRequest) {
     }
 
     const rid = restaurante.id
-    const fallbackUser = await prisma.usuario.findFirst({
-      where: { restauranteId: rid, activo: true },
-      select: { id: true },
-      orderBy: { createdAt: 'asc' },
-    })
-    if (!fallbackUser) {
+    let actorUserId: string
+    try {
+      actorUserId = await resolveExternalOrderActorUserId(prisma, rid)
+    } catch {
       return NextResponse.json(
         { success: false, error: 'Sucursal sin usuarios operativos' },
         { status: 409 }
@@ -189,7 +188,7 @@ export async function POST(request: NextRequest) {
             .filter(Boolean)
             .join(' | '),
           publicTokenHash: token.hash,
-          creadoPorId: fallbackUser.id,
+          creadoPorId: actorUserId,
           items: {
             create: comandaItems,
           },
@@ -197,7 +196,7 @@ export async function POST(request: NextRequest) {
             create: {
               accion: 'CREADA',
               descripcion: 'Comanda creada desde canal público',
-              usuarioId: fallbackUser.id,
+              usuarioId: actorUserId,
             },
           },
         },
