@@ -163,6 +163,7 @@ export default function MesasStatusPage() {
           numero: parseInt(formData.numero),
           capacidad: parseInt(formData.capacidad),
           ubicacion: formData.ubicacion || undefined,
+          piso: formData.piso || undefined,
         }),
       })
 

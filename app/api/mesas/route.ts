@@ -141,16 +141,20 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Registrar auditoría
-    await prisma.auditoria.create({
-      data: {
-        restauranteId: tenant.restauranteId,
-        usuarioId: user.id,
-        accion: 'CREAR_MESA',
-        entidad: 'Mesa',
-        entidadId: mesa.id,
-      },
-    })
+    // La mesa no debe fallar por una auditoría incidental.
+    try {
+      await prisma.auditoria.create({
+        data: {
+          restauranteId: tenant.restauranteId,
+          usuarioId: user.id,
+          accion: 'CREAR_MESA',
+          entidad: 'Mesa',
+          entidadId: mesa.id,
+        },
+      })
+    } catch (auditError) {
+      console.error('Warning auditoría POST /api/mesas:', auditError)
+    }
 
     return NextResponse.json({
       success: true,
@@ -159,6 +163,18 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       console.error('Error en POST /api/mesas [Prisma]', error.code, error.meta)
+      if (error.code === 'P2002') {
+        return NextResponse.json(
+          { success: false, error: 'Ya existe una mesa con ese número' },
+          { status: 400 }
+        )
+      }
+      if (error.code === 'P2003') {
+        return NextResponse.json(
+          { success: false, error: 'No se pudo validar la sucursal o el usuario activo' },
+          { status: 409 }
+        )
+      }
     }
     return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/mesas:')
   }
