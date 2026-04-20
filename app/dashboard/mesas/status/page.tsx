@@ -48,10 +48,39 @@ export default function MesasStatusPage() {
   const [tick, setTick] = useState(0)
   const [pedidosClienteHabilitado, setPedidosClienteHabilitado] = useState(false)
   const [guardandoPedidosCliente, setGuardandoPedidosCliente] = useState(false)
+  const [mostrarPedidosCliente, setMostrarPedidosCliente] = useState(false)
   const [restauranteSlug, setRestauranteSlug] = useState<string | null>(null)
   const [publicOrigin, setPublicOrigin] = useState('')
   const [mesaLinkGenerado, setMesaLinkGenerado] = useState<Record<string, string>>({})
   const [generandoMesaLinkId, setGenerandoMesaLinkId] = useState<string | null>(null)
+  const [mesaQrVisible, setMesaQrVisible] = useState<Record<string, boolean>>({})
+  const [mesaQrSizePx, setMesaQrSizePx] = useState<Record<string, number>>({})
+
+  const QR_SIZE_STEPS = [120, 160, 200, 240, 280, 320, 360] as const
+
+  const clampQrSize = (size: number) => {
+    const min = QR_SIZE_STEPS[0]
+    const max = QR_SIZE_STEPS[QR_SIZE_STEPS.length - 1]
+    return Math.min(max, Math.max(min, size))
+  }
+
+  const nearestQrStep = (size: number) => {
+    const clamped = clampQrSize(size)
+    return QR_SIZE_STEPS.reduce((best, cur) => {
+      return Math.abs(cur - clamped) < Math.abs(best - clamped) ? cur : best
+    }, QR_SIZE_STEPS[0])
+  }
+
+  const bumpQrSize = (mesaId: string, delta: number) => {
+    setMesaQrSizePx((prev) => {
+      const current = prev[mesaId] ?? 160
+      const currentStep = nearestQrStep(current)
+      const idx = QR_SIZE_STEPS.findIndex((s) => s === currentStep)
+      const baseIdx = idx === -1 ? 1 : idx
+      const clampedIdx = Math.min(QR_SIZE_STEPS.length - 1, Math.max(0, baseIdx + delta))
+      return { ...prev, [mesaId]: QR_SIZE_STEPS[clampedIdx] }
+    })
+  }
 
   const fetchMesas = async () => {
     try {
@@ -164,6 +193,8 @@ export default function MesasStatusPage() {
       if (!slug) throw new Error('No se encontró slug de sucursal para generar el link')
       const url = `${window.location.origin}/p/${slug}?mesa=${encodeURIComponent(data.data.mesaCode)}`
       setMesaLinkGenerado((prev) => ({ ...prev, [mesaId]: url }))
+      setMesaQrVisible((prev) => ({ ...prev, [mesaId]: true }))
+      setMesaQrSizePx((prev) => ({ ...prev, [mesaId]: nearestQrStep(prev[mesaId] ?? 160) }))
       await navigator.clipboard.writeText(url)
       toast.success('Link de mesa generado y copiado')
       await fetchMesas()
@@ -171,6 +202,20 @@ export default function MesasStatusPage() {
       toast.error(error instanceof Error ? error.message : 'No se pudo generar el link de mesa')
     } finally {
       setGenerandoMesaLinkId(null)
+    }
+  }
+
+  const copiarLinkMesa = async (mesaId: string) => {
+    const link = mesaLinkGenerado[mesaId]
+    if (!link) {
+      toast.error('Primero genera el link de la mesa')
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(link)
+      toast.success('Link copiado')
+    } catch {
+      toast.error('No se pudo copiar el link')
     }
   }
 
@@ -297,6 +342,13 @@ export default function MesasStatusPage() {
             {mostrarConfigTiempos ? 'Ocultar tiempos' : '⏱️ Tiempos de color'}
           </button>
           <button
+            type="button"
+            onClick={() => setMostrarPedidosCliente((v) => !v)}
+            className="app-btn-secondary"
+          >
+            {mostrarPedidosCliente ? 'Ocultar pedidos cliente' : '📱 Pedidos cliente / QR'}
+          </button>
+          <button
             onClick={() => setMostrarFormulario(!mostrarFormulario)}
             className="app-btn-primary"
           >
@@ -348,77 +400,74 @@ export default function MesasStatusPage() {
         </div>
       )}
 
-      <div className="app-card space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-stone-900">Pedidos cliente por link/QR</h2>
-            <p className="text-sm text-stone-600">
-              Habilita solicitudes de cliente y genera QR por mesa sin reemplazar el flujo de meseros.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={togglePedidosCliente}
-            disabled={guardandoPedidosCliente}
-            className={pedidosClienteHabilitado ? 'app-btn-secondary' : 'app-btn-primary'}
-          >
-            {guardandoPedidosCliente
-              ? 'Guardando...'
-              : pedidosClienteHabilitado
-                ? 'Deshabilitar pedidos cliente'
-                : 'Habilitar pedidos cliente'}
-          </button>
-        </div>
-        {restauranteSlug && publicOrigin && (
-          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-            <p className="text-sm text-stone-700">
-              Link general: <span className="font-medium">{`${publicOrigin}/p/${restauranteSlug}`}</span>
-            </p>
-          </div>
-        )}
-        <div className="space-y-2">
-          <p className="text-sm font-medium text-stone-700">Links por mesa</p>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {mesas.map((mesa) => {
-              const link = mesaLinkGenerado[mesa.id]
+      {mesas.length > 0 ? (
+        <div className="space-y-8">
+          {(() => {
+            const porPiso = mesas.reduce<Record<string, Mesa[]>>((acc, m) => {
+              const key = m.piso?.trim() || '__sin_piso__'
+              if (!acc[key]) acc[key] = []
+              acc[key].push(m)
+              return acc
+            }, {})
+            const ordenPisos = Object.keys(porPiso).sort((a, b) => {
+              if (a === '__sin_piso__') return 1
+              if (b === '__sin_piso__') return -1
+              return a.localeCompare(b, undefined, { numeric: true })
+            })
+            return ordenPisos.map((pisoKey) => {
+              const lista = porPiso[pisoKey]
+              const tituloPiso = pisoKey === '__sin_piso__' ? 'Sin piso' : `Piso ${pisoKey}`
               return (
-                <div key={`qr-${mesa.id}`} className="rounded-xl border border-stone-200 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-stone-900">Mesa {mesa.numero}</p>
-                      <p className="text-xs text-stone-500">
-                        {mesa.hasPublicLink ? 'Tiene link activo (puedes regenerar)' : 'Sin link generado'}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="app-btn-secondary"
-                      disabled={generandoMesaLinkId === mesa.id}
-                      onClick={() => generarLinkMesa(mesa.id)}
-                    >
-                      {generandoMesaLinkId === mesa.id
-                        ? 'Generando...'
-                        : mesa.hasPublicLink
-                          ? 'Regenerar QR'
-                          : 'Generar QR'}
-                    </button>
+                <div key={pisoKey}>
+                  <h2 className="mb-3 border-b border-stone-200 pb-2 text-lg font-semibold text-stone-800">
+                    {tituloPiso}
+                  </h2>
+                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                    {lista.map((mesa) => {
+                      const comanda = mesa.comandaActual
+                      const allEntregados = comanda?.allItemsEntregados
+                      const fechaBase = comanda?.waitStartFrom ?? comanda?.fechaCreacion
+                      const waitTime = fechaBase ? formatWaitTime(fechaBase) : undefined
+                      const colorProgresivo = allEntregados
+                        ? undefined
+                        : fechaBase
+                          ? colorProgresivoPorMinutos(
+                              minutosDesde(fechaBase),
+                              tiempoAmarilloMinutos,
+                              tiempoRojoMinutos
+                            )
+                          : undefined
+                      return (
+                        <MesaCard
+                          key={mesa.id}
+                          numero={mesa.numero}
+                          estado={mesa.estado as any}
+                          capacidad={mesa.capacidad}
+                          comandaActual={mesa.comandaActual}
+                          onClick={() => handleMesaClick(mesa)}
+                          tiempoAmarilloMinutos={tiempoAmarilloMinutos}
+                          tiempoRojoMinutos={tiempoRojoMinutos}
+                          variant="status"
+                          waitTime={waitTime}
+                          colorProgresivo={colorProgresivo}
+                          allItemsEntregados={allEntregados}
+                        />
+                      )
+                    })}
                   </div>
-                  {link && (
-                    <div className="mt-3 space-y-2">
-                      <p className="break-all text-xs text-stone-600">{link}</p>
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`}
-                        alt={`QR mesa ${mesa.numero}`}
-                        className="h-28 w-28 rounded-lg border border-stone-200"
-                      />
-                    </div>
-                  )}
                 </div>
               )
-            })}
-          </div>
+            })
+          })()}
         </div>
-      </div>
+      ) : (
+        <div className="app-card text-center">
+          <p className="mb-2 text-lg text-stone-500">No hay mesas configuradas</p>
+          <p className="text-sm text-stone-400">
+            Haz clic en &quot;Agregar Mesa&quot; para comenzar
+          </p>
+        </div>
+      )}
 
       {mostrarFormulario && (
         <div className="app-card">
@@ -491,72 +540,168 @@ export default function MesasStatusPage() {
         </div>
       )}
 
-      {mesas.length > 0 ? (
-        <div className="space-y-8">
-          {(() => {
-            const porPiso = mesas.reduce<Record<string, Mesa[]>>((acc, m) => {
-              const key = m.piso?.trim() || '__sin_piso__'
-              if (!acc[key]) acc[key] = []
-              acc[key].push(m)
-              return acc
-            }, {})
-            const ordenPisos = Object.keys(porPiso).sort((a, b) => {
-              if (a === '__sin_piso__') return 1
-              if (b === '__sin_piso__') return -1
-              return a.localeCompare(b, undefined, { numeric: true })
-            })
-            return ordenPisos.map((pisoKey) => {
-              const lista = porPiso[pisoKey]
-              const tituloPiso = pisoKey === '__sin_piso__' ? 'Sin piso' : `Piso ${pisoKey}`
-              return (
-                <div key={pisoKey}>
-                  <h2 className="mb-3 border-b border-stone-200 pb-2 text-lg font-semibold text-stone-800">
-                    {tituloPiso}
-                  </h2>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                    {lista.map((mesa) => {
-                      const comanda = mesa.comandaActual
-                      const allEntregados = comanda?.allItemsEntregados
-                      const fechaBase = comanda?.waitStartFrom ?? comanda?.fechaCreacion
-                      const waitTime = fechaBase ? formatWaitTime(fechaBase) : undefined
-                      const colorProgresivo = allEntregados
-                        ? undefined
-                        : fechaBase
-                          ? colorProgresivoPorMinutos(
-                              minutosDesde(fechaBase),
-                              tiempoAmarilloMinutos,
-                              tiempoRojoMinutos
-                            )
-                          : undefined
-                      return (
-                        <MesaCard
-                          key={mesa.id}
-                          numero={mesa.numero}
-                          estado={mesa.estado as any}
-                          capacidad={mesa.capacidad}
-                          comandaActual={mesa.comandaActual}
-                          onClick={() => handleMesaClick(mesa)}
-                          tiempoAmarilloMinutos={tiempoAmarilloMinutos}
-                          tiempoRojoMinutos={tiempoRojoMinutos}
-                          variant="status"
-                          waitTime={waitTime}
-                          colorProgresivo={colorProgresivo}
-                          allItemsEntregados={allEntregados}
-                        />
-                      )
-                    })}
+      {mostrarPedidosCliente && (
+        <div className="app-card space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold text-stone-900">Pedidos cliente por link/QR</h2>
+              <p className="text-sm text-stone-600">
+                Habilita solicitudes de cliente y genera links por mesa. Esto vive aparte del mapa para que el mesero
+                entre directo a mesas.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={togglePedidosCliente}
+              disabled={guardandoPedidosCliente}
+              className={pedidosClienteHabilitado ? 'app-btn-secondary' : 'app-btn-primary'}
+            >
+              {guardandoPedidosCliente
+                ? 'Guardando...'
+                : pedidosClienteHabilitado
+                  ? 'Deshabilitar pedidos cliente'
+                  : 'Habilitar pedidos cliente'}
+            </button>
+          </div>
+          {restauranteSlug && publicOrigin && (
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+              <p className="text-sm text-stone-700">
+                Link general:{' '}
+                <span className="font-mono text-xs font-semibold text-stone-900">
+                  {`${publicOrigin}/p/${restauranteSlug}`}
+                </span>
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="app-btn-secondary"
+                  onClick={async () => {
+                    const url = `${publicOrigin}/p/${restauranteSlug}`
+                    try {
+                      await navigator.clipboard.writeText(url)
+                      toast.success('Link general copiado')
+                    } catch {
+                      toast.error('No se pudo copiar el link general')
+                    }
+                  }}
+                >
+                  Copiar link general
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-stone-700">Links por mesa</p>
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              {mesas.map((mesa) => {
+                const link = mesaLinkGenerado[mesa.id]
+                const qrVisible = Boolean(mesaQrVisible[mesa.id])
+                const qrSize = nearestQrStep(mesaQrSizePx[mesa.id] ?? 160)
+                const qrSizeIdx = QR_SIZE_STEPS.indexOf(qrSize as (typeof QR_SIZE_STEPS)[number])
+                const qrSizeIdxSafe = qrSizeIdx === -1 ? 1 : qrSizeIdx
+                return (
+                  <div key={`qr-${mesa.id}`} className="rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-lg font-semibold text-stone-900">Mesa {mesa.numero}</p>
+                        <p className="text-xs text-stone-500">
+                          {mesa.hasPublicLink ? 'Tiene link activo (puedes regenerar)' : 'Sin link generado aún'}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          className="app-btn-secondary"
+                          disabled={generandoMesaLinkId === mesa.id}
+                          onClick={() => generarLinkMesa(mesa.id)}
+                        >
+                          {generandoMesaLinkId === mesa.id
+                            ? 'Generando...'
+                            : mesa.hasPublicLink
+                              ? 'Regenerar link'
+                              : 'Generar link'}
+                        </button>
+                        <button
+                          type="button"
+                          className="app-btn-secondary"
+                          disabled={!link}
+                          onClick={() => copiarLinkMesa(mesa.id)}
+                        >
+                          Copiar link
+                        </button>
+                      </div>
+                    </div>
+
+                    {link ? (
+                      <div className="mt-3 space-y-3">
+                        <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                          <p className="text-xs font-medium text-stone-600">URL</p>
+                          <p className="mt-1 break-all font-mono text-[11px] leading-snug text-stone-900">{link}</p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="app-btn-secondary"
+                            onClick={() => setMesaQrVisible((prev) => ({ ...prev, [mesa.id]: !qrVisible }))}
+                          >
+                            {qrVisible ? 'Ocultar QR' : 'Ver QR'}
+                          </button>
+                          <div className="flex items-center gap-2 rounded-xl border border-stone-200 bg-white px-2 py-1">
+                            <button
+                              type="button"
+                              className="app-btn-secondary px-3"
+                              disabled={!qrVisible || qrSizeIdxSafe <= 0}
+                              aria-label="Reducir tamaño del QR"
+                              onClick={() => bumpQrSize(mesa.id, -1)}
+                            >
+                              −
+                            </button>
+                            <span className="min-w-[84px] text-center text-xs font-semibold text-stone-700">
+                              QR {qrSize}px
+                            </span>
+                            <button
+                              type="button"
+                              className="app-btn-secondary px-3"
+                              disabled={!qrVisible || qrSizeIdxSafe >= QR_SIZE_STEPS.length - 1}
+                              aria-label="Aumentar tamaño del QR"
+                              onClick={() => bumpQrSize(mesa.id, 1)}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {qrVisible ? (
+                          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+                            <div className="rounded-2xl border border-stone-200 bg-white p-3">
+                              <img
+                                src={`https://api.qrserver.com/v1/create-qr-code/?size=${qrSize}x${qrSize}&data=${encodeURIComponent(
+                                  link
+                                )}`}
+                                alt={`QR mesa ${mesa.numero}`}
+                                className="rounded-xl"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <p className="max-w-md text-xs text-stone-600">
+                              Tip: imprime o pega el QR cerca de la mesa. Si cambias el link, regenera para invalidar el
+                              anterior.
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-stone-600">
+                        Genera el link para ver el QR y copiarlo rápido.
+                      </p>
+                    )}
                   </div>
-                </div>
-              )
-            })
-          })()}
-        </div>
-      ) : (
-        <div className="app-card text-center">
-          <p className="mb-2 text-lg text-stone-500">No hay mesas configuradas</p>
-          <p className="text-sm text-stone-400">
-            Haz clic en &quot;Agregar Mesa&quot; para comenzar
-          </p>
+                )
+              })}
+            </div>
+          </div>
         </div>
       )}
 
