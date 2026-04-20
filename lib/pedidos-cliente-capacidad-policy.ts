@@ -11,7 +11,8 @@ type ConfigSnapshot = {
   autoAprobarSolicitudes: boolean
 }
 
-export type ModoDDecision =
+/** Decisión automática al recibir un pedido público (link/QR) según carga del restaurante. */
+export type ClientePedidoCapacidadDecision =
   | {
       action: 'PENDING_REVIEW'
       state: 'PENDIENTE'
@@ -57,10 +58,10 @@ export async function countComandaItemsInPreparationLoad(restauranteId: string):
   })
 }
 
-export async function evaluateModoDForPublicOrder(input: {
+export async function evaluarCapacidadPedidoClientePublico(input: {
   restauranteId: string
   wantsQueue: boolean
-}): Promise<ModoDDecision> {
+}): Promise<ClientePedidoCapacidadDecision> {
   const configRow = await prisma.configuracionRestaurante.findUnique({
     where: { restauranteId: input.restauranteId },
     select: {
@@ -79,7 +80,7 @@ export async function evaluateModoDForPublicOrder(input: {
     return {
       action: 'PENDING_REVIEW',
       state: 'PENDIENTE',
-      reason: 'modo_d_disabled',
+      reason: 'control_carga_desactivado',
       source: 'AUTO',
       autoApprove: false,
     }

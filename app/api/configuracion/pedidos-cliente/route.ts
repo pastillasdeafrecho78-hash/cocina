@@ -10,6 +10,9 @@ import { toErrorResponse } from '@/lib/authz/http'
 
 const bodySchema = z.object({
   habilitado: z.boolean(),
+  /** Control de carga automático para pedidos por link/QR (nombre legible en API). */
+  controlCargaAutomaticaPedidos: z.boolean().optional(),
+  /** @deprecated Usar controlCargaAutomaticaPedidos; se acepta por compatibilidad con clientes antiguos. */
   modoD: z.boolean().optional(),
   queueEnabled: z.boolean().optional(),
   qrMesaEnabled: z.boolean().optional(),
@@ -21,6 +24,14 @@ const bodySchema = z.object({
   clienteEtaMinMinutos: z.number().int().positive().max(240).optional(),
   clienteEtaMaxMinutos: z.number().int().positive().max(480).optional(),
 })
+
+function resolveControlCargaAutomaticaPedidos(
+  body: z.infer<typeof bodySchema>
+): boolean | undefined {
+  if (body.controlCargaAutomaticaPedidos !== undefined) return body.controlCargaAutomaticaPedidos
+  if (body.modoD !== undefined) return body.modoD
+  return undefined
+}
 
 export async function GET() {
   try {
@@ -55,7 +66,7 @@ export async function GET() {
       success: true,
       data: {
         habilitado: config?.pedidosClienteSolicitudHabilitado ?? false,
-        modoD: config?.modoDPedidosHabilitado ?? false,
+        controlCargaAutomaticaPedidos: config?.modoDPedidosHabilitado ?? false,
         queueEnabled: config?.queueEnabled ?? true,
         qrMesaEnabled: config?.qrMesaEnabled ?? true,
         maxComandasActivas: config?.maxComandasActivas ?? 25,
@@ -84,13 +95,14 @@ export async function POST(request: NextRequest) {
     requireAnyCapability(user, ['tables.client_channel', 'settings.manage', 'configuracion'])
     const tenant = requireActiveTenant(user)
     const body = bodySchema.parse(await request.json())
+    const controlCarga = resolveControlCargaAutomaticaPedidos(body)
 
     const config = await prisma.configuracionRestaurante.upsert({
       where: { restauranteId: tenant.restauranteId },
       create: {
         restauranteId: tenant.restauranteId,
         pedidosClienteSolicitudHabilitado: body.habilitado,
-        modoDPedidosHabilitado: body.modoD ?? false,
+        modoDPedidosHabilitado: controlCarga ?? false,
         queueEnabled: body.queueEnabled ?? true,
         qrMesaEnabled: body.qrMesaEnabled ?? true,
         maxComandasActivas: body.maxComandasActivas ?? 25,
@@ -105,7 +117,7 @@ export async function POST(request: NextRequest) {
       },
       update: {
         pedidosClienteSolicitudHabilitado: body.habilitado,
-        ...(body.modoD !== undefined ? { modoDPedidosHabilitado: body.modoD } : {}),
+        ...(controlCarga !== undefined ? { modoDPedidosHabilitado: controlCarga } : {}),
         ...(body.queueEnabled !== undefined ? { queueEnabled: body.queueEnabled } : {}),
         ...(body.qrMesaEnabled !== undefined ? { qrMesaEnabled: body.qrMesaEnabled } : {}),
         ...(body.maxComandasActivas !== undefined ? { maxComandasActivas: body.maxComandasActivas } : {}),
@@ -145,7 +157,7 @@ export async function POST(request: NextRequest) {
       success: true,
       data: {
         habilitado: config.pedidosClienteSolicitudHabilitado,
-        modoD: config.modoDPedidosHabilitado,
+        controlCargaAutomaticaPedidos: config.modoDPedidosHabilitado,
         queueEnabled: config.queueEnabled,
         qrMesaEnabled: config.qrMesaEnabled,
         maxComandasActivas: config.maxComandasActivas,

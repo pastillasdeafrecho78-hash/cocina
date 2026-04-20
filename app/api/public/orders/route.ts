@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { createPublicTrackingToken, hashSecretToken } from '@/lib/public-ordering'
 import { buildSolicitudTrackerUrl } from '@/lib/public-solicitud-tracker-url'
 import { buildSolicitudItems } from '@/lib/solicitud-pedidos'
-import { evaluateModoDForPublicOrder } from '@/lib/modo-d-policy'
+import { evaluarCapacidadPedidoClientePublico } from '@/lib/pedidos-cliente-capacidad-policy'
 import { aprobarSolicitudComoComanda } from '@/lib/solicitudes-approval'
 
 export const runtime = 'nodejs'
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { solicitudItems, totalEstimado } = await buildSolicitudItems(rid, data)
-    const decision = await evaluateModoDForPublicOrder({
+    const decision = await evaluarCapacidadPedidoClientePublico({
       restauranteId: rid,
       wantsQueue: Boolean(data.acceptEnCola),
     })

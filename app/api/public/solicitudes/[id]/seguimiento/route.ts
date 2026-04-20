@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashSecretToken } from '@/lib/public-ordering'
 import { computeClientOrderEta } from '@/lib/client-order-eta'
-import { countComandaItemsInPreparationLoad } from '@/lib/modo-d-policy'
+import { countComandaItemsInPreparationLoad } from '@/lib/pedidos-cliente-capacidad-policy'
 import { computeSolicitudClientePhase, labelForSolicitudPhase } from '@/lib/solicitud-seguimiento-phase'
 
 export const runtime = 'nodejs'

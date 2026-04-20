@@ -1,6 +1,6 @@
 import type { Prisma } from '@prisma/client'
 
-/** Comandas que cuentan para carga operativa (alineado con modo-d-policy). */
+/** Comandas que cuentan para carga operativa (alineado con pedidos-cliente-capacidad-policy). */
 export const COMANDA_ESTADOS_ACTIVOS = ['PENDIENTE', 'EN_PREPARACION', 'LISTO', 'SERVIDO'] as const
 
 /** Ítems que ya no suman carga de preparación para cocina/barra. */

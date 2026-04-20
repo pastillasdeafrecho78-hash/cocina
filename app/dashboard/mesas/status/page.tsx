@@ -77,7 +77,7 @@ export default function MesasStatusPage() {
 
   type PedidosClienteCfgForm = {
     habilitado: boolean
-    modoD: boolean
+    controlCargaAutomaticaPedidos: boolean
     queueEnabled: boolean
     qrMesaEnabled: boolean
     maxComandasActivas: number
@@ -303,7 +303,9 @@ export default function MesasStatusPage() {
         setPedidosClienteHabilitado(Boolean(data.data.habilitado))
         setPedidosCfg({
           habilitado: Boolean(data.data.habilitado),
-          modoD: Boolean(data.data.modoD),
+          controlCargaAutomaticaPedidos: Boolean(
+            data.data.controlCargaAutomaticaPedidos ?? data.data.modoD ?? false
+          ),
           queueEnabled: Boolean(data.data.queueEnabled ?? true),
           qrMesaEnabled: Boolean(data.data.qrMesaEnabled ?? true),
           maxComandasActivas: Number(data.data.maxComandasActivas ?? 25),
@@ -335,7 +337,7 @@ export default function MesasStatusPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           habilitado: pedidosCfg.habilitado,
-          modoD: pedidosCfg.modoD,
+          controlCargaAutomaticaPedidos: pedidosCfg.controlCargaAutomaticaPedidos,
           queueEnabled: pedidosCfg.queueEnabled,
           qrMesaEnabled: pedidosCfg.qrMesaEnabled,
           maxComandasActivas: pedidosCfg.maxComandasActivas,
@@ -366,7 +368,7 @@ export default function MesasStatusPage() {
       const next = !pedidosClienteHabilitado
       const base = pedidosCfg ?? {
         habilitado: pedidosClienteHabilitado,
-        modoD: false,
+        controlCargaAutomaticaPedidos: false,
         queueEnabled: true,
         qrMesaEnabled: true,
         maxComandasActivas: 25,
@@ -385,7 +387,7 @@ export default function MesasStatusPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           habilitado: next,
-          modoD: base.modoD,
+          controlCargaAutomaticaPedidos: base.controlCargaAutomaticaPedidos,
           queueEnabled: base.queueEnabled,
           qrMesaEnabled: base.qrMesaEnabled,
           maxComandasActivas: base.maxComandasActivas,
@@ -407,7 +409,9 @@ export default function MesasStatusPage() {
           ? { ...prev, habilitado: Boolean(data.data?.habilitado) }
           : {
               habilitado: Boolean(data.data?.habilitado),
-              modoD: Boolean(data.data?.modoD),
+              controlCargaAutomaticaPedidos: Boolean(
+                data.data?.controlCargaAutomaticaPedidos ?? data.data?.modoD ?? false
+              ),
               queueEnabled: Boolean(data.data?.queueEnabled ?? true),
               qrMesaEnabled: Boolean(data.data?.qrMesaEnabled ?? true),
               maxComandasActivas: Number(data.data?.maxComandasActivas ?? 25),
@@ -880,8 +884,10 @@ export default function MesasStatusPage() {
                   <input
                     type="checkbox"
                     className="mt-0.5"
-                    checked={pedidosCfg.modoD}
-                    onChange={(e) => setPedidosCfg((p) => (p ? { ...p, modoD: e.target.checked } : p))}
+                    checked={pedidosCfg.controlCargaAutomaticaPedidos}
+                    onChange={(e) =>
+                      setPedidosCfg((p) => (p ? { ...p, controlCargaAutomaticaPedidos: e.target.checked } : p))
+                    }
                   />
                   <span>
                     <span className="font-medium">Reaccionar solo cuando el restaurante va muy ocupado</span>

@@ -9,7 +9,7 @@ import {
   requireCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
-import { isUserWithinWorkSchedule } from '@/lib/modo-d-policy'
+import { isUserWithinWorkSchedule } from '@/lib/pedidos-cliente-capacidad-policy'
 
 export const dynamic = 'force-dynamic'
 

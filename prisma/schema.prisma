@@ -720,6 +720,7 @@ model ConfiguracionRestaurante {
 
   // Feature flag para flujo de solicitud pública de pedidos (cliente directo)
   pedidosClienteSolicitudHabilitado Boolean @default(false)
+  /// Control automático de carga para pedidos por link/QR (límites, cola, mensajes). En API: `controlCargaAutomaticaPedidos`.
   modoDPedidosHabilitado Boolean @default(false)
   queueEnabled           Boolean @default(true)
   qrMesaEnabled          Boolean @default(true)
@@ -731,7 +732,7 @@ model ConfiguracionRestaurante {
   // ETA mostrada al cliente en seguimiento (minutos)
   clienteEtaMinMinutos Int? @default(45)
   clienteEtaMaxMinutos Int? @default(60)
-  /// Tope de ítems en preparación (cocina/barra, no listoPorDefault) para saturación Modo D; null = solo comandas activas
+  /// Tope de ítems en preparación (cocina/barra) para considerar saturación; null = solo usar tope de comandas activas
   maxItemsPreparacion    Int?
 
   // Política de Propina
