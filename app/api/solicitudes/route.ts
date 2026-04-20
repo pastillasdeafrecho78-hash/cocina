@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import {
   requireActiveTenant,
@@ -21,6 +22,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Estado inválido' }, { status: 400 })
     }
     const estadoFilter = estadoParam === 'TODAS' ? undefined : estadoParam
+
+    const orderBy: Prisma.SolicitudPedidoOrderByWithRelationInput[] =
+      estadoFilter === 'EN_COLA'
+        ? [{ prioridadColaAt: 'asc' }, { createdAt: 'asc' }]
+        : estadoFilter === 'PENDIENTE'
+          ? [{ createdAt: 'asc' }]
+          : [{ createdAt: 'desc' }]
 
     const solicitudes = await prisma.solicitudPedido.findMany({
       where: {
@@ -64,7 +72,7 @@ export async function GET(request: NextRequest) {
           select: { id: true, nombre: true, apellido: true },
         },
       },
-      orderBy: [{ estado: 'asc' }, { createdAt: 'desc' }],
+      orderBy,
       take: 200,
     })
 

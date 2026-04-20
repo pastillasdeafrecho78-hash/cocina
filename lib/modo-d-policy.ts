@@ -1,9 +1,11 @@
 import { prisma } from '@/lib/prisma'
+import { comandaItemsPreparationLoadWhere } from '@/lib/comanda-preparation-load'
 
 type ConfigSnapshot = {
   modoDPedidosHabilitado: boolean
   queueEnabled: boolean
   maxComandasActivas: number | null
+  maxItemsPreparacion: number | null
   tiempoEsperaSaturacionMin: number | null
   mensajeSaturacion: string | null
   autoAprobarSolicitudes: boolean
@@ -39,12 +41,20 @@ function normalizeConfig(raw: Partial<ConfigSnapshot> | null | undefined): Confi
     modoDPedidosHabilitado: Boolean(raw?.modoDPedidosHabilitado),
     queueEnabled: raw?.queueEnabled ?? true,
     maxComandasActivas: raw?.maxComandasActivas ?? 25,
+    maxItemsPreparacion:
+      raw?.maxItemsPreparacion != null && raw.maxItemsPreparacion > 0 ? raw.maxItemsPreparacion : null,
     tiempoEsperaSaturacionMin: raw?.tiempoEsperaSaturacionMin ?? 15,
     mensajeSaturacion:
       raw?.mensajeSaturacion?.trim() ||
       'Ahorita estamos a tope. Tu pedido podría iniciar en unos minutos. ¿Deseas entrar a la cola?',
     autoAprobarSolicitudes: Boolean(raw?.autoAprobarSolicitudes),
   }
+}
+
+export async function countComandaItemsInPreparationLoad(restauranteId: string): Promise<number> {
+  return prisma.comandaItem.count({
+    where: comandaItemsPreparationLoadWhere(restauranteId),
+  })
 }
 
 export async function evaluateModoDForPublicOrder(input: {
@@ -57,6 +67,7 @@ export async function evaluateModoDForPublicOrder(input: {
       modoDPedidosHabilitado: true,
       queueEnabled: true,
       maxComandasActivas: true,
+      maxItemsPreparacion: true,
       tiempoEsperaSaturacionMin: true,
       mensajeSaturacion: true,
       autoAprobarSolicitudes: true,
@@ -83,8 +94,13 @@ export async function evaluateModoDForPublicOrder(input: {
     },
   })
 
-  const max = config.maxComandasActivas && config.maxComandasActivas > 0 ? config.maxComandasActivas : null
-  const isSaturated = max != null && activeComandas >= max
+  const itemsPrepLoad = await countComandaItemsInPreparationLoad(input.restauranteId)
+
+  const maxC = config.maxComandasActivas && config.maxComandasActivas > 0 ? config.maxComandasActivas : null
+  const saturatedByComandas = maxC != null && activeComandas >= maxC
+  const maxI = config.maxItemsPreparacion
+  const saturatedByItems = maxI != null && itemsPrepLoad >= maxI
+  const isSaturated = saturatedByComandas || saturatedByItems
 
   if (isSaturated) {
     if (config.queueEnabled && input.wantsQueue) {

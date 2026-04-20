@@ -71,6 +71,23 @@ export default function MesasStatusPage() {
   const [mesaQrVisible, setMesaQrVisible] = useState<Record<string, boolean>>({})
   const [mesaQrSizePx, setMesaQrSizePx] = useState<Record<string, number>>({})
 
+  type PedidosClienteCfgForm = {
+    habilitado: boolean
+    modoD: boolean
+    queueEnabled: boolean
+    qrMesaEnabled: boolean
+    maxComandasActivas: number
+    maxItemsPreparacion: number | ''
+    tiempoEsperaSaturacionMin: number
+    mensajeSaturacion: string
+    autoAprobarSolicitudes: boolean
+    clienteEtaMinMinutos: number
+    clienteEtaMaxMinutos: number
+  }
+
+  const [pedidosCfg, setPedidosCfg] = useState<PedidosClienteCfgForm | null>(null)
+  const [guardandoCfgPedidos, setGuardandoCfgPedidos] = useState(false)
+
   const QR_SIZE_STEPS = [120, 160, 200, 240, 280, 320, 360] as const
 
   const clampQrSize = (size: number) => {
@@ -215,9 +232,62 @@ export default function MesasStatusPage() {
       const data = await response.json()
       if (data.success && data.data) {
         setPedidosClienteHabilitado(Boolean(data.data.habilitado))
+        setPedidosCfg({
+          habilitado: Boolean(data.data.habilitado),
+          modoD: Boolean(data.data.modoD),
+          queueEnabled: Boolean(data.data.queueEnabled ?? true),
+          qrMesaEnabled: Boolean(data.data.qrMesaEnabled ?? true),
+          maxComandasActivas: Number(data.data.maxComandasActivas ?? 25),
+          maxItemsPreparacion:
+            data.data.maxItemsPreparacion != null ? Number(data.data.maxItemsPreparacion) : '',
+          tiempoEsperaSaturacionMin: Number(data.data.tiempoEsperaSaturacionMin ?? 15),
+          mensajeSaturacion: String(
+            data.data.mensajeSaturacion ??
+              'Ahorita estamos a tope. Tu pedido podría iniciar en unos minutos. ¿Deseas entrar a la cola?'
+          ),
+          autoAprobarSolicitudes: Boolean(data.data.autoAprobarSolicitudes),
+          clienteEtaMinMinutos: Number(data.data.clienteEtaMinMinutos ?? 45),
+          clienteEtaMaxMinutos: Number(data.data.clienteEtaMaxMinutos ?? 60),
+        })
       }
     } catch {
       // noop
+    }
+  }
+
+  const guardarPedidosClienteCfg = async () => {
+    if (!pedidosCfg) return
+    setGuardandoCfgPedidos(true)
+    try {
+      const maxItems =
+        pedidosCfg.maxItemsPreparacion === '' ? null : Math.max(1, Number(pedidosCfg.maxItemsPreparacion))
+      const response = await apiFetch('/api/configuracion/pedidos-cliente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          habilitado: pedidosCfg.habilitado,
+          modoD: pedidosCfg.modoD,
+          queueEnabled: pedidosCfg.queueEnabled,
+          qrMesaEnabled: pedidosCfg.qrMesaEnabled,
+          maxComandasActivas: pedidosCfg.maxComandasActivas,
+          maxItemsPreparacion: maxItems,
+          tiempoEsperaSaturacionMin: pedidosCfg.tiempoEsperaSaturacionMin,
+          mensajeSaturacion: pedidosCfg.mensajeSaturacion,
+          autoAprobarSolicitudes: pedidosCfg.autoAprobarSolicitudes,
+          clienteEtaMinMinutos: pedidosCfg.clienteEtaMinMinutos,
+          clienteEtaMaxMinutos: pedidosCfg.clienteEtaMaxMinutos,
+        }),
+      })
+      const data = await response.json()
+      if (!data.success) {
+        throw new Error(data.error || 'No se pudo guardar')
+      }
+      toast.success('Configuración de pedidos cliente guardada')
+      await fetchPedidosClienteConfig()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar la configuración')
+    } finally {
+      setGuardandoCfgPedidos(false)
     }
   }
 
@@ -225,16 +295,62 @@ export default function MesasStatusPage() {
     setGuardandoPedidosCliente(true)
     try {
       const next = !pedidosClienteHabilitado
+      const base = pedidosCfg ?? {
+        habilitado: pedidosClienteHabilitado,
+        modoD: false,
+        queueEnabled: true,
+        qrMesaEnabled: true,
+        maxComandasActivas: 25,
+        maxItemsPreparacion: '',
+        tiempoEsperaSaturacionMin: 15,
+        mensajeSaturacion:
+          'Ahorita estamos a tope. Tu pedido podría iniciar en unos minutos. ¿Deseas entrar a la cola?',
+        autoAprobarSolicitudes: false,
+        clienteEtaMinMinutos: 45,
+        clienteEtaMaxMinutos: 60,
+      }
+      const maxItems =
+        base.maxItemsPreparacion === '' ? null : Math.max(1, Number(base.maxItemsPreparacion))
       const response = await apiFetch('/api/configuracion/pedidos-cliente', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ habilitado: next }),
+        body: JSON.stringify({
+          habilitado: next,
+          modoD: base.modoD,
+          queueEnabled: base.queueEnabled,
+          qrMesaEnabled: base.qrMesaEnabled,
+          maxComandasActivas: base.maxComandasActivas,
+          maxItemsPreparacion: maxItems,
+          tiempoEsperaSaturacionMin: base.tiempoEsperaSaturacionMin,
+          mensajeSaturacion: base.mensajeSaturacion,
+          autoAprobarSolicitudes: base.autoAprobarSolicitudes,
+          clienteEtaMinMinutos: base.clienteEtaMinMinutos,
+          clienteEtaMaxMinutos: base.clienteEtaMaxMinutos,
+        }),
       })
       const data = await response.json()
       if (!data.success) {
         throw new Error(data.error || 'No se pudo actualizar la configuración')
       }
       setPedidosClienteHabilitado(Boolean(data.data?.habilitado))
+      setPedidosCfg((prev) =>
+        prev
+          ? { ...prev, habilitado: Boolean(data.data?.habilitado) }
+          : {
+              habilitado: Boolean(data.data?.habilitado),
+              modoD: Boolean(data.data?.modoD),
+              queueEnabled: Boolean(data.data?.queueEnabled ?? true),
+              qrMesaEnabled: Boolean(data.data?.qrMesaEnabled ?? true),
+              maxComandasActivas: Number(data.data?.maxComandasActivas ?? 25),
+              maxItemsPreparacion:
+                data.data?.maxItemsPreparacion != null ? Number(data.data.maxItemsPreparacion) : '',
+              tiempoEsperaSaturacionMin: Number(data.data?.tiempoEsperaSaturacionMin ?? 15),
+              mensajeSaturacion: String(data.data?.mensajeSaturacion ?? ''),
+              autoAprobarSolicitudes: Boolean(data.data?.autoAprobarSolicitudes),
+              clienteEtaMinMinutos: Number(data.data?.clienteEtaMinMinutos ?? 45),
+              clienteEtaMaxMinutos: Number(data.data?.clienteEtaMaxMinutos ?? 60),
+            }
+      )
       toast.success(next ? 'Pedidos cliente habilitados' : 'Pedidos cliente deshabilitados')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No se pudo guardar la configuración')
@@ -670,6 +786,154 @@ export default function MesasStatusPage() {
                   : 'Habilitar pedidos cliente'}
             </button>
           </div>
+          {pedidosCfg && (
+            <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-900/40">
+              <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
+                Modo D, cola y ETA de seguimiento
+              </p>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+                  <input
+                    type="checkbox"
+                    checked={pedidosCfg.modoD}
+                    onChange={(e) => setPedidosCfg((p) => (p ? { ...p, modoD: e.target.checked } : p))}
+                  />
+                  Modo D (capacidad / cola automática)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+                  <input
+                    type="checkbox"
+                    checked={pedidosCfg.queueEnabled}
+                    onChange={(e) => setPedidosCfg((p) => (p ? { ...p, queueEnabled: e.target.checked } : p))}
+                  />
+                  Cola habilitada
+                </label>
+                <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+                  <input
+                    type="checkbox"
+                    checked={pedidosCfg.autoAprobarSolicitudes}
+                    onChange={(e) =>
+                      setPedidosCfg((p) => (p ? { ...p, autoAprobarSolicitudes: e.target.checked } : p))
+                    }
+                  />
+                  Auto-aprobar cuando hay capacidad
+                </label>
+                <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+                  <input
+                    type="checkbox"
+                    checked={pedidosCfg.qrMesaEnabled}
+                    onChange={(e) => setPedidosCfg((p) => (p ? { ...p, qrMesaEnabled: e.target.checked } : p))}
+                  />
+                  QR / link por mesa
+                </label>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
+                    Máx. comandas activas
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="app-input mt-1 w-full"
+                    value={pedidosCfg.maxComandasActivas}
+                    onChange={(e) =>
+                      setPedidosCfg((p) =>
+                        p ? { ...p, maxComandasActivas: Math.max(1, Number(e.target.value) || 1) } : p
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
+                    Máx. ítems en preparación (vacío = sin tope)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    placeholder="Opcional"
+                    className="app-input mt-1 w-full"
+                    value={pedidosCfg.maxItemsPreparacion === '' ? '' : pedidosCfg.maxItemsPreparacion}
+                    onChange={(e) =>
+                      setPedidosCfg((p) =>
+                        p
+                          ? {
+                              ...p,
+                              maxItemsPreparacion: e.target.value === '' ? '' : Math.max(1, Number(e.target.value)),
+                            }
+                          : p
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
+                    Minutos de espera (mensaje saturación)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="app-input mt-1 w-full"
+                    value={pedidosCfg.tiempoEsperaSaturacionMin}
+                    onChange={(e) =>
+                      setPedidosCfg((p) =>
+                        p ? { ...p, tiempoEsperaSaturacionMin: Math.max(1, Number(e.target.value) || 1) } : p
+                      )
+                    }
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
+                    Mensaje de saturación
+                  </label>
+                  <textarea
+                    className="app-input mt-1 w-full"
+                    rows={2}
+                    value={pedidosCfg.mensajeSaturacion}
+                    onChange={(e) => setPedidosCfg((p) => (p ? { ...p, mensajeSaturacion: e.target.value } : p))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
+                    ETA cliente mín (min)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="app-input mt-1 w-full"
+                    value={pedidosCfg.clienteEtaMinMinutos}
+                    onChange={(e) =>
+                      setPedidosCfg((p) =>
+                        p ? { ...p, clienteEtaMinMinutos: Math.max(1, Number(e.target.value) || 1) } : p
+                      )
+                    }
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
+                    ETA cliente máx (min)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    className="app-input mt-1 w-full"
+                    value={pedidosCfg.clienteEtaMaxMinutos}
+                    onChange={(e) =>
+                      setPedidosCfg((p) =>
+                        p ? { ...p, clienteEtaMaxMinutos: Math.max(1, Number(e.target.value) || 1) } : p
+                      )
+                    }
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="app-btn-primary"
+                disabled={guardandoCfgPedidos}
+                onClick={() => void guardarPedidosClienteCfg()}
+              >
+                {guardandoCfgPedidos ? 'Guardando…' : 'Guardar Modo D y ETA'}
+              </button>
+            </div>
+          )}
           {restauranteSlug && publicOrigin && (
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
               <p className="text-sm text-stone-700">

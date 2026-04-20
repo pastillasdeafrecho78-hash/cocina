@@ -7,6 +7,7 @@ import {
   type Categoria,
   type ComandaCheckoutItem,
 } from '@/components/ComandaBuilder'
+import toast from 'react-hot-toast'
 
 type MenuResponse = {
   restaurante: { id: string; nombre: string; slug: string | null }
@@ -19,6 +20,8 @@ type SolicitudResult = {
   estado?: string
   totalEstimado?: number
   approvedComanda?: { id: string; numeroComanda: string } | null
+  trackerUrl?: string
+  trackingToken?: string
 }
 
 export default function PublicPedidoPage() {
@@ -33,6 +36,7 @@ export default function PublicPedidoPage() {
   const [loadError, setLoadError] = useState('')
   const [menu, setMenu] = useState<MenuResponse | null>(null)
   const [result, setResult] = useState<SolicitudResult | null>(null)
+  const [acceptEnCola, setAcceptEnCola] = useState(false)
 
   const [customer, setCustomer] = useState({
     nombre: '',
@@ -101,7 +105,7 @@ export default function PublicPedidoPage() {
             slug,
             mesaCode: mesaCode || undefined,
             tipoPedido: customer.tipoPedido,
-            acceptEnCola: false,
+            acceptEnCola,
             cliente: {
               nombre: customer.nombre.trim(),
               telefono: customer.telefono.trim() || null,
@@ -125,8 +129,19 @@ export default function PublicPedidoPage() {
             estado?: string
             totalEstimado?: number
             approvedComanda?: { id: string; numeroComanda: string } | null
+            trackerUrl?: string
+            trackingToken?: string
           }
           error?: string
+        }
+        if (res.status === 409 && data.code === 'restaurant_saturated') {
+          const base =
+            data.error ??
+            'El restaurante está al límite de capacidad. Puedes entrar en cola de espera si lo deseas.'
+          return {
+            ok: false,
+            error: `${base} Marca la opción «Acepto entrar en cola…» abajo y vuelve a enviar tu pedido.`,
+          }
         }
         if (!res.ok || !data.success || !data.data) {
           const msg =
@@ -135,11 +150,14 @@ export default function PublicPedidoPage() {
               : (data.error ?? 'No se pudo crear la solicitud')
           return { ok: false, error: msg }
         }
+        setAcceptEnCola(false)
         setResult({
           solicitudId: data.data.id,
           estado: data.data.estado,
           totalEstimado: data.data.totalEstimado,
           approvedComanda: data.data.approvedComanda ?? null,
+          trackerUrl: data.data.trackerUrl,
+          trackingToken: data.data.trackingToken,
         })
         return {
           ok: true,
@@ -149,7 +167,7 @@ export default function PublicPedidoPage() {
         return { ok: false, error: 'No se pudo enviar el pedido' }
       }
     },
-    [customer.nombre, customer.notas, customer.telefono, customer.tipoPedido, mesaCode, slug]
+    [acceptEnCola, customer.nombre, customer.notas, customer.telefono, customer.tipoPedido, mesaCode, slug]
   )
 
   if (!slug) {
@@ -206,6 +224,33 @@ export default function PublicPedidoPage() {
           <p className="mt-3 text-sm text-emerald-800 dark:text-emerald-200">
             El restaurante la revisará según su configuración (cola / aprobación automática).
           </p>
+          {result.trackerUrl && (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-white/80 p-3 dark:border-emerald-800 dark:bg-stone-950/50">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-200">
+                Seguimiento en vivo
+              </p>
+              <p className="mt-1 break-all font-mono text-xs text-emerald-900 dark:text-emerald-100">
+                {result.trackerUrl}
+              </p>
+              <button
+                type="button"
+                className="app-btn-secondary mt-2"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(result.trackerUrl!)
+                    toast.success('Enlace copiado')
+                  } catch {
+                    toast.error('No se pudo copiar')
+                  }
+                }}
+              >
+                Copiar enlace de seguimiento
+              </button>
+              <p className="mt-2 text-xs text-emerald-800/90 dark:text-emerald-200/90">
+                Guarda este enlace: no volverá a mostrarse el token de acceso.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -281,6 +326,20 @@ export default function PublicPedidoPage() {
                 value={customer.notas}
                 onChange={(e) => setCustomer((p) => ({ ...p, notas: e.target.value }))}
               />
+            </div>
+            <div className="md:col-span-2">
+              <label className="flex cursor-pointer items-start gap-2 text-sm text-stone-700 dark:text-stone-300">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={acceptEnCola}
+                  onChange={(e) => setAcceptEnCola(e.target.checked)}
+                />
+                <span>
+                  Si el restaurante está saturado, <strong>acepto entrar en cola de espera</strong> en lugar de que se
+                  rechace el pedido.
+                </span>
+              </label>
             </div>
           </div>
         </div>

@@ -16,6 +16,8 @@ type Solicitud = {
   observaciones: string | null
   totalEstimado: number
   createdAt: string
+  enColaAt: string | null
+  prioridadColaAt: string | null
   mesa: { id: string; numero: number } | null
   approvedComanda: { id: string; numeroComanda: string; estado: string } | null
   items: Array<{
@@ -28,11 +30,17 @@ type Solicitud = {
   }>
 }
 
+function minutosEntre(inicio: Date, fin: Date): number {
+  return Math.max(0, Math.floor((fin.getTime() - inicio.getTime()) / 60000))
+}
+
 export default function SolicitudesPage() {
   const [loading, setLoading] = useState(true)
   const [estado, setEstado] = useState<'PENDIENTE' | 'EN_COLA' | 'APROBADA' | 'RECHAZADA' | 'TODAS'>('PENDIENTE')
   const [solicitudes, setSolicitudes] = useState<Solicitud[]>([])
   const [workingId, setWorkingId] = useState<string | null>(null)
+  const [slaEtaMaxMin, setSlaEtaMaxMin] = useState(60)
+  const [nowTick, setNowTick] = useState(() => Date.now())
 
   const fetchSolicitudes = async () => {
     try {
@@ -55,12 +63,54 @@ export default function SolicitudesPage() {
     return () => clearInterval(interval)
   }, [estado])
 
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await authFetch('/api/configuracion/pedidos-cliente')
+        if (!res.ok) return
+        const data = await res.json()
+        if (!cancelled && data.success && data.data?.clienteEtaMaxMinutos != null) {
+          setSlaEtaMaxMin(Number(data.data.clienteEtaMaxMinutos))
+        }
+      } catch {
+        // noop
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60000)
+    return () => clearInterval(t)
+  }, [])
+
   const grouped = useMemo(() => {
-    return solicitudes.map((sol) => ({
-      ...sol,
-      totalItems: sol.items.reduce((acc, i) => acc + i.cantidad, 0),
-    }))
-  }, [solicitudes])
+    const now = new Date(nowTick)
+    return solicitudes.map((sol) => {
+      const created = new Date(sol.createdAt)
+      const minDesdeCreacion = minutosEntre(created, now)
+      const enColaAt = sol.enColaAt ? new Date(sol.enColaAt) : null
+      const minEnCola = enColaAt ? minutosEntre(enColaAt, now) : null
+      const limite = new Date(created.getTime() + slaEtaMaxMin * 60000)
+      const comandaTerminada =
+        sol.approvedComanda &&
+        ['LISTO', 'SERVIDO', 'PAGADO'].includes(sol.approvedComanda.estado)
+      const retrasado =
+        !comandaTerminada &&
+        (sol.estado === 'PENDIENTE' || sol.estado === 'EN_COLA' || sol.estado === 'APROBADA') &&
+        now > limite
+      return {
+        ...sol,
+        totalItems: sol.items.reduce((acc, i) => acc + i.cantidad, 0),
+        minDesdeCreacion,
+        minEnCola,
+        retrasado,
+      }
+    })
+  }, [solicitudes, nowTick, slaEtaMaxMin])
 
   const handleAction = async (
     solicitudId: string,
@@ -133,6 +183,16 @@ export default function SolicitudesPage() {
                     </p>
                     <p className="text-sm text-stone-600">
                       {sol.totalItems} items · ${sol.totalEstimado.toFixed(2)}
+                      {' · '}
+                      <span title="Desde creación (FIFO visual)">
+                        Espera: <strong>{sol.minDesdeCreacion} min</strong>
+                      </span>
+                      {sol.minEnCola != null && (
+                        <>
+                          {' '}
+                          · En cola: <strong>{sol.minEnCola} min</strong>
+                        </>
+                      )}
                     </p>
                     {sol.telefono && <p className="text-sm text-stone-600">Tel: {sol.telefono}</p>}
                     {sol.notas && <p className="text-sm text-stone-600">Notas: {sol.notas}</p>}
@@ -143,7 +203,14 @@ export default function SolicitudesPage() {
                       </p>
                     )}
                   </div>
-                  <span className="app-badge">{sol.estado}</span>
+                  <div className="flex flex-col items-end gap-2">
+                    <span className="app-badge">{sol.estado}</span>
+                    {sol.retrasado && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-950/60 dark:text-red-200">
+                        Retrasado (más de {slaEtaMaxMin} min)
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -179,6 +246,7 @@ export default function SolicitudesPage() {
                     </button>
                     <button
                       type="button"
+                      title="Crea comanda aunque Modo D marque saturación (requiere permiso de comandas)"
                       className="app-btn-secondary"
                       disabled={workingId === sol.id}
                       onClick={() => handleAction(sol.id, 'forzar')}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { hashSecretToken } from '@/lib/public-ordering'
+import { createPublicTrackingToken, hashSecretToken } from '@/lib/public-ordering'
+import { buildSolicitudTrackerUrl } from '@/lib/public-solicitud-tracker-url'
 import { buildSolicitudItems } from '@/lib/solicitud-pedidos'
 import { evaluateModoDForPublicOrder } from '@/lib/modo-d-policy'
 import { aprobarSolicitudComoComanda } from '@/lib/solicitudes-approval'
@@ -117,6 +118,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const tracking = createPublicTrackingToken()
+
     const solicitud = await prisma.solicitudPedido.create({
       data: {
         restauranteId: rid,
@@ -126,6 +129,8 @@ export async function POST(request: NextRequest) {
         estado: decision.state,
         decisionSource: decision.source,
         decisionReason: decision.reason,
+        publicTokenHash: tracking.hash,
+        publicTokenIssuedAt: new Date(),
         ...(decision.action === 'QUEUE'
           ? {
               enColaAt: new Date(),
@@ -170,6 +175,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const trackerUrl = buildSolicitudTrackerUrl({
+      origin: request.nextUrl.origin,
+      solicitudId: solicitud.id,
+      rawToken: tracking.raw,
+    })
+
     return NextResponse.json({
       success: true,
       data: {
@@ -180,6 +191,8 @@ export async function POST(request: NextRequest) {
         waitMinutes: decision.action === 'QUEUE' ? decision.waitMinutes : null,
         approvedComanda,
         createdAt: solicitud.createdAt,
+        trackerUrl,
+        trackingToken: tracking.raw,
       },
     })
   } catch (error) {

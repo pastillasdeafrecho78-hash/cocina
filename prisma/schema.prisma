@@ -728,6 +728,12 @@ model ConfiguracionRestaurante {
   mensajeSaturacion      String? @default("Ahorita estamos a tope. Tu pedido podría iniciar en unos minutos. ¿Deseas entrar a la cola?")
   autoAprobarSolicitudes Boolean @default(false)
 
+  // ETA mostrada al cliente en seguimiento (minutos)
+  clienteEtaMinMinutos Int? @default(45)
+  clienteEtaMaxMinutos Int? @default(60)
+  /// Tope de ítems en preparación (cocina/barra, no listoPorDefault) para saturación Modo D; null = solo comandas activas
+  maxItemsPreparacion    Int?
+
   // Política de Propina
   propinaFacturar  Boolean @default(false) // true = se factura la propina como concepto separado
   propinaObjetoImp String? @default("02") // Objeto de impuesto para propina (02=Sí objeto)
@@ -777,6 +783,8 @@ model SolicitudPedido {
   prioridadColaAt  DateTime?
   aprobadaAt      DateTime?
   rechazadaAt     DateTime?
+  publicTokenHash   String?   @unique
+  publicTokenIssuedAt DateTime?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
 
