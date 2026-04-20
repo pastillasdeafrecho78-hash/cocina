@@ -1,40 +1,49 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
-
-type MenuProducto = {
-  id: string
-  nombre: string
-  descripcion: string | null
-  precio: number
-}
-
-type MenuCategoria = {
-  id: string
-  nombre: string
-  productos: MenuProducto[]
-}
+import { useCallback, useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'next/navigation'
+import {
+  ComandaBuilder,
+  type Categoria,
+  type ComandaCheckoutItem,
+} from '@/components/ComandaBuilder'
 
 type MenuResponse = {
   restaurante: { id: string; nombre: string; slug: string | null }
-  categorias: MenuCategoria[]
+  mesa: { id: string; numero: number } | null
+  categorias: Categoria[]
 }
 
-export default function PublicMenuPage({ params }: { params: { slug: string } }) {
+type SolicitudResult = {
+  solicitudId: string
+  estado?: string
+  totalEstimado?: number
+  approvedComanda?: { id: string; numeroComanda: string } | null
+}
+
+export default function PublicPedidoPage() {
+  const routeParams = useParams()
   const searchParams = useSearchParams()
+  const slug = String(routeParams?.slug ?? '')
+    .trim()
+    .toLowerCase()
   const mesaCode = searchParams.get('mesa')?.trim() || ''
+
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [menu, setMenu] = useState<MenuResponse | null>(null)
-  const [error, setError] = useState('')
-  const [sending, setSending] = useState(false)
-  const [result, setResult] = useState<{ solicitudId: string } | null>(null)
-  const [quantities, setQuantities] = useState<Record<string, number>>({})
+  const [result, setResult] = useState<SolicitudResult | null>(null)
+
   const [customer, setCustomer] = useState({
     nombre: '',
     telefono: '',
     notas: '',
     tipoPedido: mesaCode ? 'MESA' : 'PARA_LLEVAR',
+  } as {
+    nombre: string
+    telefono: string
+    notas: string
+    tipoPedido: 'MESA' | 'PARA_LLEVAR' | 'ENVIO'
   })
 
   useEffect(() => {
@@ -47,195 +56,231 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
     let cancelled = false
     async function run() {
       setLoading(true)
-      setError('')
+      setLoadError('')
       try {
         const menuUrl = mesaCode
-          ? `/api/public/menu/${params.slug}?mesa=${encodeURIComponent(mesaCode)}`
-          : `/api/public/menu/${params.slug}`
+          ? `/api/public/menu/${encodeURIComponent(slug)}?mesa=${encodeURIComponent(mesaCode)}`
+          : `/api/public/menu/${encodeURIComponent(slug)}`
         const res = await fetch(menuUrl, { cache: 'no-store' })
         const data = (await res.json()) as { success?: boolean; data?: MenuResponse; error?: string }
         if (!res.ok || !data.success || !data.data) {
           throw new Error(data.error ?? 'No se pudo cargar el menú')
         }
-        if (!cancelled) {
-          setMenu(data.data)
-        }
+        if (!cancelled) setMenu(data.data)
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Error al cargar menú')
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Error al cargar menú')
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
-    void run()
+    if (slug) void run()
     return () => {
       cancelled = true
     }
-  }, [mesaCode, params.slug])
+  }, [mesaCode, slug])
 
-  const selectedItems = useMemo(() => {
-    if (!menu) return []
-    const products = menu.categorias.flatMap((c) => c.productos)
-    return products
-      .map((p) => ({ productoId: p.id, cantidad: quantities[p.id] ?? 0, nombre: p.nombre, precio: p.precio }))
-      .filter((x) => x.cantidad > 0)
-  }, [menu, quantities])
-
-  const total = useMemo(
-    () => selectedItems.reduce((acc, item) => acc + item.cantidad * item.precio, 0),
-    [selectedItems]
+  const onCheckout = useCallback(
+    async (payload: {
+      items: ComandaCheckoutItem[]
+      observaciones: string
+      mesaId?: string
+      tipoPedido?: 'EN_MESA' | 'PARA_LLEVAR' | 'A_DOMICILIO' | 'WHATSAPP'
+      comandaId?: string | null
+    }) => {
+      if (!customer.nombre.trim()) {
+        return { ok: false, error: 'Escribe tu nombre para continuar' }
+      }
+      if (payload.items.length === 0) {
+        return { ok: false, error: 'Agrega al menos un producto' }
+      }
+      try {
+        const res = await fetch('/api/public/solicitudes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slug,
+            mesaCode: mesaCode || undefined,
+            tipoPedido: customer.tipoPedido,
+            acceptEnCola: false,
+            cliente: {
+              nombre: customer.nombre.trim(),
+              telefono: customer.telefono.trim() || null,
+              notas: customer.notas.trim() || null,
+            },
+            items: payload.items.map((item) => ({
+              productoId: item.productoId,
+              tamanoId: item.tamanoId,
+              cantidad: item.cantidad,
+              notas: item.notas,
+              modificadores: item.modificadores,
+            })),
+            observaciones: payload.observaciones.trim() || undefined,
+          }),
+        })
+        const data = (await res.json()) as {
+          success?: boolean
+          data?: {
+            id: string
+            estado?: string
+            totalEstimado?: number
+            approvedComanda?: { id: string; numeroComanda: string } | null
+          }
+          error?: string
+        }
+        if (!res.ok || !data.success || !data.data) {
+          return { ok: false, error: data.error ?? 'No se pudo crear la solicitud' }
+        }
+        setResult({
+          solicitudId: data.data.id,
+          estado: data.data.estado,
+          totalEstimado: data.data.totalEstimado,
+          approvedComanda: data.data.approvedComanda ?? null,
+        })
+        return {
+          ok: true,
+          message: 'Solicitud recibida',
+        }
+      } catch {
+        return { ok: false, error: 'No se pudo enviar el pedido' }
+      }
+    },
+    [customer.nombre, customer.notas, customer.telefono, customer.tipoPedido, mesaCode, slug]
   )
 
-  const submitOrder = async () => {
-    if (!menu) return
-    if (!customer.nombre.trim()) {
-      setError('Escribe tu nombre para continuar')
-      return
-    }
-    if (selectedItems.length === 0) {
-      setError('Selecciona al menos un producto')
-      return
-    }
-
-    setSending(true)
-    setError('')
-    try {
-      const res = await fetch('/api/public/solicitudes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          slug: params.slug,
-          mesaCode: mesaCode || undefined,
-          tipoPedido: customer.tipoPedido,
-          cliente: {
-            nombre: customer.nombre.trim(),
-            telefono: customer.telefono.trim() || null,
-            notas: customer.notas.trim() || null,
-          },
-          items: selectedItems.map((item) => ({
-            productoId: item.productoId,
-            cantidad: item.cantidad,
-          })),
-        }),
-      })
-      const data = (await res.json()) as {
-        success?: boolean
-        data?: { id: string }
-        error?: string
-      }
-      if (!res.ok || !data.success || !data.data) {
-        throw new Error(data.error ?? 'No se pudo crear la solicitud')
-      }
-      setResult({ solicitudId: data.data.id })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo crear la solicitud')
-    } finally {
-      setSending(false)
-    }
+  if (!slug) {
+    return (
+      <div className="app-page">
+        <div className="app-card text-center text-red-600">Sucursal inválida</div>
+      </div>
+    )
   }
 
   if (loading) {
-    return <main className="mx-auto max-w-4xl p-6">Cargando menú...</main>
+    return (
+      <div className="app-loading-shell">
+        <div className="app-card text-center">Cargando menú...</div>
+      </div>
+    )
   }
-  if (error && !menu) {
-    return <main className="mx-auto max-w-4xl p-6 text-red-600">{error}</main>
+
+  if (loadError || !menu) {
+    return (
+      <div className="app-page">
+        <div className="app-card text-center text-red-600">{loadError || 'No se pudo cargar el menú'}</div>
+      </div>
+    )
   }
-  if (!menu) return null
 
-  return (
-    <main className="mx-auto max-w-4xl p-6">
-      <h1 className="text-3xl font-semibold">{menu.restaurante.nombre}</h1>
-      <p className="mt-1 text-sm text-stone-600">
-        Pedido directo (se registra como solicitud pendiente)
-      </p>
-      {mesaCode && (
-        <p className="mt-1 text-sm text-emerald-700">Ingreso detectado por QR de mesa.</p>
-      )}
-
-      {result ? (
-        <div className="mt-6 rounded-lg border border-emerald-400 bg-emerald-50 p-4">
-          <p className="font-semibold text-emerald-900">Solicitud recibida correctamente</p>
-          <p className="mt-2 text-sm text-emerald-900">
-            Folio de solicitud: <strong>{result.solicitudId}</strong>
+  if (result) {
+    return (
+      <div className="app-page">
+        <div className="app-card border-emerald-200 bg-emerald-50/90 dark:border-emerald-900 dark:bg-emerald-950/40">
+          <p className="app-kicker text-emerald-800 dark:text-emerald-200">Pedido en línea</p>
+          <h1 className="mt-2 text-2xl font-semibold text-emerald-950 dark:text-emerald-50">
+            Solicitud recibida
+          </h1>
+          <p className="mt-2 text-sm text-emerald-900 dark:text-emerald-100">
+            Folio: <span className="font-mono font-semibold">{result.solicitudId}</span>
+            {result.estado ? (
+              <>
+                {' '}
+                · Estado: <strong>{result.estado}</strong>
+              </>
+            ) : null}
           </p>
-          <p className="mt-1 text-sm text-emerald-900">
-            El restaurante la revisará antes de enviarla a cocina/barra.
+          {typeof result.totalEstimado === 'number' && (
+            <p className="mt-1 text-sm text-emerald-900 dark:text-emerald-100">
+              Total estimado: <strong>${result.totalEstimado.toFixed(2)}</strong>
+            </p>
+          )}
+          {result.approvedComanda && (
+            <p className="mt-2 text-sm text-emerald-900 dark:text-emerald-100">
+              Tu pedido entró como comanda <strong>#{result.approvedComanda.numeroComanda}</strong>.
+            </p>
+          )}
+          <p className="mt-3 text-sm text-emerald-800 dark:text-emerald-200">
+            El restaurante la revisará según su configuración (cola / aprobación automática).
           </p>
         </div>
-      ) : (
-        <>
-          <section className="mt-6 space-y-6">
-            {menu.categorias.map((cat) => (
-              <div key={cat.id} className="rounded-xl border border-stone-200 p-4">
-                <h2 className="text-xl font-semibold">{cat.nombre}</h2>
-                <div className="mt-3 space-y-2">
-                  {cat.productos.map((prod) => (
-                    <div key={prod.id} className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{prod.nombre}</p>
-                        <p className="text-sm text-stone-600">${prod.precio.toFixed(2)}</p>
-                      </div>
-                      <input
-                        type="number"
-                        min={0}
-                        className="w-20 rounded border border-stone-300 px-2 py-1"
-                        value={quantities[prod.id] ?? 0}
-                        onChange={(e) =>
-                          setQuantities((prev) => ({
-                            ...prev,
-                            [prod.id]: Math.max(0, Number(e.target.value || 0)),
-                          }))
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </section>
+      </div>
+    )
+  }
 
-          <section className="mt-8 rounded-xl border border-stone-200 p-4">
-            <h2 className="text-xl font-semibold">Tus datos</h2>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
+  const subtitle = mesaCode
+    ? `Pedido en línea · QR / link de mesa`
+    : `Pedido en línea · menú general`
+
+  return (
+    <ComandaBuilder
+      categorias={menu.categorias}
+      mesas={[]}
+      showStaffTipoMesaControls={false}
+      kicker={menu.restaurante.nombre}
+      title="Nueva Comanda"
+      subtitle={subtitle}
+      observacionesLabel="Notas para el restaurante"
+      observacionesPlaceholder="Alergias, tiempo de espera, indicaciones generales…"
+      footerBeforeSubmit={
+        <div className="mb-4 space-y-3 rounded-xl border border-stone-200 bg-stone-50/80 p-3 dark:border-stone-700 dark:bg-stone-900/40">
+          <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">Tus datos</p>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                Nombre <span className="text-red-500">*</span>
+              </label>
               <input
-                className="app-input"
-                placeholder="Nombre completo"
+                className="app-input app-field w-full"
+                placeholder="Nombre para el folio"
                 value={customer.nombre}
                 onChange={(e) => setCustomer((p) => ({ ...p, nombre: e.target.value }))}
               />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                Teléfono (opcional)
+              </label>
               <input
-                className="app-input"
-                placeholder="Teléfono (opcional)"
+                className="app-input app-field w-full"
+                placeholder="WhatsApp / contacto"
                 value={customer.telefono}
                 onChange={(e) => setCustomer((p) => ({ ...p, telefono: e.target.value }))}
               />
+            </div>
+            {!mesaCode ? (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                  Tipo de pedido
+                </label>
+                <select
+                  className="app-input app-field w-full"
+                  value={customer.tipoPedido === 'MESA' ? 'PARA_LLEVAR' : customer.tipoPedido}
+                  onChange={(e) =>
+                    setCustomer((p) => ({
+                      ...p,
+                      tipoPedido: e.target.value as 'PARA_LLEVAR' | 'ENVIO',
+                    }))
+                  }
+                >
+                  <option value="PARA_LLEVAR">Para llevar</option>
+                  <option value="ENVIO">Envío</option>
+                </select>
+              </div>
+            ) : null}
+            <div className="md:col-span-2">
+              <label className="mb-1 block text-sm font-medium text-stone-700 dark:text-stone-300">
+                Notas para tu pedido (opcional)
+              </label>
               <input
-                className="app-input md:col-span-2"
-                placeholder="Notas para el pedido (opcional)"
+                className="app-input app-field w-full"
+                placeholder="Ej. sin picante, bien cocido…"
                 value={customer.notas}
                 onChange={(e) => setCustomer((p) => ({ ...p, notas: e.target.value }))}
               />
-              <select
-                className="app-input"
-                value={customer.tipoPedido}
-                disabled={!!mesaCode}
-                onChange={(e) => setCustomer((p) => ({ ...p, tipoPedido: e.target.value }))}
-              >
-                <option value="PARA_LLEVAR">Para llevar</option>
-                <option value="ENVIO">Envío</option>
-                <option value="MESA">Mesa</option>
-              </select>
             </div>
-
-            <div className="mt-4 flex items-center justify-between">
-              <span className="font-medium">Total estimado: ${total.toFixed(2)}</span>
-              <button type="button" className="app-btn-primary" disabled={sending} onClick={submitOrder}>
-                {sending ? 'Enviando...' : 'Confirmar pedido'}
-              </button>
-            </div>
-            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
-          </section>
-        </>
-      )}
-    </main>
+          </div>
+        </div>
+      }
+      onCheckout={onCheckout}
+    />
   )
 }

@@ -64,6 +64,22 @@ export async function GET(request: Request, { params }: { params: { slug: string
       select: {
         id: true,
         nombre: true,
+        tipo: true,
+        modificadores: {
+          select: {
+            id: true,
+            modificadorId: true,
+            modificador: {
+              select: {
+                id: true,
+                nombre: true,
+                tipo: true,
+                precioExtra: true,
+                activo: true,
+              },
+            },
+          },
+        },
         productos: {
           where: { activo: true },
           orderBy: { nombre: 'asc' },
@@ -73,6 +89,21 @@ export async function GET(request: Request, { params }: { params: { slug: string
             descripcion: true,
             precio: true,
             imagenUrl: true,
+            modificadores: {
+              select: {
+                id: true,
+                modificadorId: true,
+                modificador: {
+                  select: {
+                    id: true,
+                    nombre: true,
+                    tipo: true,
+                    precioExtra: true,
+                    activo: true,
+                  },
+                },
+              },
+            },
             tamanos: {
               orderBy: { orden: 'asc' },
               select: {
