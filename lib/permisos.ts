@@ -35,6 +35,16 @@ export const CAPACIDADES = [
   'staff.manage',
   'reservations.view',
   'reservations.manage',
+  /** Mesas: mapa y estado (mínimo mesero restringido) */
+  'tables.view',
+  /** Mesas: alta / borrado / layout numérico */
+  'tables.manage',
+  /** Mesas: tiempos de color del tablero */
+  'tables.wait_times',
+  /** Mesas: reservaciones */
+  'tables.reservations',
+  /** Mesas: pedido cliente, QR y links públicos */
+  'tables.client_channel',
   'benefits.grant',
 ] as const
 
@@ -52,7 +62,16 @@ const LEGACY_TO_CAPABILITIES: Record<string, readonly string[]> = {
   reportes: ['reports.view'],
   configuracion: ['settings.view', 'settings.manage'],
   usuarios_roles: ['staff.view', 'staff.manage'],
-  mesas: ['reservations.view', 'reservations.manage'],
+  /** Legacy `mesas` conserva acceso amplio a mesas + reservaciones (compatibilidad). */
+  mesas: [
+    'tables.view',
+    'tables.manage',
+    'tables.wait_times',
+    'tables.reservations',
+    'tables.client_channel',
+    'reservations.view',
+    'reservations.manage',
+  ],
 }
 
 const CAPABILITY_TO_LEGACY: Record<string, readonly string[]> = {
@@ -74,6 +93,11 @@ const CAPABILITY_TO_LEGACY: Record<string, readonly string[]> = {
   'staff.manage': ['usuarios_roles'],
   'reservations.view': ['mesas'],
   'reservations.manage': ['mesas'],
+  'tables.view': ['mesas'],
+  'tables.manage': ['mesas'],
+  'tables.wait_times': ['mesas'],
+  'tables.reservations': ['mesas'],
+  'tables.client_channel': ['mesas'],
   'benefits.grant': ['configuracion'],
 }
 
@@ -105,6 +129,11 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'staff.manage': 'Gestionar staff y roles',
   'reservations.view': 'Ver reservaciones',
   'reservations.manage': 'Gestionar reservaciones',
+  'tables.view': 'Mesas: ver mapa y estado',
+  'tables.manage': 'Mesas: agregar o dar de baja mesas',
+  'tables.wait_times': 'Mesas: tiempos de color',
+  'tables.reservations': 'Mesas: reservaciones',
+  'tables.client_channel': 'Mesas: pedido cliente y QR',
   'benefits.grant': 'Otorgar beneficios especiales',
 }
 

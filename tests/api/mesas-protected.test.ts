@@ -8,7 +8,7 @@ vi.mock('@/lib/authz/guards', () => ({
     activeOrganizacionId: null,
     rolId: 'rol_staff',
   })),
-  requireCapability: vi.fn(() => {
+  requireAnyCapability: vi.fn(() => {
     throw new ApiHttpError(403, 'Sin permisos')
   }),
   requireActiveTenant: vi.fn(() => ({ restauranteId: 'r1', organizacionId: null })),

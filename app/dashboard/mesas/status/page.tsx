@@ -7,6 +7,8 @@ import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { formatWaitTime, minutosDesde, colorProgresivoPorMinutos } from '@/lib/mesa-utils'
 import { authFetch, apiFetch } from '@/lib/auth-fetch'
+import { tieneAlgunPermiso, tienePermiso } from '@/lib/permisos'
+import { readMesaPublicUrl, writeMesaPublicUrl } from '@/lib/mesa-public-url-storage'
 
 interface Mesa {
   id: string
@@ -27,8 +29,21 @@ interface Mesa {
   } | null
 }
 
+function readSessionUserSync() {
+  try {
+    const s = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+    return s ? (JSON.parse(s) as { rol?: { permisos?: unknown } }) : null
+  } catch {
+    return null
+  }
+}
+
 export default function MesasStatusPage() {
   const router = useRouter()
+  const [sessionUser, setSessionUser] = useState<{ rol?: { permisos?: unknown } } | null>(() =>
+    typeof window !== 'undefined' ? readSessionUserSync() : null
+  )
+  const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [loading, setLoading] = useState(true)
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
@@ -103,9 +118,18 @@ export default function MesasStatusPage() {
 
   useEffect(() => {
     setPublicOrigin(window.location.origin)
+    void (async () => {
+      try {
+        const res = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
+        if (res.ok) {
+          const data = await res.json()
+          if (data.success && data.data) setSessionUser(data.data)
+        }
+      } catch {
+        // noop
+      }
+    })()
     fetchMesas()
-    fetchConfiguracionTiempos()
-    fetchPedidosClienteConfig()
     fetchTenantInfo()
     const interval = setInterval(() => {
       fetchMesas()
@@ -113,6 +137,39 @@ export default function MesasStatusPage() {
     }, 10000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    const u = readSessionUserSync()
+    if (u) setSessionUser(u)
+  }, [])
+
+  useEffect(() => {
+    if (!sessionUser) return
+    if (tieneAlgunPermiso(sessionUser, ['tables.wait_times', 'mesas', 'configuracion', 'settings.manage'])) {
+      void fetchConfiguracionTiempos()
+    }
+  }, [sessionUser])
+
+  useEffect(() => {
+    if (!sessionUser) return
+    if (tieneAlgunPermiso(sessionUser, ['tables.client_channel', 'mesas'])) {
+      void fetchPedidosClienteConfig()
+    }
+  }, [sessionUser])
+
+  useEffect(() => {
+    if (!restauranteId || mesas.length === 0) return
+    setMesaLinkGenerado((prev) => {
+      const next = { ...prev }
+      for (const m of mesas) {
+        if (m.hasPublicLink && !next[m.id]) {
+          const stored = readMesaPublicUrl(restauranteId, m.id)
+          if (stored) next[m.id] = stored
+        }
+      }
+      return next
+    })
+  }, [restauranteId, mesas])
 
   const fetchConfiguracionTiempos = async () => {
     try {
@@ -138,8 +195,13 @@ export default function MesasStatusPage() {
       const response = await authFetch('/api/auth/tenancy')
       if (response.status === 401) return
       const data = await response.json()
-      if (data.success && data.data?.current?.restauranteSlug) {
-        setRestauranteSlug(data.data.current.restauranteSlug)
+      if (data.success && data.data?.current) {
+        if (data.data.current.restauranteSlug) {
+          setRestauranteSlug(data.data.current.restauranteSlug)
+        }
+        if (data.data.current.restauranteId) {
+          setRestauranteId(data.data.current.restauranteId)
+        }
       }
     } catch {
       // noop
@@ -193,6 +255,20 @@ export default function MesasStatusPage() {
       if (!slug) throw new Error('No se encontró slug de sucursal para generar el link')
       const url = `${window.location.origin}/p/${slug}?mesa=${encodeURIComponent(data.data.mesaCode)}`
       setMesaLinkGenerado((prev) => ({ ...prev, [mesaId]: url }))
+      let rid = restauranteId
+      if (!rid) {
+        try {
+          const tr = await authFetch('/api/auth/tenancy')
+          const td = await tr.json()
+          rid = td.success && td.data?.current?.restauranteId ? td.data.current.restauranteId : null
+          if (rid) setRestauranteId(rid)
+        } catch {
+          // noop
+        }
+      }
+      if (rid) {
+        writeMesaPublicUrl(rid, mesaId, url)
+      }
       setMesaQrVisible((prev) => ({ ...prev, [mesaId]: true }))
       setMesaQrSizePx((prev) => ({ ...prev, [mesaId]: nearestQrStep(prev[mesaId] ?? 160) }))
       await navigator.clipboard.writeText(url)
@@ -317,6 +393,17 @@ export default function MesasStatusPage() {
     )
   }
 
+  const u = sessionUser
+  const canReservaciones =
+    !u ||
+    tieneAlgunPermiso(u, ['tables.reservations', 'reservations.view', 'reservations.manage', 'mesas'])
+  const canTiempos =
+    !u || tieneAlgunPermiso(u, ['tables.wait_times', 'mesas', 'configuracion', 'settings.manage'])
+  const canPedidosCliente = !u || tieneAlgunPermiso(u, ['tables.client_channel', 'mesas'])
+  const canAgregarMesa = !u || tieneAlgunPermiso(u, ['tables.manage', 'mesas'])
+  const canVerConfigHub =
+    !u || tienePermiso(u, 'tables.view') || tienePermiso(u, 'mesas')
+
   return (
     <div className="app-page">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -329,36 +416,56 @@ export default function MesasStatusPage() {
             <p className="mt-2 text-stone-600">Tiempo de espera desde que se generó la comanda.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => router.push('/dashboard/mesas/reservaciones')}
-            className="app-btn-secondary"
-          >
-            Reservaciones
-          </button>
-          <button
-            onClick={() => setMostrarConfigTiempos(!mostrarConfigTiempos)}
-            className="app-btn-secondary"
-          >
-            {mostrarConfigTiempos ? 'Ocultar tiempos' : '⏱️ Tiempos de color'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setMostrarPedidosCliente((v) => !v)}
-            className="app-btn-secondary"
-          >
-            {mostrarPedidosCliente ? 'Ocultar pedidos cliente' : '📱 Pedidos cliente / QR'}
-          </button>
-          <button
-            onClick={() => setMostrarFormulario(!mostrarFormulario)}
-            className="app-btn-primary"
-          >
-            {mostrarFormulario ? 'Cancelar' : '+ Agregar Mesa'}
-          </button>
+          {canVerConfigHub && (
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/mesas/configuracion')}
+              className="app-btn-secondary"
+            >
+              Configuración de mesas
+            </button>
+          )}
+          {canReservaciones && (
+            <button
+              type="button"
+              onClick={() => router.push('/dashboard/mesas/reservaciones')}
+              className="app-btn-secondary"
+            >
+              Reservaciones
+            </button>
+          )}
+          {canTiempos && (
+            <button
+              type="button"
+              onClick={() => setMostrarConfigTiempos(!mostrarConfigTiempos)}
+              className="app-btn-secondary"
+            >
+              {mostrarConfigTiempos ? 'Ocultar tiempos' : '⏱️ Tiempos de color'}
+            </button>
+          )}
+          {canPedidosCliente && (
+            <button
+              type="button"
+              onClick={() => setMostrarPedidosCliente((v) => !v)}
+              className="app-btn-secondary"
+            >
+              {mostrarPedidosCliente ? 'Ocultar pedidos cliente' : '📱 Pedidos cliente / QR'}
+            </button>
+          )}
+          {canAgregarMesa && (
+            <button
+              type="button"
+              onClick={() => setMostrarFormulario(!mostrarFormulario)}
+              className="app-btn-primary"
+            >
+              {mostrarFormulario ? 'Cancelar' : '+ Agregar Mesa'}
+            </button>
+          )}
           </div>
         </div>
       </div>
 
-      {mostrarConfigTiempos && (
+      {canTiempos && mostrarConfigTiempos && (
         <div className="app-card border-amber-100">
           <h2 className="text-xl font-semibold text-stone-900 mb-2">Tiempos de color de las mesas</h2>
           <p className="text-sm text-stone-600 mb-4">
@@ -469,7 +576,7 @@ export default function MesasStatusPage() {
         </div>
       )}
 
-      {mostrarFormulario && (
+      {canAgregarMesa && mostrarFormulario && (
         <div className="app-card">
           <h2 className="text-xl font-semibold text-stone-900 mb-4">Nueva Mesa</h2>
           <form onSubmit={handleAgregarMesa} className="space-y-4">
@@ -540,7 +647,7 @@ export default function MesasStatusPage() {
         </div>
       )}
 
-      {mostrarPedidosCliente && (
+      {canPedidosCliente && mostrarPedidosCliente && (
         <div className="app-card space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -605,7 +712,11 @@ export default function MesasStatusPage() {
                       <div>
                         <p className="text-lg font-semibold text-stone-900">Mesa {mesa.numero}</p>
                         <p className="text-xs text-stone-500">
-                          {mesa.hasPublicLink ? 'Tiene link activo (puedes regenerar)' : 'Sin link generado aún'}
+                          {mesa.hasPublicLink
+                            ? link
+                              ? 'Link activo · también guardado en este navegador para volver a verlo.'
+                              : 'Hay un link activo, pero este navegador no tiene la URL guardada. Regenera para verla (el código anterior dejará de funcionar).'
+                            : 'Sin link generado aún'}
                         </p>
                       </div>
                       <div className="flex flex-wrap justify-end gap-2">
@@ -628,6 +739,16 @@ export default function MesasStatusPage() {
                           onClick={() => copiarLinkMesa(mesa.id)}
                         >
                           Copiar link
+                        </button>
+                        <button
+                          type="button"
+                          className="app-btn-secondary"
+                          disabled={!link}
+                          onClick={() => {
+                            if (link) window.open(link, '_blank', 'noopener,noreferrer')
+                          }}
+                        >
+                          Abrir vista cliente
                         </button>
                       </div>
                     </div>
@@ -694,7 +815,9 @@ export default function MesasStatusPage() {
                       </div>
                     ) : (
                       <p className="mt-3 text-sm text-stone-600">
-                        Genera el link para ver el QR y copiarlo rápido.
+                        {mesa.hasPublicLink
+                          ? 'Pulsa «Regenerar link» para obtener la URL en este equipo, o usa otro navegador donde ya lo hayas generado (queda guardado localmente).'
+                          : 'Genera el link para ver el QR y copiarlo rápido.'}
                       </p>
                     )}
                   </div>

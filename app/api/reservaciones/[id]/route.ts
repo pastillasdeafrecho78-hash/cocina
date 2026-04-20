@@ -74,7 +74,14 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     await ensureReservationsTable()
     const user = await requireAuthenticatedUser()
     const tenant = requireActiveTenant(user)
-    if (!(tienePermiso(user, 'reservations.view') || tienePermiso(user, 'mesas') || tienePermiso(user, 'settings.manage'))) {
+    if (
+      !(
+        tienePermiso(user, 'reservations.view') ||
+        tienePermiso(user, 'tables.reservations') ||
+        tienePermiso(user, 'mesas') ||
+        tienePermiso(user, 'settings.manage')
+      )
+    ) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
     const { id } = await context.params
@@ -122,7 +129,11 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       return NextResponse.json({ success: false, error: 'Reservacion no encontrada' }, { status: 404 })
     }
 
-    const canManage = tienePermiso(user, 'reservations.manage') || tienePermiso(user, 'settings.manage')
+    const canManage =
+      tienePermiso(user, 'reservations.manage') ||
+      tienePermiso(user, 'tables.reservations') ||
+      tienePermiso(user, 'mesas') ||
+      tienePermiso(user, 'settings.manage')
     const isOwner = current.ownerUserId === user.id
     if (!canManage && !isOwner) {
       return NextResponse.json({ success: false, error: 'Sin permisos para modificar esta reservacion' }, { status: 403 })
@@ -187,7 +198,11 @@ export async function DELETE(_request: NextRequest, context: { params: Promise<{
     const user = await requireAuthenticatedUser()
     const tenant = requireActiveTenant(user)
     const { id } = await context.params
-    const canManage = tienePermiso(user, 'reservations.manage') || tienePermiso(user, 'settings.manage')
+    const canManage =
+      tienePermiso(user, 'reservations.manage') ||
+      tienePermiso(user, 'tables.reservations') ||
+      tienePermiso(user, 'mesas') ||
+      tienePermiso(user, 'settings.manage')
     const rows = await prisma.$queryRaw<Array<{ id: string; ownerUserId: string | null; restauranteId: string }>>(Prisma.sql`
       select "id","ownerUserId","restauranteId"
       from "Reservacion"

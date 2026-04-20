@@ -5,7 +5,6 @@ import {
   requireActiveTenant,
   requireAnyCapability,
   requireAuthenticatedUser,
-  requireCapability,
 } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
 
@@ -33,7 +32,7 @@ const createPlantaSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthenticatedUser()
-    requireAnyCapability(user, ['mesas', 'comandas', 'reportes', 'caja'])
+    requireAnyCapability(user, ['tables.view', 'mesas', 'comandas', 'reportes', 'caja'])
     const tenant = requireActiveTenant(user)
 
     const plantas = await prisma.plantaRestaurante.findMany({
@@ -65,7 +64,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'mesas')
+    requireAnyCapability(user, ['tables.manage', 'mesas'])
     const tenant = requireActiveTenant(user)
 
     const body = await request.json()

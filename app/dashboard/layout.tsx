@@ -306,7 +306,13 @@ export default function DashboardLayout({
     { href: '/dashboard/barra', label: 'Barra', modulo: 'barra' },
     { href: '/dashboard/reportes', label: 'Reportes', modulo: 'reportes' },
     { href: '/dashboard/caja', label: 'Caja', modulo: 'caja' },
-  ].filter((item) => !item.modulo || tienePermiso(user, item.modulo))
+  ].filter((item) => {
+    if (!item.modulo) return true
+    if (item.href === '/dashboard/mesas') {
+      return tienePermiso(user, 'mesas') || tienePermiso(user, 'tables.view')
+    }
+    return tienePermiso(user, item.modulo)
+  })
 
   return (
     <div className="app-shell">

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import {
   requireActiveTenant,
   requireAuthenticatedUser,
-  requireCapability,
+  requireAnyCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 import { createMesaPublicCode } from '@/lib/public-mesa-links'
@@ -11,7 +11,7 @@ import { createMesaPublicCode } from '@/lib/public-mesa-links'
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'mesas')
+    requireAnyCapability(user, ['tables.client_channel', 'tables.view', 'mesas'])
     const tenant = requireActiveTenant(user)
 
     const mesa = await prisma.mesa.findFirst({
@@ -58,7 +58,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
 export async function POST(_request: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'mesas')
+    requireAnyCapability(user, ['tables.client_channel', 'mesas'])
     const tenant = requireActiveTenant(user)
 
     const config = await prisma.configuracionRestaurante.findUnique({

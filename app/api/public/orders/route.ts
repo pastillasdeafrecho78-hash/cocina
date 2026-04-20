@@ -59,7 +59,12 @@ export async function POST(request: NextRequest) {
     const rid = restaurante.id
     if (!restaurante.configuracion?.pedidosClienteSolicitudHabilitado) {
       return NextResponse.json(
-        { success: false, error: 'Pedidos por cliente directo no habilitados en esta sucursal' },
+        {
+          success: false,
+          code: 'client_orders_disabled',
+          error:
+            'Los pedidos desde el menú público están desactivados en esta sucursal. Un administrador puede activarlos en Configuración → pedidos cliente.',
+        },
         { status: 403 }
       )
     }

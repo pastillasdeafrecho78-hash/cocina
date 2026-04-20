@@ -3,7 +3,7 @@ import { obtenerConfiguracion, guardarConfiguracion } from '@/lib/configuracion-
 import {
   requireActiveTenant,
   requireAuthenticatedUser,
-  requireCapability,
+  requireAnyCapability,
 } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
 
@@ -14,6 +14,14 @@ import { raise, toErrorResponse } from '@/lib/authz/http'
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthenticatedUser()
+    requireAnyCapability(user, [
+      'tables.wait_times',
+      'tables.view',
+      'mesas',
+      'comandas',
+      'configuracion',
+      'settings.view',
+    ])
     const tenant = requireActiveTenant(user)
 
     const config = await obtenerConfiguracion(tenant.restauranteId)
@@ -37,7 +45,11 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'configuracion')
+    requireAnyCapability(user, [
+      'tables.wait_times',
+      'settings.manage',
+      'configuracion',
+    ])
     const tenant = requireActiveTenant(user)
 
     const body = await request.json()

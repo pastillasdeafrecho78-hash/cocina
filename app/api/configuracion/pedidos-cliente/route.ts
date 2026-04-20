@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import {
   requireActiveTenant,
   requireAuthenticatedUser,
-  requireCapability,
+  requireAnyCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 
@@ -22,7 +22,13 @@ const bodySchema = z.object({
 export async function GET() {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'configuracion')
+    requireAnyCapability(user, [
+      'tables.view',
+      'tables.client_channel',
+      'settings.view',
+      'settings.manage',
+      'configuracion',
+    ])
     const tenant = requireActiveTenant(user)
 
     const config = await prisma.configuracionRestaurante.findUnique({
@@ -66,7 +72,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'configuracion')
+    requireAnyCapability(user, ['tables.client_channel', 'settings.manage', 'configuracion'])
     const tenant = requireActiveTenant(user)
     const body = bodySchema.parse(await request.json())
 

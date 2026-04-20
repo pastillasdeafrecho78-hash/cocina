@@ -92,7 +92,11 @@ export async function GET(request: NextRequest) {
     await ensureReservationsTable()
     const user = await requireAuthenticatedUser()
     const tenant = requireActiveTenant(user)
-    const canView = tienePermiso(user, 'reservations.view') || tienePermiso(user, 'mesas') || tienePermiso(user, 'settings.manage')
+    const canView =
+      tienePermiso(user, 'reservations.view') ||
+      tienePermiso(user, 'tables.reservations') ||
+      tienePermiso(user, 'mesas') ||
+      tienePermiso(user, 'settings.manage')
     if (!canView) {
       return NextResponse.json({ success: false, error: 'Sin permisos' }, { status: 403 })
     }
@@ -137,7 +141,11 @@ export async function POST(request: NextRequest) {
     await ensureReservationsTable()
     const user = await requireAuthenticatedUser()
     const tenant = requireActiveTenant(user)
-    const canCreate = tienePermiso(user, 'reservations.manage') || tienePermiso(user, 'mesas') || tienePermiso(user, 'settings.manage')
+    const canCreate =
+      tienePermiso(user, 'reservations.manage') ||
+      tienePermiso(user, 'tables.reservations') ||
+      tienePermiso(user, 'mesas') ||
+      tienePermiso(user, 'settings.manage')
     if (!canCreate) {
       return NextResponse.json({ success: false, error: 'Sin permisos para crear reservaciones' }, { status: 403 })
     }

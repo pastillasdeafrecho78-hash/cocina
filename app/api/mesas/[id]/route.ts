@@ -4,7 +4,7 @@ import { z } from 'zod'
 import {
   requireActiveTenant,
   requireAuthenticatedUser,
-  requireCapability,
+  requireAnyCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 
@@ -22,7 +22,7 @@ export async function PATCH(
 ) {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'mesas')
+    requireAnyCapability(user, ['tables.view', 'tables.manage', 'mesas', 'comandas', 'orders.manage'])
     const tenant = requireActiveTenant(user)
 
     const body = await request.json()
@@ -58,7 +58,7 @@ export async function DELETE(
 ) {
   try {
     const user = await requireAuthenticatedUser()
-    requireCapability(user, 'mesas')
+    requireAnyCapability(user, ['tables.manage', 'mesas'])
     const tenant = requireActiveTenant(user)
 
     const mesa = await prisma.mesa.findFirst({

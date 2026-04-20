@@ -119,6 +119,7 @@ export default function PublicPedidoPage() {
         })
         const data = (await res.json()) as {
           success?: boolean
+          code?: string
           data?: {
             id: string
             estado?: string
@@ -128,7 +129,11 @@ export default function PublicPedidoPage() {
           error?: string
         }
         if (!res.ok || !data.success || !data.data) {
-          return { ok: false, error: data.error ?? 'No se pudo crear la solicitud' }
+          const msg =
+            data.code === 'client_orders_disabled'
+              ? 'En esta sucursal el pedido en línea no está disponible por ahora. Pide en mostrador o vuelve más tarde.'
+              : (data.error ?? 'No se pudo crear la solicitud')
+          return { ok: false, error: msg }
         }
         setResult({
           solicitudId: data.data.id,
