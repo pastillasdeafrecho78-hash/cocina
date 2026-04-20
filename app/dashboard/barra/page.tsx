@@ -7,6 +7,7 @@ import { es } from 'date-fns/locale'
 import BackButton from '@/components/BackButton'
 import { authFetch } from '@/lib/auth-fetch'
 import { colorProgresivoPorMinutos, minutosDesde } from '@/lib/mesa-utils'
+import { ComandaAsignacionIndicator } from '@/components/ComandaAsignacionIndicator'
 
 interface Item {
   id: string
@@ -23,12 +24,19 @@ interface Item {
   createdAt: string
   fechaPreparacion?: string
   comanda: {
+    id: string
     numeroComanda: string
+    estado: string
     mesa?: {
       numero: number
     } | null
     cliente?: {
       nombre: string
+    } | null
+    asignadoA?: {
+      id: string
+      nombre: string
+      apellido: string
     } | null
   }
   modificadores: Array<{
@@ -46,6 +54,21 @@ export default function BarraPage() {
   const [confirmandoGrupo, setConfirmandoGrupo] = useState<{ numeroComanda: string; accion: 'alistar' | 'entregar' } | null>(null)
   const [tiempoAmarilloMinutos, setTiempoAmarilloMinutos] = useState(30)
   const [tiempoRojoMinutos, setTiempoRojoMinutos] = useState(60)
+  const [myUserId, setMyUserId] = useState<string | null>(null)
+  const [tomandoComandaId, setTomandoComandaId] = useState<string | null>(null)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await authFetch('/api/auth/me')
+        if (res.status === 401) return
+        const j = await res.json()
+        if (j.success && j.data?.id) setMyUserId(j.data.id as string)
+      } catch {
+        // noop
+      }
+    })()
+  }, [])
 
   const fetchItems = async () => {
     try {
@@ -217,6 +240,29 @@ export default function BarraPage() {
     )
   }
 
+  const puedeTomarComanda = (c: Item['comanda']) =>
+    c.estado !== 'PAGADO' &&
+    c.estado !== 'CANCELADO' &&
+    !c.asignadoA
+
+  const handleTomarComanda = async (comandaId: string) => {
+    setTomandoComandaId(comandaId)
+    try {
+      const res = await authFetch(`/api/comandas/${comandaId}/tomar`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? 'No se pudo tomar la comanda')
+        return
+      }
+      toast.success(data.alreadyAssigned ? 'Ya la tenías asignada' : 'Comanda asignada a tu perfil')
+      await fetchItems()
+    } catch {
+      toast.error('Error al tomar la comanda')
+    } finally {
+      setTomandoComandaId(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="app-page">
@@ -235,6 +281,10 @@ export default function BarraPage() {
               <p className="app-kicker">Barra</p>
               <h1 className="mt-2 text-3xl font-semibold text-stone-900">Bar Display</h1>
               <p className="mt-1 text-stone-600">Seguimiento visual de bebidas y salidas de barra.</p>
+              <p className="mt-2 max-w-2xl text-xs text-stone-500">
+                <strong>Contigo</strong> = comanda tomada por tu perfil. El nombre en ámbar = otro usuario. Sin
+                etiqueta = libre; usa <strong>Tomar comanda</strong> para asignártela.
+              </p>
             </div>
             <div className="flex flex-wrap gap-2">
           <button
@@ -282,11 +332,27 @@ export default function BarraPage() {
           return (
             <div key={numeroComanda} className={`app-card p-6 ${bordeClase}`}>
               <div className="flex justify-between items-start mb-4">
-                <div>
+                <div className="min-w-0 flex-1 pr-2">
                   <h3 className="text-xl font-semibold text-stone-900">{titulo}</h3>
                   <p className="text-sm text-stone-500">{numeroComanda}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <ComandaAsignacionIndicator
+                      asignadoA={primer.comanda.asignadoA ?? null}
+                      currentUserId={myUserId}
+                    />
+                    {puedeTomarComanda(primer.comanda) && (
+                      <button
+                        type="button"
+                        onClick={() => void handleTomarComanda(primer.comanda.id)}
+                        disabled={tomandoComandaId === primer.comanda.id}
+                        className="rounded-lg border border-stone-300 bg-white px-2.5 py-1 text-xs font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
+                      >
+                        {tomandoComandaId === primer.comanda.id ? 'Tomando…' : 'Tomar comanda'}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <div className="text-sm font-medium inline-flex items-center gap-1.5" style={{ color: colorTiempo }}>
                     <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: colorTiempo }} />
                     {getTiempoEspera(fechaBase)}

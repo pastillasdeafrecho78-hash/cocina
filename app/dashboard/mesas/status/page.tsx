@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import MesaCard from '@/components/MesaCard'
 import BackButton from '@/components/BackButton'
@@ -67,9 +67,13 @@ export default function MesasStatusPage() {
   const [restauranteSlug, setRestauranteSlug] = useState<string | null>(null)
   const [publicOrigin, setPublicOrigin] = useState('')
   const [mesaLinkGenerado, setMesaLinkGenerado] = useState<Record<string, string>>({})
+  const [mesaLinkLegacySinCodigo, setMesaLinkLegacySinCodigo] = useState<Record<string, boolean>>({})
   const [generandoMesaLinkId, setGenerandoMesaLinkId] = useState<string | null>(null)
   const [mesaQrVisible, setMesaQrVisible] = useState<Record<string, boolean>>({})
   const [mesaQrSizePx, setMesaQrSizePx] = useState<Record<string, number>>({})
+  const hydrateMesaLinksInFlight = useRef(new Set<string>())
+  /** Evita GET repetidos al refrescar la lista de mesas; se limpia al cambiar de sucursal. */
+  const mesaLinkHydrationDone = useRef(new Set<string>())
 
   type PedidosClienteCfgForm = {
     habilitado: boolean
@@ -174,19 +178,84 @@ export default function MesasStatusPage() {
     }
   }, [sessionUser])
 
+  /** Construye URLs de mesa desde localStorage o desde GET (código persistido en servidor). */
   useEffect(() => {
-    if (!restauranteId || mesas.length === 0) return
+    const u = sessionUser
+    const puedePedidosCliente = !u || tieneAlgunPermiso(u, ['tables.client_channel', 'mesas'])
+    if (!mostrarPedidosCliente || !puedePedidosCliente) return
+    if (!restauranteSlug || !publicOrigin || mesas.length === 0) return
+
+    const rid = restauranteId
+    const origin = publicOrigin
+    const slug = restauranteSlug
+
     setMesaLinkGenerado((prev) => {
-      const next = { ...prev }
       for (const m of mesas) {
-        if (m.hasPublicLink && !next[m.id]) {
-          const stored = readMesaPublicUrl(restauranteId, m.id)
-          if (stored) next[m.id] = stored
+        if (m.hasPublicLink && prev[m.id]) {
+          mesaLinkHydrationDone.current.add(m.id)
         }
       }
-      return next
+      return prev
     })
-  }, [restauranteId, mesas])
+
+    void (async () => {
+      for (const m of mesas) {
+        if (!m.hasPublicLink) continue
+        if (mesaLinkHydrationDone.current.has(m.id)) continue
+
+        if (rid) {
+          const stored = readMesaPublicUrl(rid, m.id)
+          if (stored) {
+            mesaLinkHydrationDone.current.add(m.id)
+            setMesaLinkGenerado((prev) => (prev[m.id] ? prev : { ...prev, [m.id]: stored }))
+            continue
+          }
+        }
+
+        if (hydrateMesaLinksInFlight.current.has(m.id)) continue
+        hydrateMesaLinksInFlight.current.add(m.id)
+        try {
+          const res = await apiFetch(`/api/mesas/${encodeURIComponent(m.id)}/public-link`)
+          const data = await res.json()
+          if (!data.success || !data.data?.hasLink) continue
+
+          const code = data.data.publicCode as string | null | undefined
+          const responseSlug = (data.data.restauranteSlug as string | null | undefined) ?? slug
+          if (!code) {
+            mesaLinkHydrationDone.current.add(m.id)
+            setMesaLinkLegacySinCodigo((p) => ({ ...p, [m.id]: true }))
+            continue
+          }
+
+          const url = `${origin}/p/${responseSlug}?mesa=${encodeURIComponent(code)}`
+          mesaLinkHydrationDone.current.add(m.id)
+          setMesaLinkLegacySinCodigo((p) => {
+            const next = { ...p }
+            delete next[m.id]
+            return next
+          })
+          setMesaLinkGenerado((prev) => (prev[m.id] ? prev : { ...prev, [m.id]: url }))
+          if (rid) {
+            writeMesaPublicUrl(rid, m.id, url)
+          }
+        } catch {
+          // Reintenta al cambiar dependencias o al reabrir la sección
+        } finally {
+          hydrateMesaLinksInFlight.current.delete(m.id)
+        }
+      }
+    })()
+  }, [mostrarPedidosCliente, sessionUser, restauranteSlug, publicOrigin, mesas, restauranteId])
+
+  useEffect(() => {
+    mesaLinkHydrationDone.current.clear()
+  }, [restauranteId])
+
+  useEffect(() => {
+    if (!mostrarPedidosCliente) {
+      mesaLinkHydrationDone.current.clear()
+    }
+  }, [mostrarPedidosCliente])
 
   const fetchConfiguracionTiempos = async () => {
     try {
@@ -370,6 +439,12 @@ export default function MesasStatusPage() {
       const slug = data.data.restauranteSlug || restauranteSlug
       if (!slug) throw new Error('No se encontró slug de sucursal para generar el link')
       const url = `${window.location.origin}/p/${slug}?mesa=${encodeURIComponent(data.data.mesaCode)}`
+      setMesaLinkLegacySinCodigo((p) => {
+        const next = { ...p }
+        delete next[mesaId]
+        return next
+      })
+      mesaLinkHydrationDone.current.add(mesaId)
       setMesaLinkGenerado((prev) => ({ ...prev, [mesaId]: url }))
       let rid = restauranteId
       if (!rid) {
@@ -400,7 +475,11 @@ export default function MesasStatusPage() {
   const copiarLinkMesa = async (mesaId: string) => {
     const link = mesaLinkGenerado[mesaId]
     if (!link) {
-      toast.error('Primero genera el link de la mesa')
+      toast.error(
+        mesaLinkLegacySinCodigo[mesaId]
+          ? 'Este link es anterior: pulsa «Regenerar link» una vez para guardar el código en el servidor y poder copiarlo siempre.'
+          : 'Espera a que cargue el enlace o genera el link de la mesa'
+      )
       return
     }
     try {
@@ -789,16 +868,28 @@ export default function MesasStatusPage() {
           {pedidosCfg && (
             <div className="space-y-3 rounded-xl border border-stone-200 bg-stone-50 p-4 dark:border-stone-700 dark:bg-stone-900/40">
               <p className="text-sm font-semibold text-stone-900 dark:text-stone-100">
-                Modo D, cola y ETA de seguimiento
+                Ocupación, cola de espera y tiempo al cliente
+              </p>
+              <p className="text-xs text-stone-600 dark:text-stone-400">
+                El sistema revisa cuántas comandas abiertas hay y cuánto trabajo hay en cocina/barra. Si vas al tope,
+                el cliente puede ver un aviso, entrar en lista de espera o el pedido queda en revisión, según lo que
+                marques abajo.
               </p>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
+                <label className="flex items-start gap-2 text-sm text-stone-700 dark:text-stone-200 md:col-span-2">
                   <input
                     type="checkbox"
+                    className="mt-0.5"
                     checked={pedidosCfg.modoD}
                     onChange={(e) => setPedidosCfg((p) => (p ? { ...p, modoD: e.target.checked } : p))}
                   />
-                  Modo D (capacidad / cola automática)
+                  <span>
+                    <span className="font-medium">Reaccionar solo cuando el restaurante va muy ocupado</span>
+                    <span className="mt-0.5 block text-xs font-normal text-stone-500 dark:text-stone-400">
+                      Activado: se usan los topes de comandas e ítems en preparación y los mensajes de saturación. Si lo
+                      apagas, los pedidos por link o QR suelen quedar en revisión manual antes de entrar a cocina.
+                    </span>
+                  </span>
                 </label>
                 <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
                   <input
@@ -806,7 +897,7 @@ export default function MesasStatusPage() {
                     checked={pedidosCfg.queueEnabled}
                     onChange={(e) => setPedidosCfg((p) => (p ? { ...p, queueEnabled: e.target.checked } : p))}
                   />
-                  Cola habilitada
+                  Permitir cola de espera para el cliente
                 </label>
                 <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
                   <input
@@ -816,7 +907,7 @@ export default function MesasStatusPage() {
                       setPedidosCfg((p) => (p ? { ...p, autoAprobarSolicitudes: e.target.checked } : p))
                     }
                   />
-                  Auto-aprobar cuando hay capacidad
+                  Aprobar solos los pedidos cuando sí hay capacidad libre
                 </label>
                 <label className="flex items-center gap-2 text-sm text-stone-700 dark:text-stone-200">
                   <input
@@ -866,7 +957,7 @@ export default function MesasStatusPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
-                    Minutos de espera (mensaje saturación)
+                    Minutos de espera típicos (antes del mensaje de «muy ocupados»)
                   </label>
                   <input
                     type="number"
@@ -893,7 +984,7 @@ export default function MesasStatusPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
-                    ETA cliente mín (min)
+                    Tiempo estimado al cliente — mínimo (min)
                   </label>
                   <input
                     type="number"
@@ -909,7 +1000,7 @@ export default function MesasStatusPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-stone-600 dark:text-stone-400">
-                    ETA cliente máx (min)
+                    Tiempo estimado al cliente — máximo (min)
                   </label>
                   <input
                     type="number"
@@ -930,7 +1021,7 @@ export default function MesasStatusPage() {
                 disabled={guardandoCfgPedidos}
                 onClick={() => void guardarPedidosClienteCfg()}
               >
-                {guardandoCfgPedidos ? 'Guardando…' : 'Guardar Modo D y ETA'}
+                {guardandoCfgPedidos ? 'Guardando…' : 'Guardar ajustes'}
               </button>
             </div>
           )}
@@ -978,8 +1069,10 @@ export default function MesasStatusPage() {
                         <p className="text-xs text-stone-500">
                           {mesa.hasPublicLink
                             ? link
-                              ? 'Link activo · también guardado en este navegador para volver a verlo.'
-                              : 'Hay un link activo, pero este navegador no tiene la URL guardada. Regenera para verla (el código anterior dejará de funcionar).'
+                              ? 'Link activo. Puedes volver a verlo y copiarlo con acceso al panel; además puede quedar guardado en este navegador.'
+                              : mesaLinkLegacySinCodigo[mesa.id]
+                                ? 'Hay un link activo creado antes de guardar el código en servidor. Pulsa «Regenerar link» una vez (invalida el QR anterior) para poder verlo siempre sin regenerar.'
+                                : 'Cargando enlace desde el servidor…'
                             : 'Sin link generado aún'}
                         </p>
                       </div>
@@ -1080,7 +1173,9 @@ export default function MesasStatusPage() {
                     ) : (
                       <p className="mt-3 text-sm text-stone-600">
                         {mesa.hasPublicLink
-                          ? 'Pulsa «Regenerar link» para obtener la URL en este equipo, o usa otro navegador donde ya lo hayas generado (queda guardado localmente).'
+                          ? mesaLinkLegacySinCodigo[mesa.id]
+                            ? 'Pulsa «Regenerar link» una vez para migrar este enlace al nuevo formato y poder verlo aquí siempre.'
+                            : 'Cargando URL del link activo…'
                           : 'Genera el link para ver el QR y copiarlo rápido.'}
                       </p>
                     )}

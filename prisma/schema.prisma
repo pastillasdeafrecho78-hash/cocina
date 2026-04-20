@@ -751,6 +751,8 @@ model MesaPublicLink {
   restauranteId String
   mesaId        String   @unique
   codeHash      String   @unique
+  /// Token opaco del query `mesa=` (misma cadena que se hashea en `codeHash`). Solo para staff autenticado vía GET del panel.
+  publicCode    String?  @unique
   activa        Boolean  @default(true)
   expiraEn      DateTime?
   createdAt     DateTime @default(now())

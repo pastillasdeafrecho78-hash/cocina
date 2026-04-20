@@ -29,6 +29,13 @@ export async function GET(request: NextRequest) {
           include: {
             mesa: true,
             cliente: true,
+            asignadoA: {
+              select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+              },
+            },
           },
         },
         tamano: true,

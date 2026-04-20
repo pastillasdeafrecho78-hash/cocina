@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { authFetch } from '@/lib/auth-fetch'
+import { ComandaAsignacionIndicator } from '@/components/ComandaAsignacionIndicator'
 
 interface Comanda {
   id: string
@@ -22,9 +23,14 @@ interface Comanda {
     nombre: string
     apellido: string
   } | null
+  asignadoA?: {
+    id: string
+    nombre: string
+    apellido: string
+  } | null
   mesa?: { numero: number } | null
   cliente?: { nombre: string } | null
-  items?: Array< { estado: string } >
+  items?: Array<{ estado: string }>
 }
 
 const badgeClassByEstado = (estado: string) => {
@@ -43,6 +49,21 @@ export default function ComandasPage() {
   const [loading, setLoading] = useState(true)
   const [filtro, setFiltro] = useState<string>('')
   const [entregandoId, setEntregandoId] = useState<string | null>(null)
+  const [myUserId, setMyUserId] = useState<string | null>(null)
+  const [tomandoId, setTomandoId] = useState<string | null>(null)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await authFetch('/api/auth/me')
+        if (res.status === 401) return
+        const j = await res.json()
+        if (j.success && j.data?.id) setMyUserId(j.data.id as string)
+      } catch {
+        // noop
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     fetchComandas()
@@ -80,6 +101,27 @@ export default function ComandasPage() {
     const entregados = c.items.filter((i) => i.estado === 'ENTREGADO').length
     return listos > 0 && entregados < c.items.length
   })
+
+  const puedeTomar = (c: Comanda) =>
+    c.estado !== 'PAGADO' && c.estado !== 'CANCELADO' && !c.asignadoA
+
+  const handleTomar = async (comandaId: string) => {
+    setTomandoId(comandaId)
+    try {
+      const res = await authFetch(`/api/comandas/${comandaId}/tomar`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? 'No se pudo tomar la comanda')
+        return
+      }
+      toast.success(data.alreadyAssigned ? 'Ya estaba asignada a ti' : 'Comanda asignada a tu perfil')
+      await fetchComandas()
+    } catch {
+      toast.error('Error al tomar la comanda')
+    } finally {
+      setTomandoId(null)
+    }
+  }
 
   const handleConfirmarEntrega = async (comandaId: string) => {
     setEntregandoId(comandaId)
@@ -130,6 +172,16 @@ export default function ComandasPage() {
               <h1 className="mt-2 text-3xl font-semibold text-stone-900">Comandas</h1>
               <p className="mt-1 text-sm text-stone-600">
                 Controla el ciclo completo de atención y cobro.
+              </p>
+              <p className="mt-2 text-xs text-stone-500">
+                <span className="mr-2 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-900">
+                  Contigo
+                </span>
+                comanda asignada a tu perfil.{' '}
+                <span className="ml-2 mr-2 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-medium text-amber-950">
+                  Nombre
+                </span>
+                tomada por otro usuario. Sin etiqueta: libre (nadie la ha tomado).
               </p>
             </div>
 
@@ -229,7 +281,10 @@ export default function ComandasPage() {
               {comandas.map((comanda) => (
                 <tr key={comanda.id} className="hover:bg-amber-50/70 dark:hover:bg-stone-900/70">
                   <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-stone-900">
-                    {comanda.numeroComanda}
+                    <div className="flex flex-col gap-1.5">
+                      <span>{comanda.numeroComanda}</span>
+                      <ComandaAsignacionIndicator asignadoA={comanda.asignadoA ?? null} currentUserId={myUserId} />
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm text-stone-600">
                     {comanda.mesa
@@ -265,12 +320,24 @@ export default function ComandasPage() {
                     {new Date(comanda.fechaCreacion).toLocaleString('es-MX')}
                   </td>
                   <td className="whitespace-nowrap px-6 py-4 text-sm font-medium">
-                    <button
-                      onClick={() => router.push(`/dashboard/comandas/${comanda.numeroComanda}`)}
-                      className="rounded-sm font-semibold text-amber-800 underline decoration-amber-400 decoration-2 underline-offset-2 transition-colors hover:text-amber-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
-                    >
-                      Ver
-                    </button>
+                    <div className="flex flex-col items-start gap-2">
+                      <button
+                        onClick={() => router.push(`/dashboard/comandas/${comanda.numeroComanda}`)}
+                        className="rounded-sm font-semibold text-amber-800 underline decoration-amber-400 decoration-2 underline-offset-2 transition-colors hover:text-amber-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500/60"
+                      >
+                        Ver
+                      </button>
+                      {puedeTomar(comanda) && (
+                        <button
+                          type="button"
+                          onClick={() => void handleTomar(comanda.id)}
+                          disabled={tomandoId === comanda.id}
+                          className="rounded-lg border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100 dark:hover:bg-stone-800"
+                        >
+                          {tomandoId === comanda.id ? 'Tomando…' : 'Tomar comanda'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

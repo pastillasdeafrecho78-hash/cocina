@@ -11,8 +11,13 @@ import { createMesaPublicCode } from '@/lib/public-mesa-links'
 export async function GET(_request: Request, { params }: { params: { id: string } }) {
   try {
     const user = await requireAuthenticatedUser()
-    requireAnyCapability(user, ['tables.client_channel', 'tables.view', 'mesas'])
+    requireAnyCapability(user, ['tables.client_channel', 'mesas'])
     const tenant = requireActiveTenant(user)
+
+    const restaurante = await prisma.restaurante.findUnique({
+      where: { id: tenant.restauranteId },
+      select: { slug: true },
+    })
 
     const mesa = await prisma.mesa.findFirst({
       where: {
@@ -29,6 +34,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
             activa: true,
             expiraEn: true,
             updatedAt: true,
+            publicCode: true,
           },
         },
       },
@@ -42,9 +48,11 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       data: mesa.publicLink
         ? {
             hasLink: true,
+            mesaNumero: mesa.numero,
+            restauranteSlug: restaurante?.slug ?? null,
             ...mesa.publicLink,
           }
-        : { hasLink: false },
+        : { hasLink: false, mesaNumero: mesa.numero, restauranteSlug: restaurante?.slug ?? null },
     })
   } catch (error) {
     return toErrorResponse(
@@ -86,6 +94,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
       where: { mesaId: mesa.id },
       update: {
         codeHash: code.hash,
+        publicCode: code.raw,
         activa: true,
         expiraEn: null,
       },
@@ -93,6 +102,7 @@ export async function POST(_request: Request, { params }: { params: { id: string
         restauranteId: tenant.restauranteId,
         mesaId: mesa.id,
         codeHash: code.hash,
+        publicCode: code.raw,
         activa: true,
       },
     })

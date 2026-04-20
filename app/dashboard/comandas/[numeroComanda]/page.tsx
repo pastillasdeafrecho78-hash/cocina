@@ -6,6 +6,7 @@ import { labelComandaEstado, labelItemEstado } from '@/lib/estado-labels'
 import { useParams, useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
+import { ComandaAsignacionIndicator } from '@/components/ComandaAsignacionIndicator'
 
 interface Comanda {
   id: string
@@ -15,6 +16,11 @@ interface Comanda {
   propina: number
   descuento: number
   motivoCancelacion?: string | null
+  asignadoA?: {
+    id: string
+    nombre: string
+    apellido: string
+  } | null
   creadoPor?: {
     nombre: string
     apellido: string
@@ -76,6 +82,21 @@ export default function ComandaDetallePage() {
   const [efectivoEsperado, setEfectivoEsperado] = useState<number | null>(null)
   const [motivoCancelacion, setMotivoCancelacion] = useState('')
   const [cancelandoComanda, setCancelandoComanda] = useState(false)
+  const [myUserId, setMyUserId] = useState<string | null>(null)
+  const [tomandoComanda, setTomandoComanda] = useState(false)
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await apiFetch('/api/auth/me')
+        if (res.status === 401) return
+        const j = await res.json()
+        if (j.success && j.data?.id) setMyUserId(j.data.id as string)
+      } catch {
+        // noop
+      }
+    })()
+  }, [])
 
   useEffect(() => {
     fetchComanda()
@@ -141,6 +162,29 @@ export default function ComandaDetallePage() {
       toast.error('Error al cargar comanda')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleTomarComanda = async () => {
+    if (!comanda) return
+    if (comanda.estado === 'PAGADO' || comanda.estado === 'CANCELADO') {
+      toast.error('No se puede tomar esta comanda')
+      return
+    }
+    setTomandoComanda(true)
+    try {
+      const res = await apiFetch(`/api/comandas/${comanda.id}/tomar`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? 'No se pudo tomar la comanda')
+        return
+      }
+      toast.success(data.alreadyAssigned ? 'Ya la tenías asignada' : 'Comanda asignada a tu perfil')
+      await fetchComanda()
+    } catch {
+      toast.error('Error al tomar la comanda')
+    } finally {
+      setTomandoComanda(false)
     }
   }
 
@@ -381,9 +425,22 @@ export default function ComandaDetallePage() {
       <div className="app-card mb-6">
         <BackButton className="mb-4" />
         <p className="app-kicker">Detalle de comanda</p>
-        <h1 className="mt-2 text-3xl font-semibold text-stone-900">
-          Comanda {comanda.numeroComanda}
-        </h1>
+        <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <h1 className="text-3xl font-semibold text-stone-900">Comanda {comanda.numeroComanda}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <ComandaAsignacionIndicator asignadoA={comanda.asignadoA ?? null} currentUserId={myUserId} />
+            {!comanda.asignadoA && comanda.estado !== 'PAGADO' && comanda.estado !== 'CANCELADO' && (
+              <button
+                type="button"
+                onClick={() => void handleTomarComanda()}
+                disabled={tomandoComanda}
+                className="rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-800 hover:bg-stone-50 disabled:opacity-50 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
+              >
+                {tomandoComanda ? 'Tomando…' : 'Tomar comanda'}
+              </button>
+            )}
+          </div>
+        </div>
         <div className="mt-2 flex flex-wrap gap-4 text-sm text-stone-600">
           <span>
             {comanda.mesa ? `Mesa ${comanda.mesa.numero}` : 'Para llevar'}

@@ -246,7 +246,7 @@ export default function SolicitudesPage() {
                     </button>
                     <button
                       type="button"
-                      title="Crea comanda aunque Modo D marque saturación (requiere permiso de comandas)"
+                      title="Crea la comanda aunque el sistema marque el restaurante como saturado (requiere permiso de comandas)"
                       className="app-btn-secondary"
                       disabled={workingId === sol.id}
                       onClick={() => handleAction(sol.id, 'forzar')}
