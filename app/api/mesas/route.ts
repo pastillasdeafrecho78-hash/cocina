@@ -49,6 +49,9 @@ export async function GET(request: NextRequest) {
           },
           take: 1,
           include: {
+            asignadoA: {
+              select: { id: true, nombre: true, apellido: true },
+            },
             items: {
               select: { estado: true, createdAt: true },
             },
@@ -88,6 +91,13 @@ export async function GET(request: NextRequest) {
           itemsEntregados,
           allItemsEntregados,
           waitStartFrom,
+          asignadoA: comanda.asignadoA
+            ? {
+                id: comanda.asignadoA.id,
+                nombre: comanda.asignadoA.nombre,
+                apellido: comanda.asignadoA.apellido,
+              }
+            : null,
         },
       }
     })

@@ -3,6 +3,7 @@
 import { EstadoMesa } from '@prisma/client'
 import { useEffect, useState } from 'react'
 import { formatWaitTime, minutosDesde, colorProgresivoPorMinutos } from '@/lib/mesa-utils'
+import { ComandaAsignacionIndicator } from '@/components/ComandaAsignacionIndicator'
 
 interface MesaCardProps {
   numero: number
@@ -13,7 +14,10 @@ interface MesaCardProps {
     total: number
     fechaCreacion?: string
     allItemsEntregados?: boolean
+    asignadoA?: { id: string; nombre: string; apellido: string } | null
   } | null
+  /** Usuario logueado (para badge «Contigo» vs nombre de quien tomó la comanda). */
+  currentUserId?: string | null
   onClick: () => void
   tiempoAmarilloMinutos?: number
   tiempoRojoMinutos?: number
@@ -45,6 +49,7 @@ export default function MesaCard({
   estado,
   capacidad,
   comandaActual,
+  currentUserId = null,
   onClick,
   tiempoAmarilloMinutos = 30,
   tiempoRojoMinutos = 60,
@@ -121,11 +126,39 @@ export default function MesaCard({
         <>
           <div className="text-[10px] font-medium bg-black/30 px-1.5 py-0.5 rounded mt-0.5">✓ Listo</div>
           <div className="text-[9px] opacity-90 truncate max-w-full">{comandaActual.numeroComanda}</div>
+          <div className="mt-0.5 flex max-w-[100%] flex-col items-center gap-0.5 px-0.5">
+            <ComandaAsignacionIndicator
+              asignadoA={comandaActual.asignadoA ?? null}
+              currentUserId={currentUserId}
+            />
+            {!comandaActual.asignadoA ? (
+              <span
+                className="text-[8px] font-medium text-white/90"
+                title="Nadie ha tomado esta comanda en su perfil. Ábrela y usa «Tomar comanda»."
+              >
+                Sin mesero
+              </span>
+            ) : null}
+          </div>
         </>
       ) : (
         <>
           <div className="text-[10px] font-medium bg-black/30 px-1.5 py-0.5 rounded mt-0.5">{waitTime ?? '—'}</div>
           <div className="text-[9px] opacity-90 truncate max-w-full">{comandaActual.numeroComanda}</div>
+          <div className="mt-0.5 flex max-w-[100%] flex-col items-center gap-0.5 px-0.5">
+            <ComandaAsignacionIndicator
+              asignadoA={comandaActual.asignadoA ?? null}
+              currentUserId={currentUserId}
+            />
+            {!comandaActual.asignadoA ? (
+              <span
+                className="text-[8px] font-medium text-white/90"
+                title="Nadie ha tomado esta comanda en su perfil. Ábrela y usa «Tomar comanda»."
+              >
+                Sin mesero
+              </span>
+            ) : null}
+          </div>
         </>
       )}
     </>

@@ -26,13 +26,14 @@ interface Mesa {
     itemsEntregados?: number
     allItemsEntregados?: boolean
     waitStartFrom?: string | null
+    asignadoA?: { id: string; nombre: string; apellido: string } | null
   } | null
 }
 
 function readSessionUserSync() {
   try {
     const s = typeof window !== 'undefined' ? localStorage.getItem('user') : null
-    return s ? (JSON.parse(s) as { rol?: { permisos?: unknown } }) : null
+    return s ? (JSON.parse(s) as { id?: string; rol?: { permisos?: unknown } }) : null
   } catch {
     return null
   }
@@ -40,9 +41,10 @@ function readSessionUserSync() {
 
 export default function MesasStatusPage() {
   const router = useRouter()
-  const [sessionUser, setSessionUser] = useState<{ rol?: { permisos?: unknown } } | null>(() =>
+  const [sessionUser, setSessionUser] = useState<{ id?: string; rol?: { permisos?: unknown } } | null>(() =>
     typeof window !== 'undefined' ? readSessionUserSync() : null
   )
+  const [myUserId, setMyUserId] = useState<string | null>(null)
   const [restauranteId, setRestauranteId] = useState<string | null>(null)
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [loading, setLoading] = useState(true)
@@ -144,7 +146,10 @@ export default function MesasStatusPage() {
         const res = await fetch('/api/auth/me', { cache: 'no-store', credentials: 'same-origin' })
         if (res.ok) {
           const data = await res.json()
-          if (data.success && data.data) setSessionUser(data.data)
+          if (data.success && data.data) {
+            setSessionUser(data.data)
+            if (data.data.id) setMyUserId(data.data.id as string)
+          }
         }
       } catch {
         // noop
@@ -161,7 +166,10 @@ export default function MesasStatusPage() {
 
   useEffect(() => {
     const u = readSessionUserSync()
-    if (u) setSessionUser(u)
+    if (u) {
+      setSessionUser(u)
+      if (u.id) setMyUserId(u.id)
+    }
   }, [])
 
   useEffect(() => {
@@ -750,6 +758,7 @@ export default function MesasStatusPage() {
                           estado={mesa.estado as any}
                           capacidad={mesa.capacidad}
                           comandaActual={mesa.comandaActual}
+                          currentUserId={myUserId}
                           onClick={() => handleMesaClick(mesa)}
                           tiempoAmarilloMinutos={tiempoAmarilloMinutos}
                           tiempoRojoMinutos={tiempoRojoMinutos}
