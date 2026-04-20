@@ -6,6 +6,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import BackButton from '@/components/BackButton'
 import { authFetch } from '@/lib/auth-fetch'
+import { colorProgresivoPorMinutos, minutosDesde } from '@/lib/mesa-utils'
 
 interface Item {
   id: string
@@ -43,6 +44,8 @@ export default function BarraPage() {
   const [filter, setFilter] = useState<'all' | 'pendiente' | 'listo'>('all')
   const [confirmando, setConfirmando] = useState<{ itemId: string; nuevoEstado: string; label: string } | null>(null)
   const [confirmandoGrupo, setConfirmandoGrupo] = useState<{ numeroComanda: string; accion: 'alistar' | 'entregar' } | null>(null)
+  const [tiempoAmarilloMinutos, setTiempoAmarilloMinutos] = useState(30)
+  const [tiempoRojoMinutos, setTiempoRojoMinutos] = useState(60)
 
   const fetchItems = async () => {
     try {
@@ -65,9 +68,24 @@ export default function BarraPage() {
 
   useEffect(() => {
     fetchItems()
+    fetchConfiguracionTiempos()
     const interval = setInterval(fetchItems, 5000)
     return () => clearInterval(interval)
   }, [])
+
+  const fetchConfiguracionTiempos = async () => {
+    try {
+      const response = await authFetch('/api/configuracion/tiempos')
+      if (response.status === 401) return
+      const data = await response.json()
+      if (data.success && data.data) {
+        setTiempoAmarilloMinutos(data.data.tiempoAmarilloMinutos ?? 30)
+        setTiempoRojoMinutos(data.data.tiempoRojoMinutos ?? 60)
+      }
+    } catch {
+      // Conserva fallback 30/60 para no romper indicador de color si falla la carga.
+    }
+  }
 
   const abrirConfirmacion = (itemId: string, nuevoEstado: string, label: string) => {
     setConfirmando({ itemId, nuevoEstado, label })
@@ -191,6 +209,14 @@ export default function BarraPage() {
     })
   }
 
+  const getColorTiempo = (fechaCreacion: string) => {
+    return colorProgresivoPorMinutos(
+      minutosDesde(fechaCreacion),
+      tiempoAmarilloMinutos,
+      tiempoRojoMinutos
+    )
+  }
+
   if (loading) {
     return (
       <div className="app-page">
@@ -243,6 +269,8 @@ export default function BarraPage() {
             (min, i) => (new Date(i.createdAt).getTime() < min ? new Date(i.createdAt).getTime() : min),
             Number.MAX_SAFE_INTEGER
           )
+          const fechaBase = new Date(tiempoMasAntiguo).toISOString()
+          const colorTiempo = getColorTiempo(fechaBase)
           const tienePendiente = itemsGrupo.some((i) => i.estado === 'PENDIENTE')
           const tienePreparacion = itemsGrupo.some((i) => i.estado === 'EN_PREPARACION')
           const bordeClase = tienePendiente
@@ -259,8 +287,9 @@ export default function BarraPage() {
                   <p className="text-sm text-stone-500">{numeroComanda}</p>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm text-stone-500">
-                    {getTiempoEspera(new Date(tiempoMasAntiguo).toISOString())}
+                  <div className="text-sm font-medium inline-flex items-center gap-1.5" style={{ color: colorTiempo }}>
+                    <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: colorTiempo }} />
+                    {getTiempoEspera(fechaBase)}
                   </div>
                 </div>
               </div>
@@ -297,7 +326,7 @@ export default function BarraPage() {
                       {item.estado === 'LISTO' && (
                         <button
                           onClick={() => abrirConfirmacion(item.id, 'ENTREGADO', 'Entregado')}
-                          className="app-btn-primary flex-1 bg-sky-600 hover:bg-sky-700 text-sm py-1.5"
+                          className="app-btn-primary flex-1 bg-violet-700 hover:bg-violet-800 text-sm py-1.5"
                         >
                           Entregado
                         </button>
@@ -320,7 +349,7 @@ export default function BarraPage() {
                   {itemsGrupo.some((i) => i.estado === 'LISTO') && (
                     <button
                       onClick={() => setConfirmandoGrupo({ numeroComanda, accion: 'entregar' })}
-                      className="w-full rounded-lg bg-sky-600 py-2.5 text-sm font-medium text-white hover:bg-sky-700"
+                      className="w-full rounded-lg bg-violet-700 py-2.5 text-sm font-medium text-white hover:bg-violet-800"
                     >
                       Entregar todos
                     </button>

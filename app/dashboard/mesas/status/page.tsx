@@ -15,6 +15,7 @@ interface Mesa {
   capacidad: number
   ubicacion?: string | null
   piso?: string | null
+  hasPublicLink?: boolean
   comandaActual?: {
     numeroComanda: string
     total: number
@@ -45,6 +46,12 @@ export default function MesasStatusPage() {
   const [editTiempoRojo, setEditTiempoRojo] = useState('60')
   const [guardandoTiempos, setGuardandoTiempos] = useState(false)
   const [tick, setTick] = useState(0)
+  const [pedidosClienteHabilitado, setPedidosClienteHabilitado] = useState(false)
+  const [guardandoPedidosCliente, setGuardandoPedidosCliente] = useState(false)
+  const [restauranteSlug, setRestauranteSlug] = useState<string | null>(null)
+  const [publicOrigin, setPublicOrigin] = useState('')
+  const [mesaLinkGenerado, setMesaLinkGenerado] = useState<Record<string, string>>({})
+  const [generandoMesaLinkId, setGenerandoMesaLinkId] = useState<string | null>(null)
 
   const fetchMesas = async () => {
     try {
@@ -66,8 +73,11 @@ export default function MesasStatusPage() {
   }
 
   useEffect(() => {
+    setPublicOrigin(window.location.origin)
     fetchMesas()
     fetchConfiguracionTiempos()
+    fetchPedidosClienteConfig()
+    fetchTenantInfo()
     const interval = setInterval(() => {
       fetchMesas()
       setTick((t) => t + 1)
@@ -91,6 +101,76 @@ export default function MesasStatusPage() {
       }
     } catch (error) {
       console.error('Error al cargar configuración de tiempos:', error)
+    }
+  }
+
+  const fetchTenantInfo = async () => {
+    try {
+      const response = await authFetch('/api/auth/tenancy')
+      if (response.status === 401) return
+      const data = await response.json()
+      if (data.success && data.data?.current?.restauranteSlug) {
+        setRestauranteSlug(data.data.current.restauranteSlug)
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  const fetchPedidosClienteConfig = async () => {
+    try {
+      const response = await authFetch('/api/configuracion/pedidos-cliente')
+      if (response.status === 401) return
+      const data = await response.json()
+      if (data.success && data.data) {
+        setPedidosClienteHabilitado(Boolean(data.data.habilitado))
+      }
+    } catch {
+      // noop
+    }
+  }
+
+  const togglePedidosCliente = async () => {
+    setGuardandoPedidosCliente(true)
+    try {
+      const next = !pedidosClienteHabilitado
+      const response = await apiFetch('/api/configuracion/pedidos-cliente', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ habilitado: next }),
+      })
+      const data = await response.json()
+      if (!data.success) {
+        throw new Error(data.error || 'No se pudo actualizar la configuración')
+      }
+      setPedidosClienteHabilitado(Boolean(data.data?.habilitado))
+      toast.success(next ? 'Pedidos cliente habilitados' : 'Pedidos cliente deshabilitados')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo guardar la configuración')
+    } finally {
+      setGuardandoPedidosCliente(false)
+    }
+  }
+
+  const generarLinkMesa = async (mesaId: string) => {
+    setGenerandoMesaLinkId(mesaId)
+    try {
+      const response = await apiFetch(`/api/mesas/${mesaId}/public-link`, { method: 'POST' })
+      const data = await response.json()
+      if (!data.success || !data.data) {
+        throw new Error(data.error || 'No se pudo generar link de mesa')
+      }
+      const slug = data.data.restauranteSlug || restauranteSlug
+      if (!slug) throw new Error('No se encontró slug de sucursal para generar el link')
+      const url = `${window.location.origin}/p/${slug}?mesa=${encodeURIComponent(data.data.mesaCode)}`
+      setMesaLinkGenerado((prev) => ({ ...prev, [mesaId]: url }))
+      await navigator.clipboard.writeText(url)
+      toast.success('Link de mesa generado y copiado')
+      await fetchMesas()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No se pudo generar el link de mesa')
+    } finally {
+      setGenerandoMesaLinkId(null)
     }
   }
 
@@ -267,6 +347,78 @@ export default function MesasStatusPage() {
           </p>
         </div>
       )}
+
+      <div className="app-card space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-stone-900">Pedidos cliente por link/QR</h2>
+            <p className="text-sm text-stone-600">
+              Habilita solicitudes de cliente y genera QR por mesa sin reemplazar el flujo de meseros.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={togglePedidosCliente}
+            disabled={guardandoPedidosCliente}
+            className={pedidosClienteHabilitado ? 'app-btn-secondary' : 'app-btn-primary'}
+          >
+            {guardandoPedidosCliente
+              ? 'Guardando...'
+              : pedidosClienteHabilitado
+                ? 'Deshabilitar pedidos cliente'
+                : 'Habilitar pedidos cliente'}
+          </button>
+        </div>
+        {restauranteSlug && publicOrigin && (
+          <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+            <p className="text-sm text-stone-700">
+              Link general: <span className="font-medium">{`${publicOrigin}/p/${restauranteSlug}`}</span>
+            </p>
+          </div>
+        )}
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-stone-700">Links por mesa</p>
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {mesas.map((mesa) => {
+              const link = mesaLinkGenerado[mesa.id]
+              return (
+                <div key={`qr-${mesa.id}`} className="rounded-xl border border-stone-200 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-stone-900">Mesa {mesa.numero}</p>
+                      <p className="text-xs text-stone-500">
+                        {mesa.hasPublicLink ? 'Tiene link activo (puedes regenerar)' : 'Sin link generado'}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="app-btn-secondary"
+                      disabled={generandoMesaLinkId === mesa.id}
+                      onClick={() => generarLinkMesa(mesa.id)}
+                    >
+                      {generandoMesaLinkId === mesa.id
+                        ? 'Generando...'
+                        : mesa.hasPublicLink
+                          ? 'Regenerar QR'
+                          : 'Generar QR'}
+                    </button>
+                  </div>
+                  {link && (
+                    <div className="mt-3 space-y-2">
+                      <p className="break-all text-xs text-stone-600">{link}</p>
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`}
+                        alt={`QR mesa ${mesa.numero}`}
+                        className="h-28 w-28 rounded-lg border border-stone-200"
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
 
       {mostrarFormulario && (
         <div className="app-card">

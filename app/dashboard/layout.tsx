@@ -301,6 +301,7 @@ export default function DashboardLayout({
     { href: '/dashboard', label: 'Inicio', modulo: null },
     { href: '/dashboard/mesas', label: 'Mesas', modulo: 'mesas' },
     { href: '/dashboard/comandas', label: 'Comandas', modulo: 'comandas' },
+    { href: '/dashboard/solicitudes', label: 'Solicitudes', modulo: 'comandas' },
     { href: '/dashboard/cocina', label: 'Cocina', modulo: 'cocina' },
     { href: '/dashboard/barra', label: 'Barra', modulo: 'barra' },
     { href: '/dashboard/reportes', label: 'Reportes', modulo: 'reportes' },

@@ -20,6 +20,9 @@ export async function POST(
     const comanda = await prisma.comanda.findFirst({
       where: { id: params.id, restauranteId: tenant.restauranteId },
       include: {
+        asignadoA: {
+          select: { id: true, nombre: true, apellido: true },
+        },
         items: {
           where: { estado: 'LISTO' },
           include: { producto: { select: { nombre: true } } },
@@ -46,6 +49,32 @@ export async function POST(
       },
       data: { estado: 'ENTREGADO' },
     })
+
+    if (comanda.asignadoA?.id && comanda.asignadoA.id !== user.id) {
+      await prisma.comandaColaborador.upsert({
+        where: {
+          comandaId_usuarioId_tipo: {
+            comandaId: params.id,
+            usuarioId: user.id,
+            tipo: 'APOYO_ENTREGA',
+          },
+        },
+        update: {},
+        create: {
+          comandaId: params.id,
+          usuarioId: user.id,
+          tipo: 'APOYO_ENTREGA',
+        },
+      })
+      await prisma.comandaHistorial.create({
+        data: {
+          comandaId: params.id,
+          accion: 'APOYO_MESERO',
+          descripcion: `Apoyo en entrega por ${user.nombre} ${user.apellido} (asignada a ${comanda.asignadoA.nombre} ${comanda.asignadoA.apellido})`,
+          usuarioId: user.id,
+        },
+      })
+    }
 
     for (const item of itemsListos) {
       await prisma.comandaHistorial.create({

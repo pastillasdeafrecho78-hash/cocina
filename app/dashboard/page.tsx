@@ -137,6 +137,15 @@ export default function DashboardPage() {
       color: 'blue',
     },
     {
+      title: 'Solicitudes',
+      modulo: 'comandas' as const,
+      icon: DocumentTextIcon,
+      href: '/dashboard/solicitudes',
+      estadistica: '',
+      descripcion: 'Pedidos cliente por aprobar',
+      color: 'blue',
+    },
+    {
       title: 'Carta',
       modulo: 'carta' as const,
       icon: RectangleStackIcon,

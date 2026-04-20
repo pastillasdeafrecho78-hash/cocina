@@ -31,6 +31,13 @@ export async function GET(request: NextRequest) {
         activa: true,
       },
       include: {
+        publicLink: {
+          select: {
+            id: true,
+            activa: true,
+            updatedAt: true,
+          },
+        },
         comandas: {
           where: {
             estado: {
@@ -72,6 +79,7 @@ export async function GET(request: NextRequest) {
           : null
       return {
         ...mesa,
+        hasPublicLink: Boolean(mesa.publicLink?.activa),
         comandaActual: {
           numeroComanda: comanda.numeroComanda,
           total: comanda.total,

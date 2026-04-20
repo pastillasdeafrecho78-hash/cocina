@@ -79,6 +79,18 @@ export async function GET(
             },
           },
         },
+        colaboradores: {
+          include: {
+            usuario: {
+              select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+              },
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+        },
       },
     })
 

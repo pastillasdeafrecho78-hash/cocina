@@ -65,6 +65,7 @@ export default function ComandaDetallePage() {
   const [loading, setLoading] = useState(true)
   const [metodoPago, setMetodoPago] = useState<'efectivo' | 'tarjeta' | null>(null)
   const [cobrandoEfectivo, setCobrandoEfectivo] = useState(false)
+  const [cerrandoOffline, setCerrandoOffline] = useState(false)
   const [cobrandoClip, setCobrandoClip] = useState(false)
   const [serialClip, setSerialClip] = useState('')
   const [terminalesClip, setTerminalesClip] = useState<ClipTerminal[]>([])
@@ -178,6 +179,36 @@ export default function ComandaDetallePage() {
     }
   }
 
+  const handleTerminarOffline = async () => {
+    if (!comanda) return
+    setCerrandoOffline(true)
+    try {
+      const response = await apiFetch('/api/pagos', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          comandaId: comanda.id,
+          metodo: 'efectivo',
+        }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        toast.success('Venta cerrada en modo offline')
+        setMetodoPago(null)
+        setMontoRecibido('')
+        fetchComanda()
+      } else {
+        toast.error(data.error ?? 'No se pudo cerrar la venta offline')
+      }
+    } catch {
+      toast.error('No se pudo cerrar la venta offline')
+    } finally {
+      setCerrandoOffline(false)
+    }
+  }
+
   const handleEnviarCobroClip = async () => {
     if (!comanda) return
     if (!serialClip.trim()) {
@@ -213,6 +244,12 @@ export default function ComandaDetallePage() {
     } finally {
       setCobrandoClip(false)
     }
+  }
+
+  const aplicarPropinaRapida = (porcentaje: number) => {
+    if (!comanda) return
+    const tip = (comanda.total * porcentaje) / 100
+    setPropinaClip(tip.toFixed(2))
   }
 
   const handleSeleccionarTarjeta = async () => {
@@ -475,6 +512,15 @@ export default function ComandaDetallePage() {
                 <span className="text-2xl">💳</span>
                 Tarjeta
               </button>
+              <button
+                type="button"
+                onClick={handleTerminarOffline}
+                disabled={cerrandoOffline}
+                className="app-btn-secondary flex items-center gap-2 rounded-2xl px-5 py-3 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span className="text-2xl">🧾</span>
+                {cerrandoOffline ? 'Cerrando...' : 'Terminar offline'}
+              </button>
             </div>
           ) : metodoPago === 'efectivo' ? (
             <div className="space-y-4">
@@ -564,6 +610,18 @@ export default function ComandaDetallePage() {
                   placeholder="0.00"
                   className="app-input app-field w-full"
                 />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[5, 10, 15, 20].map((porcentaje) => (
+                    <button
+                      key={porcentaje}
+                      type="button"
+                      onClick={() => aplicarPropinaRapida(porcentaje)}
+                      className="app-btn-secondary rounded-xl px-3 py-1 text-sm"
+                    >
+                      {porcentaje}%
+                    </button>
+                  ))}
+                </div>
               </div>
               {esperaClip && (
                 <p className="rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">

@@ -39,6 +39,25 @@ enum OrigenComanda {
   EXTERNAL_API
 }
 
+enum EstadoSolicitudPedido {
+  PENDIENTE
+  EN_COLA
+  APROBADA
+  RECHAZADA
+  EXPIRADA
+}
+
+enum OrigenSolicitudPedido {
+  PUBLIC_LINK_GENERAL
+  PUBLIC_LINK_MESA
+}
+
+enum TipoPedidoSolicitud {
+  MESA
+  PARA_LLEVAR
+  ENVIO
+}
+
 enum TipoCategoria {
   COMIDA
   BEBIDA
@@ -146,6 +165,8 @@ model Restaurante {
   miembrosSucursal         SucursalMiembro[]
   integracionPedidosApi    IntegracionPedidosApi?
   codigosVinculacion       CodigoVinculacionSucursal[]
+  mesasPublicLinks         MesaPublicLink[]
+  solicitudesPedido        SolicitudPedido[]
 
   @@index([organizacionId])
   @@index([menuSourceRestauranteId])
@@ -178,6 +199,8 @@ model Usuario {
   comandasCanceladas Comanda[]         @relation("ComandaCanceladaPor")
   historialComandas ComandaHistorial[] @relation("ComandaHistorialUsuario")
   auditoria         Auditoria[]        @relation("AuditoriaUsuario")
+  solicitudesRevisadas SolicitudPedido[] @relation("SolicitudPedidoRevisadaPor")
+  colaboracionesComanda ComandaColaborador[]
   cortesX           CorteX[]
   cortesZ           CorteZ[]
   turnosCaja        TurnoCaja[]
@@ -219,6 +242,9 @@ model SucursalMiembro {
   rolId         String?
   activo        Boolean  @default(true)
   esPrincipal   Boolean  @default(false)
+  horarioInicioMin Int? // Minutos desde 00:00 (ej. 480 = 08:00)
+  horarioFinMin    Int? // Minutos desde 00:00 (ej. 1320 = 22:00)
+  diasLaborales    String? // CSV simple: "1,2,3,4,5,6,0" (lunes=1 ... domingo=0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -306,6 +332,8 @@ model Mesa {
   restaurante Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
   planta      PlantaRestaurante? @relation(fields: [plantaId], references: [id])
   comandas    Comanda[]
+  publicLink  MesaPublicLink?
+  solicitudes SolicitudPedido[]
 
   @@unique([restauranteId, numero])
   @@index([restauranteId])
@@ -369,8 +397,10 @@ model Comanda {
   asignadoA Usuario?           @relation("ComandaAsignadaA", fields: [asignadoAId], references: [id])
   canceladoPor Usuario?        @relation("ComandaCanceladaPor", fields: [canceladoPorId], references: [id], onDelete: SetNull)
   historial ComandaHistorial[]
+  colaboradores ComandaColaborador[]
   pagos     Pago[]
   facturas  Factura[]
+  solicitudesOrigen SolicitudPedido[] @relation("SolicitudPedidoComanda")
 
   @@index([mesaId])
   @@index([estado])
@@ -438,6 +468,7 @@ model Producto {
 
   categoria        Categoria             @relation(fields: [categoriaId], references: [id])
   items            ComandaItem[]
+  solicitudItems   SolicitudPedidoItem[]
   modificadores    ModificadorProducto[]
   tamanos          ProductoTamano[]
   facturaConceptos FacturaConcepto[]
@@ -456,6 +487,7 @@ model ProductoTamano {
 
   producto Producto      @relation(fields: [productoId], references: [id], onDelete: Cascade)
   items    ComandaItem[]
+  solicitudItems SolicitudPedidoItem[]
 
   @@unique([productoId, nombre])
   @@index([productoId])
@@ -538,6 +570,7 @@ model Modificador {
   productos   ModificadorProducto[]
   categorias  ModificadorCategoria[]
   items       ItemModificador[]
+  solicitudItems SolicitudItemModificador[]
 
   @@index([restauranteId])
 }
@@ -685,6 +718,16 @@ model ConfiguracionRestaurante {
   // Alerta efectivo bajo (MXN) - banner cuando efectivo en caja < este valor
   alertaEfectivoMinimo Float?
 
+  // Feature flag para flujo de solicitud pública de pedidos (cliente directo)
+  pedidosClienteSolicitudHabilitado Boolean @default(false)
+  modoDPedidosHabilitado Boolean @default(false)
+  queueEnabled           Boolean @default(true)
+  qrMesaEnabled          Boolean @default(true)
+  maxComandasActivas     Int?    @default(25)
+  tiempoEsperaSaturacionMin Int? @default(15)
+  mensajeSaturacion      String? @default("Ahorita estamos a tope. Tu pedido podría iniciar en unos minutos. ¿Deseas entrar a la cola?")
+  autoAprobarSolicitudes Boolean @default(false)
+
   // Política de Propina
   propinaFacturar  Boolean @default(false) // true = se factura la propina como concepto separado
   propinaObjetoImp String? @default("02") // Objeto de impuesto para propina (02=Sí objeto)
@@ -695,6 +738,108 @@ model ConfiguracionRestaurante {
   restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
 
   @@index([rfc])
+}
+
+model MesaPublicLink {
+  id            String   @id @default(cuid())
+  restauranteId String
+  mesaId        String   @unique
+  codeHash      String   @unique
+  activa        Boolean  @default(true)
+  expiraEn      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  mesa        Mesa        @relation(fields: [mesaId], references: [id], onDelete: Cascade)
+
+  @@index([restauranteId])
+  @@index([activa])
+}
+
+model SolicitudPedido {
+  id              String               @id @default(cuid())
+  restauranteId   String
+  mesaId          String?
+  tipoPedido      TipoPedidoSolicitud
+  origen          OrigenSolicitudPedido
+  estado          EstadoSolicitudPedido @default(PENDIENTE)
+  nombreCliente   String
+  telefono        String?
+  notas           String?
+  observaciones   String?
+  totalEstimado   Float
+  approvedComandaId String?
+  decisionSource   String? // AUTO | MANUAL_APPROVE | MANUAL_FORCE | AUTO_QUEUE
+  decisionReason   String?
+  reviewedById     String?
+  enColaAt         DateTime?
+  prioridadColaAt  DateTime?
+  aprobadaAt      DateTime?
+  rechazadaAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  restaurante Restaurante       @relation(fields: [restauranteId], references: [id], onDelete: Restrict)
+  mesa        Mesa?             @relation(fields: [mesaId], references: [id], onDelete: SetNull)
+  approvedComanda Comanda?      @relation("SolicitudPedidoComanda", fields: [approvedComandaId], references: [id], onDelete: SetNull)
+  reviewedBy  Usuario?          @relation("SolicitudPedidoRevisadaPor", fields: [reviewedById], references: [id], onDelete: SetNull)
+  items       SolicitudPedidoItem[]
+
+  @@index([restauranteId])
+  @@index([estado, createdAt])
+  @@index([prioridadColaAt])
+  @@index([mesaId])
+}
+
+model ComandaColaborador {
+  id         String   @id @default(cuid())
+  comandaId  String
+  usuarioId  String
+  tipo       String   @default("APOYO_ENTREGA")
+  createdAt  DateTime @default(now())
+
+  comanda Comanda @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([comandaId, createdAt])
+  @@index([usuarioId, createdAt])
+  @@unique([comandaId, usuarioId, tipo])
+}
+
+model SolicitudPedidoItem {
+  id               String     @id @default(cuid())
+  solicitudPedidoId String
+  productoId       String
+  tamanoId         String?
+  cantidad         Int
+  precioUnitario   Float
+  subtotal         Float
+  notas            String?
+  destino          DestinoItem
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  solicitudPedido SolicitudPedido @relation(fields: [solicitudPedidoId], references: [id], onDelete: Cascade)
+  producto        Producto        @relation(fields: [productoId], references: [id])
+  tamano          ProductoTamano? @relation(fields: [tamanoId], references: [id], onDelete: SetNull)
+  modificadores   SolicitudItemModificador[]
+
+  @@index([solicitudPedidoId])
+  @@index([productoId])
+  @@index([destino])
+}
+
+model SolicitudItemModificador {
+  id                 String @id @default(cuid())
+  solicitudPedidoItemId String
+  modificadorId      String
+  precioExtra        Float  @default(0)
+
+  solicitudPedidoItem SolicitudPedidoItem @relation(fields: [solicitudPedidoItemId], references: [id], onDelete: Cascade)
+  modificador         Modificador         @relation(fields: [modificadorId], references: [id])
+
+  @@unique([solicitudPedidoItemId, modificadorId])
 }
 
 enum EstadoPago {

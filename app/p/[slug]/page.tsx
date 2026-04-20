@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 
 type MenuProducto = {
   id: string
@@ -21,18 +22,26 @@ type MenuResponse = {
 }
 
 export default function PublicMenuPage({ params }: { params: { slug: string } }) {
+  const searchParams = useSearchParams()
+  const mesaCode = searchParams.get('mesa')?.trim() || ''
   const [loading, setLoading] = useState(true)
   const [menu, setMenu] = useState<MenuResponse | null>(null)
   const [error, setError] = useState('')
   const [sending, setSending] = useState(false)
-  const [result, setResult] = useState<{ orderId: string; token: string } | null>(null)
+  const [result, setResult] = useState<{ solicitudId: string } | null>(null)
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [customer, setCustomer] = useState({
     nombre: '',
     telefono: '',
-    direccion: '',
-    metodoPago: 'efectivo',
+    notas: '',
+    tipoPedido: mesaCode ? 'MESA' : 'PARA_LLEVAR',
   })
+
+  useEffect(() => {
+    if (mesaCode) {
+      setCustomer((prev) => ({ ...prev, tipoPedido: 'MESA' }))
+    }
+  }, [mesaCode])
 
   useEffect(() => {
     let cancelled = false
@@ -40,7 +49,10 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
       setLoading(true)
       setError('')
       try {
-        const res = await fetch(`/api/public/menu/${params.slug}`, { cache: 'no-store' })
+        const menuUrl = mesaCode
+          ? `/api/public/menu/${params.slug}?mesa=${encodeURIComponent(mesaCode)}`
+          : `/api/public/menu/${params.slug}`
+        const res = await fetch(menuUrl, { cache: 'no-store' })
         const data = (await res.json()) as { success?: boolean; data?: MenuResponse; error?: string }
         if (!res.ok || !data.success || !data.data) {
           throw new Error(data.error ?? 'No se pudo cargar el menú')
@@ -58,7 +70,7 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
     return () => {
       cancelled = true
     }
-  }, [params.slug])
+  }, [mesaCode, params.slug])
 
   const selectedItems = useMemo(() => {
     if (!menu) return []
@@ -87,17 +99,17 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
     setSending(true)
     setError('')
     try {
-      const res = await fetch('/api/public/orders', {
+      const res = await fetch('/api/public/solicitudes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slug: params.slug,
-          tipoPedido: customer.direccion.trim() ? 'A_DOMICILIO' : 'PARA_LLEVAR',
-          metodoPago: customer.metodoPago,
+          mesaCode: mesaCode || undefined,
+          tipoPedido: customer.tipoPedido,
           cliente: {
             nombre: customer.nombre.trim(),
             telefono: customer.telefono.trim() || null,
-            direccion: customer.direccion.trim() || null,
+            notas: customer.notas.trim() || null,
           },
           items: selectedItems.map((item) => ({
             productoId: item.productoId,
@@ -107,15 +119,15 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
       })
       const data = (await res.json()) as {
         success?: boolean
-        data?: { id: string; trackingToken: string }
+        data?: { id: string }
         error?: string
       }
       if (!res.ok || !data.success || !data.data) {
-        throw new Error(data.error ?? 'No se pudo crear el pedido')
+        throw new Error(data.error ?? 'No se pudo crear la solicitud')
       }
-      setResult({ orderId: data.data.id, token: data.data.trackingToken })
+      setResult({ solicitudId: data.data.id })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'No se pudo crear el pedido')
+      setError(e instanceof Error ? e.message : 'No se pudo crear la solicitud')
     } finally {
       setSending(false)
     }
@@ -132,17 +144,22 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
   return (
     <main className="mx-auto max-w-4xl p-6">
       <h1 className="text-3xl font-semibold">{menu.restaurante.nombre}</h1>
-      <p className="mt-1 text-sm text-stone-600">Pedido directo</p>
+      <p className="mt-1 text-sm text-stone-600">
+        Pedido directo (se registra como solicitud pendiente)
+      </p>
+      {mesaCode && (
+        <p className="mt-1 text-sm text-emerald-700">Ingreso detectado por QR de mesa.</p>
+      )}
 
       {result ? (
         <div className="mt-6 rounded-lg border border-emerald-400 bg-emerald-50 p-4">
-          <p className="font-semibold text-emerald-900">Pedido creado correctamente</p>
-          <a
-            href={`/pedido/${result.orderId}?token=${encodeURIComponent(result.token)}`}
-            className="mt-2 inline-block underline"
-          >
-            Ver seguimiento de pedido
-          </a>
+          <p className="font-semibold text-emerald-900">Solicitud recibida correctamente</p>
+          <p className="mt-2 text-sm text-emerald-900">
+            Folio de solicitud: <strong>{result.solicitudId}</strong>
+          </p>
+          <p className="mt-1 text-sm text-emerald-900">
+            El restaurante la revisará antes de enviarla a cocina/barra.
+          </p>
         </div>
       ) : (
         <>
@@ -193,17 +210,19 @@ export default function PublicMenuPage({ params }: { params: { slug: string } })
               />
               <input
                 className="app-input md:col-span-2"
-                placeholder="Dirección (si es a domicilio)"
-                value={customer.direccion}
-                onChange={(e) => setCustomer((p) => ({ ...p, direccion: e.target.value }))}
+                placeholder="Notas para el pedido (opcional)"
+                value={customer.notas}
+                onChange={(e) => setCustomer((p) => ({ ...p, notas: e.target.value }))}
               />
               <select
                 className="app-input"
-                value={customer.metodoPago}
-                onChange={(e) => setCustomer((p) => ({ ...p, metodoPago: e.target.value }))}
+                value={customer.tipoPedido}
+                disabled={!!mesaCode}
+                onChange={(e) => setCustomer((p) => ({ ...p, tipoPedido: e.target.value }))}
               >
-                <option value="efectivo">Pago contra entrega (efectivo)</option>
-                <option value="tarjeta">Pago en línea / tarjeta</option>
+                <option value="PARA_LLEVAR">Para llevar</option>
+                <option value="ENVIO">Envío</option>
+                <option value="MESA">Mesa</option>
               </select>
             </div>
 

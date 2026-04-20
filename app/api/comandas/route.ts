@@ -9,6 +9,7 @@ import {
   requireCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
+import { isUserWithinWorkSchedule } from '@/lib/modo-d-policy'
 
 export const dynamic = 'force-dynamic'
 
@@ -141,6 +142,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = createComandaSchema.parse(body)
     const rid = tenant.restauranteId
+
+    const withinSchedule = await isUserWithinWorkSchedule({
+      usuarioId: user.id,
+      restauranteId: rid,
+    })
+    if (!withinSchedule) {
+      return NextResponse.json(
+        { success: false, error: 'Fuera de horario asignado para crear comandas' },
+        { status: 403 }
+      )
+    }
 
     if (data.mesaId) {
       const mesaOk = await prisma.mesa.findFirst({
@@ -292,6 +304,7 @@ export async function POST(request: NextRequest) {
         total,
         observaciones: data.observaciones,
         creadoPorId: user.id,
+        asignadoAId: data.mesaId ? user.id : null,
         items: {
           create: comandaItems,
         },

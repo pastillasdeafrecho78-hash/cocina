@@ -2,49 +2,25 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { hashSecretToken } from '@/lib/public-ordering'
-import { buildSolicitudItems } from '@/lib/solicitud-pedidos'
+import { buildSolicitudItems, publicSolicitudSchema } from '@/lib/solicitud-pedidos'
 import { evaluateModoDForPublicOrder } from '@/lib/modo-d-policy'
 import { aprobarSolicitudComoComanda } from '@/lib/solicitudes-approval'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const bodySchema = z.object({
-  slug: z.string().min(1).max(64),
-  mesaCode: z.string().min(1).max(128).optional(),
-  tipoPedido: z.enum(['MESA', 'PARA_LLEVAR', 'ENVIO']).default('PARA_LLEVAR'),
-  metodoPago: z.enum(['tarjeta', 'efectivo']).default('efectivo'),
-  acceptEnCola: z.boolean().optional(),
-  cliente: z.object({
-    nombre: z.string().min(1).max(120),
-    telefono: z.string().max(40).optional().nullable(),
-    notas: z.string().max(240).optional().nullable(),
-  }),
-  items: z
-    .array(
-      z.object({
-        productoId: z.string().min(1),
-        tamanoId: z.string().optional(),
-        cantidad: z.number().int().positive(),
-        notas: z.string().max(240).optional(),
-        modificadores: z.array(z.string()).optional(),
-      })
-    )
-    .min(1)
-    .max(50),
-  observaciones: z.string().max(320).optional(),
-})
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const data = bodySchema.parse(body)
+    const data = publicSolicitudSchema.parse(body)
     const slug = data.slug.trim().toLowerCase()
 
     const restaurante = await prisma.restaurante.findFirst({
       where: { slug, activo: true },
       select: {
         id: true,
+        nombre: true,
+        slug: true,
         configuracion: {
           select: {
             pedidosClienteSolicitudHabilitado: true,
@@ -56,15 +32,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Sucursal no encontrada' }, { status: 404 })
     }
 
-    const rid = restaurante.id
     if (!restaurante.configuracion?.pedidosClienteSolicitudHabilitado) {
       return NextResponse.json(
         { success: false, error: 'Pedidos por cliente directo no habilitados en esta sucursal' },
         { status: 403 }
       )
     }
+
+    const rid = restaurante.id
     let mesaId: string | undefined
     let origen: 'PUBLIC_LINK_GENERAL' | 'PUBLIC_LINK_MESA' = 'PUBLIC_LINK_GENERAL'
+
     if (data.mesaCode) {
       const mesaLink = await prisma.mesaPublicLink.findFirst({
         where: {
@@ -72,9 +50,13 @@ export async function POST(request: NextRequest) {
           codeHash: hashSecretToken(data.mesaCode),
           activa: true,
           OR: [{ expiraEn: null }, { expiraEn: { gt: new Date() } }],
-          mesa: { activa: true },
+          mesa: {
+            activa: true,
+          },
         },
-        select: { mesaId: true },
+        select: {
+          mesaId: true,
+        },
       })
       if (!mesaLink) {
         return NextResponse.json({ success: false, error: 'Código de mesa inválido o expirado' }, { status: 404 })
@@ -116,8 +98,8 @@ export async function POST(request: NextRequest) {
       data: {
         restauranteId: rid,
         mesaId,
-        tipoPedido: data.tipoPedido,
         origen,
+        tipoPedido: data.tipoPedido,
         estado: decision.state,
         decisionSource: decision.source,
         decisionReason: decision.reason,
@@ -130,9 +112,7 @@ export async function POST(request: NextRequest) {
         nombreCliente: data.cliente.nombre.trim(),
         telefono: data.cliente.telefono?.trim() || null,
         notas: data.cliente.notas?.trim() || null,
-        observaciones: [data.observaciones?.trim(), `Pago seleccionado: ${data.metodoPago}`]
-          .filter(Boolean)
-          .join(' | '),
+        observaciones: data.observaciones?.trim() || null,
         totalEstimado,
         items: {
           create: solicitudItems,
@@ -141,8 +121,8 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         estado: true,
-        totalEstimado: true,
         createdAt: true,
+        totalEstimado: true,
       },
     })
 
@@ -185,14 +165,11 @@ export async function POST(request: NextRequest) {
       )
     }
     if (error instanceof Error) {
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 400 }
-      )
+      return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }
-    console.error('Error en POST /api/public/orders:', error)
+    console.error('Error en POST /api/public/solicitudes:', error)
     return NextResponse.json(
-      { success: false, error: 'No se pudo crear el pedido' },
+      { success: false, error: 'No se pudo crear la solicitud' },
       { status: 500 }
     )
   }

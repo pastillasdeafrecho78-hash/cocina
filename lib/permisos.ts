@@ -21,6 +21,7 @@ export const CAPACIDADES = [
   'menu.manage',
   'orders.view',
   'orders.manage',
+  'orders.override',
   'kitchen.view',
   'kitchen.manage',
   'bar.view',
@@ -44,7 +45,7 @@ export type Capacidad = (typeof CAPACIDADES)[number]
 
 const LEGACY_TO_CAPABILITIES: Record<string, readonly string[]> = {
   carta: ['menu.view', 'menu.manage'],
-  comandas: ['orders.view', 'orders.manage'],
+  comandas: ['orders.view', 'orders.manage', 'orders.override'],
   cocina: ['kitchen.view', 'kitchen.manage'],
   barra: ['bar.view', 'bar.manage'],
   caja: ['payments.view', 'payments.manage'],
@@ -59,6 +60,7 @@ const CAPABILITY_TO_LEGACY: Record<string, readonly string[]> = {
   'menu.manage': ['carta'],
   'orders.view': ['comandas'],
   'orders.manage': ['comandas'],
+  'orders.override': ['comandas'],
   'kitchen.view': ['cocina'],
   'kitchen.manage': ['cocina'],
   'bar.view': ['barra'],
@@ -89,6 +91,7 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'menu.manage': 'Gestionar carta',
   'orders.view': 'Ver comandas',
   'orders.manage': 'Gestionar comandas',
+  'orders.override': 'Aprobar/rechazar/forzar solicitudes',
   'kitchen.view': 'Ver cocina',
   'kitchen.manage': 'Gestionar cocina',
   'bar.view': 'Ver barra',
