@@ -441,6 +441,16 @@ export default function MesasStatusPage() {
   }
 
   const generarLinkMesa = async (mesaId: string) => {
+    const mesa = mesas.find((m) => m.id === mesaId)
+    const esRegeneracion = Boolean(mesa?.hasPublicLink)
+    if (esRegeneracion) {
+      const ok = window.confirm(
+        `¿Regenerar el link y el QR de la mesa ${mesa?.numero ?? ''}?\n\n` +
+          'Los códigos o impresiones anteriores dejarán de funcionar. Los clientes deberán usar el nuevo enlace o QR.'
+      )
+      if (!ok) return
+    }
+
     setGenerandoMesaLinkId(mesaId)
     try {
       const response = await apiFetch(`/api/mesas/${mesaId}/public-link`, { method: 'POST' })
@@ -1096,7 +1106,7 @@ export default function MesasStatusPage() {
                           type="button"
                           className="app-btn-secondary"
                           disabled={generandoMesaLinkId === mesa.id}
-                          onClick={() => generarLinkMesa(mesa.id)}
+                          onClick={() => void generarLinkMesa(mesa.id)}
                         >
                           {generandoMesaLinkId === mesa.id
                             ? 'Generando...'
