@@ -1,6 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import {
+  PERMISSION_UI_GROUPS,
+  ROLE_PRESET_KEYS,
+  ROLE_PRESETS,
+  type RolePresetKey,
+} from '@/lib/permission-ui-groups'
 import { apiFetch } from '@/lib/auth-fetch'
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
@@ -60,6 +66,7 @@ export default function AdminRolesPage() {
     permisos: [] as string[],
   })
   const [guardandoRol, setGuardandoRol] = useState(false)
+  const [permisosModoAvanzado, setPermisosModoAvanzado] = useState(false)
 
   const [modalUsuario, setModalUsuario] = useState<'crear' | 'editar' | null>(null)
   const [usuarioEdicion, setUsuarioEdicion] = useState<Usuario | null>(null)
@@ -118,6 +125,14 @@ export default function AdminRolesPage() {
     }
     void loadTenancy()
   }, [tab, user])
+
+  useEffect(() => {
+    if (modalRol) setPermisosModoAvanzado(false)
+  }, [modalRol])
+
+  const aplicarPresetRol = (key: RolePresetKey) => {
+    setFormRol((p) => ({ ...p, permisos: [...ROLE_PRESETS[key].permisos] }))
+  }
 
   const cargarRoles = async () => {
     setCargandoRoles(true)
@@ -640,7 +655,7 @@ export default function AdminRolesPage() {
       {/* Modal Rol */}
       {modalRol && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center p-4 border-b">
               <h2 className="text-lg font-semibold">
                 {modalRol === 'crear' ? 'Nuevo rol' : 'Editar rol'}
@@ -695,25 +710,85 @@ export default function AdminRolesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Permisos (módulos)
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Permisos
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {MODULOS.map((mod) => (
-                    <label
-                      key={mod}
-                      className="flex items-center gap-2 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={formRol.permisos.includes(mod)}
-                        onChange={() => togglePermiso(mod)}
-                      />
-                      <span className="text-sm">
-                        {PERMISSION_LABELS[mod] || mod}
-                      </span>
-                    </label>
+                <p className="text-xs text-gray-500 mb-3">
+                  Plantillas rápidas rellenan capacidades coherentes; puedes afinar por área o abrir el modo
+                  avanzado para el listado completo (igual que antes). Al guardar se envía el mismo arreglo de
+                  claves.
+                </p>
+                <div className="mb-4">
+                  <p className="text-xs font-medium text-gray-600 mb-2">Plantillas</p>
+                  <div className="flex flex-wrap gap-2">
+                    {ROLE_PRESET_KEYS.map((key) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => aplicarPresetRol(key)}
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm text-gray-800 hover:bg-gray-100"
+                        title={ROLE_PRESETS[key].description}
+                      >
+                        {ROLE_PRESETS[key].label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-3 max-h-[38vh] overflow-y-auto pr-1 border border-gray-100 rounded-lg p-3">
+                  <p className="text-xs font-medium text-gray-600">Por área</p>
+                  {PERMISSION_UI_GROUPS.map((g) => (
+                    <div key={g.id} className="rounded-lg border border-gray-100 bg-white p-3">
+                      <h3 className="text-sm font-semibold text-gray-900">{g.title}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5 mb-2">{g.description}</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {g.modules.map((mod) => (
+                          <label
+                            key={mod}
+                            className="flex items-start gap-2 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={formRol.permisos.includes(mod)}
+                              onChange={() => togglePermiso(mod)}
+                            />
+                            <span className="text-sm text-gray-800 leading-snug">
+                              {PERMISSION_LABELS[mod] || mod}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
+                </div>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={() => setPermisosModoAvanzado((v) => !v)}
+                    className="text-sm text-blue-700 hover:text-blue-900 underline"
+                  >
+                    {permisosModoAvanzado ? 'Ocultar modo avanzado' : 'Modo avanzado: lista completa de módulos'}
+                  </button>
+                  {permisosModoAvanzado && (
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[32vh] overflow-y-auto border border-dashed border-gray-200 rounded-lg p-3">
+                      {MODULOS.map((mod) => (
+                        <label
+                          key={mod}
+                          className="flex items-start gap-2 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={formRol.permisos.includes(mod)}
+                            onChange={() => togglePermiso(mod)}
+                          />
+                          <span className="text-sm text-gray-800 leading-snug">
+                            {PERMISSION_LABELS[mod] || mod}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

@@ -536,6 +536,7 @@ model ComandaItem {
   producto      Producto          @relation(fields: [productoId], references: [id])
   tamano        ProductoTamano?   @relation(fields: [tamanoId], references: [id], onDelete: SetNull)
   modificadores ItemModificador[]
+  pagosLinea    PagoLinea[]
 
   @@index([comandaId])
   @@index([estado])
@@ -876,6 +877,7 @@ model Pago {
 
   comanda Comanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
   factura Factura?
+  lineas  PagoLinea[]
 
   @@index([comandaId])
   @@index([estado])
@@ -883,6 +885,22 @@ model Pago {
   @@index([createdAt])
   @@index([metodoPago])
   @@index([estado, createdAt])
+}
+
+/// Detalle de cobro por ítem (separación de cuenta y auditoría).
+model PagoLinea {
+  id            String   @id @default(cuid())
+  pagoId        String
+  comandaItemId String
+  cantidad      Int
+  importe       Float
+  createdAt     DateTime @default(now())
+
+  pago          Pago         @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  comandaItem   ComandaItem  @relation(fields: [comandaItemId], references: [id], onDelete: Restrict)
+
+  @@index([pagoId])
+  @@index([comandaItemId])
 }
 
 model Factura {

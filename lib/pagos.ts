@@ -7,6 +7,7 @@ import { prisma } from './prisma'
 export type MetodoPago = 
   | 'tarjeta_credito'
   | 'tarjeta_debito'
+  | 'tarjeta_clip'
   | 'efectivo'
   | 'oxxo'
   | 'spei'
@@ -153,26 +154,44 @@ export async function procesarPago(datos: DatosPago): Promise<ResultadoPago> {
   throw new Error(`Método de pago no soportado: ${datos.metodo}`)
 }
 
-/**
- * Guarda un pago en la base de datos
- */
+export type PagoLineaInput = { comandaItemId: string; cantidad: number; importe: number }
+
+/** Guarda un pago (opcionalmente con líneas por ítem para separación de cuenta). */
 export async function guardarPago(
   comandaId: string,
   resultado: ResultadoPago,
-  metodo: MetodoPago
+  metodo: MetodoPago,
+  lineas?: PagoLineaInput[],
 ) {
-  return await prisma.pago.create({
-    data: {
-      comandaId,
-      monto: resultado.monto,
-      metodoPago: metodo,
-      procesador: 'conekta',
-      procesadorId: resultado.id,
-      estado: resultado.estado === 'completado' ? 'COMPLETADO' : 
-              resultado.estado === 'pendiente' ? 'PENDIENTE' : 'FALLIDO',
-      comision: resultado.comision,
-      referencia: resultado.referencia || null,
+  return prisma.$transaction(async (tx) => {
+    const pago = await tx.pago.create({
+      data: {
+        comandaId,
+        monto: resultado.monto,
+        metodoPago: metodo,
+        procesador: 'conekta',
+        procesadorId: resultado.id,
+        estado:
+          resultado.estado === 'completado'
+            ? 'COMPLETADO'
+            : resultado.estado === 'pendiente'
+              ? 'PENDIENTE'
+              : 'FALLIDO',
+        comision: resultado.comision,
+        referencia: resultado.referencia || null,
+      },
+    })
+    if (lineas?.length) {
+      await tx.pagoLinea.createMany({
+        data: lineas.map((l) => ({
+          pagoId: pago.id,
+          comandaItemId: l.comandaItemId,
+          cantidad: l.cantidad,
+          importe: l.importe,
+        })),
+      })
     }
+    return pago
   })
 }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { procesarPago, guardarPago } from '@/lib/pagos'
+import { procesarPago, guardarPago, type MetodoPago } from '@/lib/pagos'
 import { timbrarCFDI, almacenarCFDI, generarPDFCFDI } from '@/lib/facturacion'
 import { prisma } from '@/lib/prisma'
 import {
@@ -8,10 +8,22 @@ import {
   requireAuthenticatedUser,
 } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
+import {
+  buildFullAllocationFromItems,
+  computePagoLineasAndMonto,
+  isFullyPaidAfterPayment,
+  mergeAllocationsByItem,
+  paidQuantitiesFromPagos,
+  sumPagosCompletadosMonto,
+  totalComandaCobrar,
+  validateAllocations,
+  wouldExceedTotal,
+  type AllocationLine,
+} from '@/lib/split-cuenta'
 
 /**
  * POST /api/pagos
- * Procesa un pago y genera la factura automáticamente
+ * Procesa un pago (total o parcial con separación de cuenta) y timbra factura solo al saldar el total.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,13 +41,25 @@ export async function POST(request: NextRequest) {
       formaPago: formaPagoOverride,
       metodoPago: metodoPagoOverride,
       esFacturaGlobal,
-    } = body
+      allocations: rawAllocations,
+    } = body as {
+      comandaId?: string
+      metodo?: string
+      datosTarjeta?: unknown
+      receptor?: unknown
+      detallesEmision?: unknown
+      formaPago?: string
+      metodoPago?: string
+      esFacturaGlobal?: boolean
+      allocations?: AllocationLine[]
+    }
 
     if (!comandaId || !metodo) {
       raise(400, 'comandaId y metodo son requeridos')
     }
 
-    // Obtener comanda con ítems
+    const metodoPago = metodo as MetodoPago
+
     const comanda = await prisma.comanda.findFirst({
       where: { id: comandaId, restauranteId: tenant.restauranteId },
       include: { items: true },
@@ -45,62 +69,114 @@ export async function POST(request: NextRequest) {
       raise(404, 'Comanda no encontrada')
     }
 
+    if (comanda.estado === 'PAGADO') {
+      raise(400, 'La comanda ya está pagada')
+    }
+    if (comanda.estado === 'CANCELADO') {
+      raise(400, 'La comanda está cancelada')
+    }
+
     const itemsPendientes = comanda.items.filter(
-      (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
+      (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO',
     )
     if (itemsPendientes.length > 0) {
       raise(400, 'No se puede pagar hasta que todos los productos estén marcados como listos.')
     }
 
-    // Calcular monto total: subtotal * (1 + propina%) - descuento
-    const totalConPropina = comanda.total * (1 + (comanda.propina || 0) / 100)
-    const total = totalConPropina - (comanda.descuento || 0)
+    const pagosPrev = await prisma.pago.findMany({
+      where: { comandaId, estado: 'COMPLETADO' },
+      include: { lineas: true },
+    })
 
-    // Procesar pago
+    const paidSum = sumPagosCompletadosMonto(pagosPrev)
+    const paidQty = paidQuantitiesFromPagos(pagosPrev)
+    const totalDue = totalComandaCobrar(comanda)
+
+    let mergedAlloc: AllocationLine[]
+    if (!rawAllocations || !Array.isArray(rawAllocations) || rawAllocations.length === 0) {
+      if (paidSum > 0.01) {
+        raise(400, 'Indica el reparto por ítem (allocations) para pagos parciales.')
+      }
+      mergedAlloc = buildFullAllocationFromItems(comanda.items)
+    } else {
+      mergedAlloc = mergeAllocationsByItem(rawAllocations)
+    }
+
+    const v = validateAllocations(comanda.items, mergedAlloc, paidQty)
+    if (!v.ok) {
+      raise(400, v.error)
+    }
+
+    const { monto, lineas } = computePagoLineasAndMonto(comanda, comanda.items, mergedAlloc)
+    if (monto <= 0 || lineas.length === 0) {
+      raise(400, 'Monto de pago inválido')
+    }
+
+    if (wouldExceedTotal(paidSum, monto, totalDue)) {
+      raise(400, 'El monto excede el saldo pendiente de la comanda.')
+    }
+
     const resultadoPago = await procesarPago({
       comandaId,
       restauranteId: comanda.restauranteId,
-      monto: total,
-      metodo,
-      datosTarjeta,
+      monto,
+      metodo: metodoPago,
+      datosTarjeta: datosTarjeta as { token: string } | undefined,
     })
 
-    // Guardar pago en BD
-    const pago = await guardarPago(comandaId, resultadoPago, metodo)
+    const pago = await guardarPago(
+      comandaId,
+      resultadoPago,
+      metodoPago,
+      resultadoPago.estado === 'completado' ? lineas : undefined,
+    )
 
-    // Si el pago fue completado: marcar comanda PAGADO y liberar mesa (siempre)
-    // La factura es opcional; si el PAC no está configurado, el pago se registra igual
+    const fullyPaid =
+      resultadoPago.estado === 'completado' &&
+      isFullyPaidAfterPayment(paidSum, monto, totalDue)
+
     let factura = null
     if (resultadoPago.estado === 'completado') {
-      await prisma.comanda.update({
-        where: { id: comandaId },
-        data: { estado: 'PAGADO', fechaCompletado: new Date() },
-      })
-      if (comanda.mesaId) {
-        await prisma.mesa.update({
-          where: { id: comanda.mesaId },
-          data: { estado: 'LIBRE' },
+      if (fullyPaid) {
+        await prisma.comanda.update({
+          where: { id: comandaId },
+          data: { estado: 'PAGADO', fechaCompletado: new Date() },
         })
-      }
+        if (comanda.mesaId) {
+          await prisma.mesa.update({
+            where: { id: comanda.mesaId },
+            data: { estado: 'LIBRE' },
+          })
+        }
 
-      try {
-        const cfdi = await timbrarCFDI({
-          comandaId,
-          receptor,
-          formaPago: formaPagoOverride ?? (metodo === 'efectivo' ? '01' : metodo === 'tarjeta_credito' ? '04' : metodo === 'tarjeta_debito' ? '28' : '03'),
-          metodoPago: metodoPagoOverride ?? 'PUE',
-          ...(typeof esFacturaGlobal === 'boolean' && { esFacturaGlobal }),
-        })
-        const pdf = await generarPDFCFDI(cfdi)
-        factura = await almacenarCFDI(
-          comandaId,
-          pago.id,
-          { ...cfdi, pdf: pdf.toString('base64') },
-          cfdi.conceptos,
-          detallesEmision ?? undefined
-        )
-      } catch (errFactura) {
-        console.warn('Factura no emitida (PAC no configurado o error):', errFactura)
+        // Política CFDI: solo al saldar el total (un comprobante alineado al cierre completo).
+        try {
+          const cfdi = await timbrarCFDI({
+            comandaId,
+            receptor: receptor as Parameters<typeof timbrarCFDI>[0]['receptor'],
+            formaPago:
+              formaPagoOverride ??
+              (metodoPago === 'efectivo'
+                ? '01'
+                : metodoPago === 'tarjeta_credito'
+                  ? '04'
+                  : metodoPago === 'tarjeta_debito'
+                    ? '28'
+                    : '03'),
+            metodoPago: metodoPagoOverride ?? 'PUE',
+            ...(typeof esFacturaGlobal === 'boolean' && { esFacturaGlobal }),
+          })
+          const pdf = await generarPDFCFDI(cfdi)
+          factura = await almacenarCFDI(
+            comandaId,
+            pago.id,
+            { ...cfdi, pdf: pdf.toString('base64') },
+            cfdi.conceptos,
+            (detallesEmision as Record<string, unknown> | undefined) ?? undefined,
+          )
+        } catch (errFactura) {
+          console.warn('Factura no emitida (PAC no configurado o error):', errFactura)
+        }
       }
     }
 
@@ -113,11 +189,14 @@ export async function POST(request: NextRequest) {
           monto: pago.monto,
           referencia: pago.referencia,
         },
-        factura: factura ? {
-          uuid: factura.uuid,
-          folio: factura.folio,
-          qr: factura.qrCode,
-        } : null,
+        factura: factura
+          ? {
+              uuid: factura.uuid,
+              folio: factura.folio,
+              qr: factura.qrCode,
+            }
+          : null,
+        comandaSaldada: fullyPaid,
       },
     })
   } catch (error) {

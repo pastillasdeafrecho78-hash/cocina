@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
 
     const rid = tenant.restauranteId
+    const incluirPagos = Boolean(numeroComanda)
     const where: any = { restauranteId: rid }
     if (estado) {
       // Si hay múltiples estados separados por coma
@@ -120,6 +121,14 @@ export async function GET(request: NextRequest) {
               apellido: true,
             },
           },
+          ...(incluirPagos
+            ? {
+                pagos: {
+                  orderBy: { createdAt: 'asc' as const },
+                  include: { lineas: true },
+                },
+              }
+            : {}),
         },
         orderBy: { fechaCreacion: 'desc' },
         skip: (page - 1) * limit,

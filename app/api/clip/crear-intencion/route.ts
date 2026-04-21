@@ -12,21 +12,28 @@ import {
   requireAuthenticatedUser,
 } from '@/lib/authz/guards'
 import { toErrorResponse, raise } from '@/lib/authz/http'
+import {
+  buildFullAllocationFromItems,
+  computePagoLineasAndMonto,
+  mergeAllocationsByItem,
+  paidQuantitiesFromPagos,
+  sumPagosCompletadosMonto,
+  totalComandaCobrar,
+  validateAllocations,
+  wouldExceedTotal,
+  type AllocationLine,
+} from '@/lib/split-cuenta'
 
 const schema = z.object({
   comandaId: z.string().min(1),
   serialNumber: z.string().min(1).optional(),
   tipAmount: z.number().min(0).optional(),
+  allocations: z
+    .array(z.object({ comandaItemId: z.string(), cantidad: z.number().int().min(0) }))
+    .optional(),
 })
 
 export const dynamic = 'force-dynamic'
-
-function montoComanda(comanda: { total: number; propina: number | null; descuento: number | null }) {
-  const total = comanda.total || 0
-  const propina = ((comanda.propina || 0) / 100) * total
-  const descuento = comanda.descuento || 0
-  return Math.max(0.01, total + propina - descuento)
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -57,11 +64,47 @@ export async function POST(request: NextRequest) {
     if (comanda.estado === 'PAGADO') {
       raise(400, 'La comanda ya está pagada')
     }
+    if (comanda.estado === 'CANCELADO') {
+      raise(400, 'La comanda está cancelada')
+    }
     const pendientes = comanda.items.filter(
-      (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO'
+      (i) => i.estado !== 'LISTO' && i.estado !== 'ENTREGADO',
     )
     if (pendientes.length > 0) {
       raise(400, 'Todos los productos deben estar listos o entregados antes de cobrar.')
+    }
+
+    const pagosPrev = await prisma.pago.findMany({
+      where: { comandaId: comanda.id, estado: 'COMPLETADO' },
+      include: { lineas: true },
+    })
+    const paidSum = sumPagosCompletadosMonto(pagosPrev)
+    const paidQty = paidQuantitiesFromPagos(pagosPrev)
+    const totalDue = totalComandaCobrar(comanda)
+
+    let mergedAlloc: AllocationLine[]
+    if (!body.allocations || body.allocations.length === 0) {
+      if (paidSum > 0.01) {
+        raise(400, 'Indica allocations para cobrar un tramo parcial con Clip.')
+      }
+      mergedAlloc = buildFullAllocationFromItems(comanda.items)
+    } else {
+      mergedAlloc = mergeAllocationsByItem(body.allocations)
+    }
+
+    const val = validateAllocations(comanda.items, mergedAlloc, paidQty)
+    if (!val.ok) {
+      raise(400, val.error)
+    }
+
+    const { monto, lineas } = computePagoLineasAndMonto(comanda, comanda.items, mergedAlloc)
+    if (monto <= 0 || lineas.length === 0) {
+      raise(400, 'Monto de cobro inválido')
+    }
+
+    const tip = body.tipAmount ?? 0
+    if (wouldExceedTotal(paidSum, monto + tip, totalDue)) {
+      raise(400, 'El monto excede el saldo pendiente de la comanda.')
     }
 
     const terminalesActivas = (await listClipTerminals(prisma, rid))
@@ -93,21 +136,32 @@ export async function POST(request: NextRequest) {
       raise(400, 'La terminal seleccionada no está activa para este restaurante.')
     }
 
-    const amount = montoComanda(comanda)
-    const tip = body.tipAmount ?? 0
+    const amount = monto
 
-    const pago = await prisma.pago.create({
-      data: {
-        comandaId: comanda.id,
-        monto: amount + tip,
-        metodoPago: 'tarjeta_clip',
-        procesador: 'clip',
-        estado: 'PENDIENTE',
-        detalles: {
-          serialNumber: serialSeleccionado,
-          intentCreatedAt: new Date().toISOString(),
-        } as object,
-      },
+    const pago = await prisma.$transaction(async (tx) => {
+      const p = await tx.pago.create({
+        data: {
+          comandaId: comanda.id,
+          monto: amount + tip,
+          metodoPago: 'tarjeta_clip',
+          procesador: 'clip',
+          estado: 'PENDIENTE',
+          detalles: {
+            serialNumber: serialSeleccionado,
+            intentCreatedAt: new Date().toISOString(),
+            clipTipExtra: tip > 0 ? tip : undefined,
+          } as object,
+        },
+      })
+      await tx.pagoLinea.createMany({
+        data: lineas.map((l) => ({
+          pagoId: p.id,
+          comandaItemId: l.comandaItemId,
+          cantidad: l.cantidad,
+          importe: l.importe,
+        })),
+      })
+      return p
     })
 
     const webhook_url = `${getPublicBaseUrl()}/api/webhooks/clip/${encodeURIComponent(slug)}`
@@ -145,20 +199,12 @@ export async function POST(request: NextRequest) {
           clip: clipRes,
         },
       })
-    } catch (err: any) {
-      await prisma.pago.update({
-        where: { id: pago.id },
-        data: {
-          estado: 'FALLIDO',
-          detalles: {
-            error: err?.message || String(err),
-          } as object,
-        },
-      })
-      const raw = err?.message || String(err)
+    } catch (err: unknown) {
+      await prisma.pago.delete({ where: { id: pago.id } }).catch(() => undefined)
+      const raw = err instanceof Error ? err.message : String(err)
       return NextResponse.json(
         { success: false, error: formatClipPaymentErrorForUser(raw) },
-        { status: 502 }
+        { status: 502 },
       )
     }
   } catch (error) {

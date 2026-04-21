@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import MesaCard from '@/components/MesaCard'
 import BackButton from '@/components/BackButton'
@@ -618,8 +619,10 @@ export default function MesasStatusPage() {
     !u || tieneAlgunPermiso(u, ['tables.wait_times', 'mesas', 'configuracion', 'settings.manage'])
   const canPedidosCliente = !u || tieneAlgunPermiso(u, ['tables.client_channel', 'mesas'])
   const canAgregarMesa = !u || tieneAlgunPermiso(u, ['tables.manage', 'mesas'])
-  const canVerConfigHub =
-    !u || tienePermiso(u, 'tables.view') || tienePermiso(u, 'mesas')
+  const canAccionesMesasEncabezado =
+    canReservaciones || canTiempos || canPedidosCliente || canAgregarMesa
+  const canVerHubAdmin =
+    !u || tieneAlgunPermiso(u, ['settings.manage', 'staff.manage'])
 
   return (
     <div className="app-page">
@@ -630,18 +633,24 @@ export default function MesasStatusPage() {
           <div>
             <p className="app-kicker">Mesas</p>
             <h1 className="mt-2 text-3xl font-semibold text-stone-900">Estado de Mesas</h1>
-            <p className="mt-2 text-stone-600">Tiempo de espera desde que se generó la comanda.</p>
+            <p className="mt-2 text-stone-600">
+              Tiempo de espera desde que se generó la comanda. Las acciones de reservas, tiempos de color, pedidos
+              cliente/QR y altas de mesa dependen de tu rol; solo verás los botones que te correspondan.
+            </p>
+            {canVerHubAdmin && (
+              <p className="mt-2 text-sm text-stone-500">
+                <Link
+                  href="/dashboard/mesas/configuracion"
+                  className="text-amber-800 underline underline-offset-2 hover:text-amber-900"
+                >
+                  Más opciones de mesas
+                </Link>{' '}
+                (hub de configuración)
+              </p>
+            )}
           </div>
+          {canAccionesMesasEncabezado ? (
           <div className="flex flex-wrap gap-2">
-          {canVerConfigHub && (
-            <button
-              type="button"
-              onClick={() => router.push('/dashboard/mesas/configuracion')}
-              className="app-btn-secondary"
-            >
-              Configuración de mesas
-            </button>
-          )}
           {canReservaciones && (
             <button
               type="button"
@@ -679,6 +688,7 @@ export default function MesasStatusPage() {
             </button>
           )}
           </div>
+          ) : null}
         </div>
       </div>
 
@@ -687,7 +697,7 @@ export default function MesasStatusPage() {
           <h2 className="text-xl font-semibold text-stone-900 mb-2">Tiempos de color de las mesas</h2>
           <p className="text-sm text-stone-600 mb-4">
             Los colores verde → amarillo → rojo cambian de forma progresiva según el tiempo desde que se creó la comanda.
-            Para el primer uso puedes configurarlo en <strong>Configuración</strong>; aquí puedes cambiarlo cuando quieras.
+            Los valores por defecto vienen de la configuración de la sucursal; aquí puedes ajustarlos cuando quieras.
           </p>
           <form onSubmit={guardarTiemposColor} className="flex flex-wrap items-end gap-4">
             <div>

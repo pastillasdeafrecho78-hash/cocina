@@ -7,6 +7,7 @@ import { useParams, useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { ComandaAsignacionIndicator } from '@/components/ComandaAsignacionIndicator'
+import SepararCuentaWizard from '@/components/SepararCuentaWizard'
 
 interface Comanda {
   id: string
@@ -52,6 +53,12 @@ interface Comanda {
     estado: string
     numeroRonda?: number
   }>
+  pagos?: Array<{
+    id: string
+    estado: string
+    monto: number
+    lineas?: { comandaItemId: string; cantidad: number }[]
+  }>
 }
 
 interface ClipTerminal {
@@ -84,6 +91,7 @@ export default function ComandaDetallePage() {
   const [cancelandoComanda, setCancelandoComanda] = useState(false)
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [tomandoComanda, setTomandoComanda] = useState(false)
+  const [separarCuentaOpen, setSepararCuentaOpen] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -223,7 +231,7 @@ export default function ComandaDetallePage() {
     }
   }
 
-  const handleTerminarOffline = async () => {
+  const handleTerminalOffline = async () => {
     if (!comanda) return
     setCerrandoOffline(true)
     try {
@@ -555,6 +563,14 @@ export default function ComandaDetallePage() {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
+                onClick={() => setSepararCuentaOpen(true)}
+                className="app-btn-secondary flex items-center gap-2 rounded-2xl border-2 border-amber-400 px-5 py-3 font-medium text-amber-900 dark:border-amber-600 dark:text-amber-100"
+              >
+                <span className="text-2xl">📑</span>
+                Separar cuenta
+              </button>
+              <button
+                type="button"
                 onClick={() => setMetodoPago('efectivo')}
                 className="app-btn-secondary flex items-center gap-2 rounded-2xl px-5 py-3"
               >
@@ -571,12 +587,12 @@ export default function ComandaDetallePage() {
               </button>
               <button
                 type="button"
-                onClick={handleTerminarOffline}
+                onClick={handleTerminalOffline}
                 disabled={cerrandoOffline}
                 className="app-btn-secondary flex items-center gap-2 rounded-2xl px-5 py-3 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="text-2xl">🧾</span>
-                {cerrandoOffline ? 'Cerrando...' : 'Terminar offline'}
+                {cerrandoOffline ? 'Registrando…' : 'Terminal offline'}
               </button>
             </div>
           ) : metodoPago === 'efectivo' ? (
@@ -756,6 +772,20 @@ export default function ComandaDetallePage() {
           Volver a Mesas
         </button>
       </div>
+
+      <SepararCuentaWizard
+        open={separarCuentaOpen}
+        onClose={() => setSepararCuentaOpen(false)}
+        comanda={{
+          id: comanda.id,
+          total: comanda.total,
+          propina: comanda.propina,
+          descuento: comanda.descuento,
+          items: comanda.items,
+          pagos: comanda.pagos,
+        }}
+        onComandaUpdated={() => void fetchComanda()}
+      />
     </div>
   )
 }

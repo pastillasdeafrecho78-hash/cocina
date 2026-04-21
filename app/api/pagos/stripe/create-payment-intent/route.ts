@@ -7,6 +7,7 @@ import {
   requireAuthenticatedUser,
 } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
+import { sumPagosCompletadosMonto } from '@/lib/split-cuenta'
 
 /**
  * POST /api/pagos/stripe/create-payment-intent
@@ -48,6 +49,16 @@ export async function POST(request: NextRequest) {
 
     if (comanda.estado === 'PAGADO') {
       raise(400, 'Esta comanda ya está pagada')
+    }
+
+    const pagosPrev = await prisma.pago.findMany({
+      where: { comandaId: comanda.id, estado: 'COMPLETADO' },
+    })
+    if (sumPagosCompletadosMonto(pagosPrev) > 0.01) {
+      raise(
+        400,
+        'Esta comanda tiene cobros parciales. Completa el saldo desde el detalle de comanda (separación de cuenta).',
+      )
     }
 
     const total = comanda.total + (comanda.propina || 0) - (comanda.descuento || 0)
