@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import MesaCard from '@/components/MesaCard'
 import BackButton from '@/components/BackButton'
@@ -621,9 +620,6 @@ export default function MesasStatusPage() {
   const canAgregarMesa = !u || tieneAlgunPermiso(u, ['tables.manage', 'mesas'])
   const canAccionesMesasEncabezado =
     canReservaciones || canTiempos || canPedidosCliente || canAgregarMesa
-  const canVerHubAdmin =
-    !u || tieneAlgunPermiso(u, ['settings.manage', 'staff.manage'])
-
   return (
     <div className="app-page">
       <div className="mx-auto max-w-7xl space-y-6">
@@ -634,20 +630,9 @@ export default function MesasStatusPage() {
             <p className="app-kicker">Mesas</p>
             <h1 className="mt-2 text-3xl font-semibold text-stone-900">Estado de Mesas</h1>
             <p className="mt-2 text-stone-600">
-              Tiempo de espera desde que se generó la comanda. Las acciones de reservas, tiempos de color, pedidos
-              cliente/QR y altas de mesa dependen de tu rol; solo verás los botones que te correspondan.
+              Aquí ves cuánto tiempo lleva abierta cada comanda. Desde esta pantalla puedes reservar mesas, revisar los
+              tiempos de color, atender pedidos de cliente/QR y dar de alta nuevas mesas según los permisos de tu cuenta.
             </p>
-            {canVerHubAdmin && (
-              <p className="mt-2 text-sm text-stone-500">
-                <Link
-                  href="/dashboard/mesas/configuracion"
-                  className="text-amber-800 underline underline-offset-2 hover:text-amber-900"
-                >
-                  Más opciones de mesas
-                </Link>{' '}
-                (hub de configuración)
-              </p>
-            )}
           </div>
           {canAccionesMesasEncabezado ? (
           <div className="flex flex-wrap gap-2">
