@@ -11,7 +11,7 @@ import { raise, toErrorResponse } from '@/lib/authz/http'
 import {
   buildFullAllocationFromItems,
   computePagoLineasAndMonto,
-  isFullyPaidAfterPayment,
+  debeSaldarComandaYLiberarMesa,
   mergeAllocationsByItem,
   paidQuantitiesFromPagos,
   sumPagosCompletadosMonto,
@@ -131,9 +131,13 @@ export async function POST(request: NextRequest) {
       resultadoPago.estado === 'completado' ? lineas : undefined,
     )
 
+    const pagosTrasPago = await prisma.pago.findMany({
+      where: { comandaId, estado: 'COMPLETADO' },
+      include: { lineas: true },
+    })
     const fullyPaid =
       resultadoPago.estado === 'completado' &&
-      isFullyPaidAfterPayment(paidSum, monto, totalDue)
+      debeSaldarComandaYLiberarMesa(comanda.items, pagosTrasPago, totalDue)
 
     let factura = null
     if (resultadoPago.estado === 'completado') {

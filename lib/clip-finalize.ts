@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { timbrarCFDI, almacenarCFDI, generarPDFCFDI } from '@/lib/facturacion'
 import { obtenerConfiguracion } from '@/lib/configuracion-restaurante'
 import {
-  isFullyPaidAfterPayment,
+  debeSaldarComandaYLiberarMesa,
   sumPagosCompletadosMonto,
   totalComandaCobrar,
 } from '@/lib/split-cuenta'
@@ -52,10 +52,10 @@ export async function finalizarComandaTrasPagoClip(params: {
 
     const pagosCompletados = await tx.pago.findMany({
       where: { comandaId: params.comandaId, estado: 'COMPLETADO' },
+      include: { lineas: true },
     })
-    const paidSum = sumPagosCompletadosMonto(pagosCompletados)
 
-    if (isFullyPaidAfterPayment(0, paidSum, totalDue)) {
+    if (debeSaldarComandaYLiberarMesa(comanda.items, pagosCompletados, totalDue)) {
       saldadaEnEstaTransaccion = true
       await tx.comanda.update({
         where: { id: params.comandaId },

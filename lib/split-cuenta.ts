@@ -140,3 +140,33 @@ export function isFullyPaidAfterPayment(paidSum: number, newPaymentMonto: number
 export function wouldExceedTotal(paidSum: number, newPaymentMonto: number, totalDue: number): boolean {
   return paidSum + newPaymentMonto > totalDue + SPLIT_CUENTA_EPS
 }
+
+/** Suma de cantidades en líneas de pagos completados cubre cada ítem de la comanda. */
+export function itemsTotalmenteAsignadosPorLineas(
+  items: { id: string; cantidad: number }[],
+  pagosCompletados: PagoResumenInput[],
+): boolean {
+  if (items.length === 0) return false
+  const q = paidQuantitiesFromPagos(pagosCompletados)
+  return items.every((it) => (q[it.id] ?? 0) >= it.cantidad)
+}
+
+export function pagosTienenDetallePorLinea(pagosCompletados: PagoResumenInput[]): boolean {
+  return pagosCompletados.some((p) => (p.lineas?.length ?? 0) > 0)
+}
+
+/**
+ * Cerrar comanda y liberar mesa: total monetario al día, o todas las unidades cubiertas en PagoLinea
+ * con el total casi cubierto (evita quedar colgado por centavos al separar cuenta).
+ */
+export function debeSaldarComandaYLiberarMesa(
+  items: { id: string; cantidad: number }[],
+  pagosCompletados: PagoResumenInput[],
+  totalDue: number,
+): boolean {
+  const paidSum = sumPagosCompletadosMonto(pagosCompletados)
+  if (isFullyPaidAfterPayment(0, paidSum, totalDue)) return true
+  if (!pagosTienenDetallePorLinea(pagosCompletados)) return false
+  if (!itemsTotalmenteAsignadosPorLineas(items, pagosCompletados)) return false
+  return paidSum >= totalDue - 0.15
+}

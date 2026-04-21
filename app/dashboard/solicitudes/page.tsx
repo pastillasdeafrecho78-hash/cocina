@@ -178,7 +178,7 @@ export default function SolicitudesPage() {
                       {sol.nombreCliente} · {sol.tipoPedido.replace('_', ' ')}
                     </h3>
                     <p className="text-sm text-stone-500">
-                      {sol.origen === 'PUBLIC_LINK_MESA' ? `QR Mesa ${sol.mesa?.numero ?? '-'}` : 'Link general'} ·{' '}
+                      {sol.origen === 'PUBLIC_LINK_MESA' ? `QR Mesa ${sol.mesa?.numero ?? '-'}` : 'Link para envíos'} ·{' '}
                       {new Date(sol.createdAt).toLocaleString('es-MX')}
                     </p>
                     <p className="text-sm text-stone-600">

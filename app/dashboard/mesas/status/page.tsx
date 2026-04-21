@@ -1063,7 +1063,7 @@ export default function MesasStatusPage() {
           {restauranteSlug && publicOrigin && (
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-3">
               <p className="text-sm text-stone-700">
-                Link general:{' '}
+                Link para envíos:{' '}
                 <span className="font-mono text-xs font-semibold text-stone-900">
                   {`${publicOrigin}/p/${restauranteSlug}`}
                 </span>
@@ -1076,13 +1076,13 @@ export default function MesasStatusPage() {
                     const url = `${publicOrigin}/p/${restauranteSlug}`
                     try {
                       await navigator.clipboard.writeText(url)
-                      toast.success('Link general copiado')
+                      toast.success('Link para envíos copiado')
                     } catch {
-                      toast.error('No se pudo copiar el link general')
+                      toast.error('No se pudo copiar el link para envíos')
                     }
                   }}
                 >
-                  Copiar link general
+                  Copiar link para envíos
                 </button>
               </div>
             </div>
