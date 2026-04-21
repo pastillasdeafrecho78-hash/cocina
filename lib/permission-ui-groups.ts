@@ -1,5 +1,51 @@
 import { CAPACIDADES, type Modulo } from '@/lib/permisos'
 
+/**
+ * Explicación breve al pasar el cursor (sin saturar la etiqueta visible).
+ * Cubre todos los módulos listados en MODULOS.
+ */
+export const PERMISSION_HOVER_HINTS: Record<string, string> = {
+  mesas:
+    'Paquete heredado: acceso amplio a mesas, reservas y canal cliente como en roles viejos. Suele bastar con las capacidades tables.* en roles nuevos.',
+  comandas:
+    'Paquete heredado: ver y operar comandas como antes. Equivale en gran parte a orders.* en el sistema nuevo.',
+  carta: 'Paquete heredado: ver y editar menú y productos. Equivale a menu.view y menu.manage.',
+  cocina: 'Paquete heredado: pantalla y acciones de cocina. Equivale a kitchen.view y kitchen.manage.',
+  barra: 'Paquete heredado: pantalla y acciones de barra. Equivale a bar.view y bar.manage.',
+  reportes: 'Paquete heredado: acceso a reportes. Equivale a reports.view.',
+  caja: 'Paquete heredado: caja y cobros. Equivale a payments.view y payments.manage.',
+  configuracion: 'Paquete heredado: ajustes de sucursal. Equivale a settings.view y settings.manage.',
+  usuarios_roles: 'Paquete heredado: usuarios y roles. Equivale a staff.view y staff.manage.',
+  'menu.view': 'Puede ver categorías, productos y precios en la carta.',
+  'menu.manage': 'Puede crear, editar y desactivar categorías y productos.',
+  'orders.view': 'Puede ver comandas activas y su detalle (sin modificarlas, según otras reglas).',
+  'orders.manage': 'Puede crear ítems, enviar a cocina/barra y operar el flujo habitual de la comanda.',
+  'orders.override': 'Puede aprobar, rechazar o forzar pedidos especiales o excepciones en cola.',
+  'kitchen.view': 'Ve la cola de cocina y el estado de los platillos.',
+  'kitchen.manage': 'Puede marcar listo, entregado y operar la cola de cocina.',
+  'bar.view': 'Ve la cola de barra y bebidas.',
+  'bar.manage': 'Puede marcar listo y operar la cola de barra.',
+  'payments.view': 'Ve turnos de caja, cobros y resúmenes de pagos.',
+  'payments.manage': 'Puede abrir/cerrar turno, registrar cobros y ajustes de caja.',
+  'reports.view': 'Accede a reportes y analítica permitida para su sucursal.',
+  'settings.view': 'Ve configuración general de la sucursal (lectura).',
+  'settings.manage': 'Puede cambiar configuración, integraciones y datos sensibles de la sucursal.',
+  'staff.view': 'Ve lista de usuarios, roles asignados y estado de invitaciones.',
+  'staff.manage': 'Puede crear usuarios, asignar roles y códigos de acceso.',
+  'reservations.view': 'Ve reservas y calendario de la sucursal.',
+  'reservations.manage': 'Puede crear, editar y cancelar reservaciones.',
+  'tables.view': 'Ve mapa de mesas y estado de ocupación.',
+  'tables.manage': 'Puede dar de alta o baja mesas y ajustar su numeración.',
+  'tables.wait_times': 'Puede ver y ajustar los tiempos de color del tablero de mesas.',
+  'tables.reservations': 'Accede al módulo de reservas desde el flujo de mesas.',
+  'tables.client_channel': 'Gestiona pedido por QR, links públicos y canal cliente en mesa.',
+  'benefits.grant': 'Puede aplicar descuentos o beneficios especiales definidos por la sucursal.',
+}
+
+export function getPermissionHoverHint(mod: string): string {
+  return PERMISSION_HOVER_HINTS[mod] ?? `Permiso del sistema: ${mod}`
+}
+
 /** Grupos visuales para la UI de roles (cada módulo aparece en un solo grupo). */
 export const PERMISSION_UI_GROUPS: readonly {
   id: string

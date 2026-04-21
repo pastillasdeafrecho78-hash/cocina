@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import {
+  getPermissionHoverHint,
   PERMISSION_UI_GROUPS,
   ROLE_PRESET_KEYS,
   ROLE_PRESETS,
@@ -12,6 +13,12 @@ import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { tienePermiso, MODULOS, PERMISSION_LABELS } from '@/lib/permisos'
+import {
+  agregarPlantillaRol,
+  cargarPlantillasRol,
+  eliminarPlantillaRol,
+  type RolPlantillaGuardada,
+} from '@/lib/rol-plantillas-storage'
 import {
   PlusIcon,
   PencilIcon,
@@ -67,6 +74,8 @@ export default function AdminRolesPage() {
   })
   const [guardandoRol, setGuardandoRol] = useState(false)
   const [permisosModoAvanzado, setPermisosModoAvanzado] = useState(false)
+  const [plantillasLocales, setPlantillasLocales] = useState<RolPlantillaGuardada[]>([])
+  const [nombreNuevaPlantilla, setNombreNuevaPlantilla] = useState('')
 
   const [modalUsuario, setModalUsuario] = useState<'crear' | 'editar' | null>(null)
   const [usuarioEdicion, setUsuarioEdicion] = useState<Usuario | null>(null)
@@ -130,8 +139,54 @@ export default function AdminRolesPage() {
     if (modalRol) setPermisosModoAvanzado(false)
   }, [modalRol])
 
+  useEffect(() => {
+    if (!modalRol || !user?.restauranteId) {
+      setPlantillasLocales([])
+      return
+    }
+    setPlantillasLocales(cargarPlantillasRol(user.restauranteId as string))
+  }, [modalRol, user])
+
   const aplicarPresetRol = (key: RolePresetKey) => {
     setFormRol((p) => ({ ...p, permisos: [...ROLE_PRESETS[key].permisos] }))
+  }
+
+  const guardarPlantillaPermisos = () => {
+    const rid = user?.restauranteId as string | undefined
+    if (!rid) {
+      toast.error('No se detectó sucursal activa para guardar la plantilla')
+      return
+    }
+    if (!nombreNuevaPlantilla.trim()) {
+      toast.error('Escribe un nombre para la plantilla')
+      return
+    }
+    if (formRol.permisos.length === 0) {
+      toast.error('Selecciona al menos un permiso antes de guardar')
+      return
+    }
+    const creada = agregarPlantillaRol(rid, nombreNuevaPlantilla, formRol.permisos)
+    if (!creada) {
+      toast.error('No se pudo guardar la plantilla')
+      return
+    }
+    setPlantillasLocales(cargarPlantillasRol(rid))
+    setNombreNuevaPlantilla('')
+    toast.success(`Plantilla «${creada.nombre}» guardada en este navegador`)
+  }
+
+  const aplicarPlantillaGuardada = (pl: RolPlantillaGuardada) => {
+    setFormRol((p) => ({ ...p, permisos: [...pl.permisos] }))
+    toast.success(`Aplicada plantilla «${pl.nombre}»`)
+  }
+
+  const borrarPlantillaGuardada = (id: string) => {
+    const rid = user?.restauranteId as string | undefined
+    if (!rid) return
+    if (!confirm('¿Eliminar esta plantilla de este navegador?')) return
+    eliminarPlantillaRol(rid, id)
+    setPlantillasLocales(cargarPlantillasRol(rid))
+    toast.success('Plantilla eliminada')
   }
 
   const cargarRoles = async () => {
@@ -200,6 +255,21 @@ export default function AdminRolesPage() {
       permisos: prev.permisos.includes(mod)
         ? prev.permisos.filter((p) => p !== mod)
         : [...prev.permisos, mod],
+    }))
+  }
+
+  const marcarModulosLista = (mods: readonly string[]) => {
+    setFormRol((prev) => {
+      const s = new Set(prev.permisos)
+      for (const m of mods) s.add(m)
+      return { ...prev, permisos: [...s] }
+    })
+  }
+
+  const quitarModulosLista = (mods: readonly string[]) => {
+    setFormRol((prev) => ({
+      ...prev,
+      permisos: prev.permisos.filter((p) => !mods.includes(p)),
     }))
   }
 
@@ -734,23 +804,105 @@ export default function AdminRolesPage() {
                     ))}
                   </div>
                 </div>
+                <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/40 p-3 dark:border-indigo-900 dark:bg-indigo-950/20">
+                  <p className="text-xs font-medium text-indigo-900 dark:text-indigo-100 mb-1">
+                    Mis plantillas
+                  </p>
+                  <p className="text-[11px] text-indigo-800/90 dark:text-indigo-200/90 mb-2">
+                    Guarda la combinación actual de permisos con un nombre y aplícala en otros roles. Solo en este
+                    navegador y sucursal activa.
+                  </p>
+                  <div className="mb-3 flex flex-wrap items-end gap-2">
+                    <div className="min-w-[10rem] flex-1">
+                      <label className="mb-0.5 block text-[11px] text-indigo-900 dark:text-indigo-200">
+                        Nombre
+                      </label>
+                      <input
+                        type="text"
+                        value={nombreNuevaPlantilla}
+                        onChange={(e) => setNombreNuevaPlantilla(e.target.value)}
+                        placeholder="Ej. Encargado turno noche"
+                        className="w-full rounded-md border border-indigo-200 bg-white px-2 py-1.5 text-sm dark:border-indigo-800 dark:bg-stone-900 dark:text-stone-100"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={guardarPlantillaPermisos}
+                      className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                    >
+                      Guardar plantilla
+                    </button>
+                  </div>
+                  {plantillasLocales.length === 0 ? (
+                    <p className="text-xs text-indigo-800/80 dark:text-indigo-300/80">Aún no hay plantillas guardadas.</p>
+                  ) : (
+                    <ul className="max-h-28 space-y-1 overflow-y-auto text-sm">
+                      {plantillasLocales.map((pl) => (
+                        <li
+                          key={pl.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded border border-indigo-100/80 bg-white/80 px-2 py-1 dark:border-indigo-900 dark:bg-stone-900/60"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => aplicarPlantillaGuardada(pl)}
+                            className="text-left font-medium text-indigo-800 hover:underline dark:text-indigo-200"
+                            title={`${pl.permisos.length} permisos`}
+                          >
+                            {pl.nombre}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => borrarPlantillaGuardada(pl.id)}
+                            className="text-xs text-rose-600 hover:text-rose-800 dark:text-rose-400"
+                          >
+                            Eliminar
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
                 <div className="space-y-3 max-h-[38vh] overflow-y-auto pr-1 border border-gray-100 rounded-lg p-3">
                   <p className="text-xs font-medium text-gray-600">Por área</p>
                   {PERMISSION_UI_GROUPS.map((g) => (
                     <div key={g.id} className="rounded-lg border border-gray-100 bg-white p-3">
-                      <h3 className="text-sm font-semibold text-gray-900">{g.title}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5 mb-2">{g.description}</p>
+                      <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-semibold text-gray-900">{g.title}</h3>
+                          <p className="text-xs text-gray-500 mt-0.5">{g.description}</p>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => marcarModulosLista(g.modules)}
+                            className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-100"
+                            title="Activa todos los permisos de esta área"
+                          >
+                            Todo
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => quitarModulosLista(g.modules)}
+                            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            title="Quita todos los permisos de esta área"
+                          >
+                            Nada
+                          </button>
+                        </div>
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {g.modules.map((mod) => (
                           <label
                             key={mod}
-                            className="flex items-start gap-2 cursor-pointer"
+                            className="flex items-start gap-2 cursor-pointer rounded-md px-1 py-0.5 hover:bg-gray-50"
+                            title={getPermissionHoverHint(mod)}
                           >
                             <input
                               type="checkbox"
                               className="mt-0.5"
                               checked={formRol.permisos.includes(mod)}
                               onChange={() => togglePermiso(mod)}
+                              title={getPermissionHoverHint(mod)}
                             />
                             <span className="text-sm text-gray-800 leading-snug">
                               {PERMISSION_LABELS[mod] || mod}
@@ -770,23 +922,48 @@ export default function AdminRolesPage() {
                     {permisosModoAvanzado ? 'Ocultar modo avanzado' : 'Modo avanzado: lista completa de módulos'}
                   </button>
                   {permisosModoAvanzado && (
-                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[32vh] overflow-y-auto border border-dashed border-gray-200 rounded-lg p-3">
-                      {MODULOS.map((mod) => (
-                        <label
-                          key={mod}
-                          className="flex items-start gap-2 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            className="mt-0.5"
-                            checked={formRol.permisos.includes(mod)}
-                            onChange={() => togglePermiso(mod)}
-                          />
-                          <span className="text-sm text-gray-800 leading-snug">
-                            {PERMISSION_LABELS[mod] || mod}
-                          </span>
-                        </label>
-                      ))}
+                    <div className="mt-2 max-h-[32vh] overflow-y-auto border border-dashed border-gray-200 rounded-lg p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-xs font-medium text-gray-600">Lista completa</span>
+                        <div className="flex gap-1">
+                          <button
+                            type="button"
+                            onClick={() => marcarModulosLista(MODULOS)}
+                            className="rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs font-medium text-gray-800 hover:bg-gray-100"
+                            title="Marca todos los permisos del listado avanzado"
+                          >
+                            Marcar todos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => quitarModulosLista(MODULOS)}
+                            className="rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            title="Quita todos los permisos del listado avanzado"
+                          >
+                            Limpiar todos
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {MODULOS.map((mod) => (
+                          <label
+                            key={mod}
+                            className="flex items-start gap-2 cursor-pointer rounded-md px-1 py-0.5 hover:bg-gray-50"
+                            title={getPermissionHoverHint(mod)}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5"
+                              checked={formRol.permisos.includes(mod)}
+                              onChange={() => togglePermiso(mod)}
+                              title={getPermissionHoverHint(mod)}
+                            />
+                            <span className="text-sm text-gray-800 leading-snug">
+                              {PERMISSION_LABELS[mod] || mod}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

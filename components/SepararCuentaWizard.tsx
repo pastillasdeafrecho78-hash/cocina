@@ -86,6 +86,7 @@ export default function SepararCuentaWizard({
   const [propinaClip, setPropinaClip] = useState('')
   const [cobrandoClip, setCobrandoClip] = useState(false)
   const [esperaClip, setEsperaClip] = useState<{ pagoId: string; pinpadId: string } | null>(null)
+  const [efectivoEsperadoCaja, setEfectivoEsperadoCaja] = useState<number | null>(null)
 
   const paidQty = useMemo(
     () => paidQuantitiesFromPagos(comanda.pagos ?? []),
@@ -102,12 +103,30 @@ export default function SepararCuentaWizard({
     setPropinaClip('')
     setSerialClip('')
     setEsperaClip(null)
+    setEfectivoEsperadoCaja(null)
   }, [])
 
   useEffect(() => {
     if (!open) return
     reset()
   }, [open, comanda.id, reset])
+
+  useEffect(() => {
+    if (!open || fase !== 'cobrar') {
+      setEfectivoEsperadoCaja(null)
+      return
+    }
+    void apiFetch('/api/caja/turno', { headers: {} })
+      .then((r) => r.json())
+      .then((j) => {
+        if (j.success && j.data?.abierto) {
+          setEfectivoEsperadoCaja(j.data.efectivoEsperado ?? null)
+        } else {
+          setEfectivoEsperadoCaja(null)
+        }
+      })
+      .catch(() => setEfectivoEsperadoCaja(null))
+  }, [open, fase, payIdx])
 
   useEffect(() => {
     if (!open || fase !== 'cobrar') return
@@ -205,6 +224,10 @@ export default function SepararCuentaWizard({
     : 0
 
   const montoRecibidoNum = parseFloat(montoRecibido.replace(/,/g, '.')) || 0
+  const cambioDevolver =
+    montoRecibidoNum >= totalGrupoActual && montoRecibidoNum > 0 && totalGrupoActual > 0
+      ? montoRecibidoNum - totalGrupoActual
+      : 0
 
   const cobrarEfectivoGrupo = async () => {
     if (!grupoActualCobro?.length) return
@@ -404,19 +427,33 @@ export default function SepararCuentaWizard({
         {fase === 'cobrar' && grupoActualCobro && (
           <div className="space-y-4">
             <p className="text-lg text-stone-800 dark:text-stone-100">
-              Total grupo: <strong>${totalGrupoActual.toFixed(2)}</strong>
+              Total a cobrar del grupo: <strong>${totalGrupoActual.toFixed(2)}</strong>
             </p>
 
             <div className="rounded-xl border border-stone-200 p-4 dark:border-stone-700">
               <p className="mb-2 text-sm font-medium text-stone-700 dark:text-stone-300">Efectivo</p>
-              <label className="mb-1 block text-xs text-stone-600">Monto recibido</label>
+              <label className="mb-1 block text-xs text-stone-600 dark:text-stone-400">Monto recibido del cliente</label>
               <input
                 type="text"
                 inputMode="decimal"
                 value={montoRecibido}
                 onChange={(e) => setMontoRecibido(e.target.value)}
-                className="app-input app-field mb-2 max-w-xs"
+                placeholder="0.00"
+                className="app-input app-field mb-2 max-w-xs text-lg"
               />
+              {cambioDevolver > 0 && (
+                <>
+                  <p className="mb-2 rounded-2xl bg-green-50 px-4 py-2 text-lg font-semibold text-green-700 dark:bg-green-950/50 dark:text-green-300">
+                    Cambio a devolver: <strong>${cambioDevolver.toFixed(2)}</strong>
+                  </p>
+                  {efectivoEsperadoCaja != null && efectivoEsperadoCaja < cambioDevolver && (
+                    <p className="mb-2 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                      Posible efectivo insuficiente para dar cambio. Efectivo esperado en caja: $
+                      {efectivoEsperadoCaja.toFixed(2)}. Considera reforzar la caja antes de cobrar.
+                    </p>
+                  )}
+                </>
+              )}
               <button
                 type="button"
                 disabled={cobrandoEfectivo || montoRecibidoNum < totalGrupoActual}
