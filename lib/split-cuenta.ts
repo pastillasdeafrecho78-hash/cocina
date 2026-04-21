@@ -86,6 +86,19 @@ export function buildFullAllocationFromItems(items: { id: string; cantidad: numb
   return items.map((i) => ({ comandaItemId: i.id, cantidad: i.cantidad }))
 }
 
+/** Cantidades aún no cubiertas por PagoLinea de pagos completados (cobro “lo que falta” sin mandar allocations). */
+export function buildRemainingAllocationFromItems(
+  items: { id: string; cantidad: number }[],
+  paidQty: Record<string, number>,
+): AllocationLine[] {
+  const out: AllocationLine[] = []
+  for (const it of items) {
+    const rest = Math.max(0, it.cantidad - (paidQty[it.id] ?? 0))
+    if (rest > 0) out.push({ comandaItemId: it.id, cantidad: rest })
+  }
+  return out
+}
+
 /**
  * Calcula importe por línea y monto total del cobro (incluye parte proporcional de propina y descuento de la comanda).
  */

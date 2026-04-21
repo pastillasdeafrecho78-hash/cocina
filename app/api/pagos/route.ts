@@ -10,6 +10,7 @@ import {
 import { raise, toErrorResponse } from '@/lib/authz/http'
 import {
   buildFullAllocationFromItems,
+  buildRemainingAllocationFromItems,
   computePagoLineasAndMonto,
   debeSaldarComandaYLiberarMesa,
   mergeAllocationsByItem,
@@ -94,12 +95,48 @@ export async function POST(request: NextRequest) {
 
     let mergedAlloc: AllocationLine[]
     if (!rawAllocations || !Array.isArray(rawAllocations) || rawAllocations.length === 0) {
-      if (paidSum > 0.01) {
-        raise(400, 'Indica el reparto por ítem (allocations) para pagos parciales.')
-      }
-      mergedAlloc = buildFullAllocationFromItems(comanda.items)
+      mergedAlloc =
+        paidSum > 0.01
+          ? buildRemainingAllocationFromItems(comanda.items, paidQty)
+          : buildFullAllocationFromItems(comanda.items)
     } else {
       mergedAlloc = mergeAllocationsByItem(rawAllocations)
+    }
+
+    if (mergedAlloc.length === 0) {
+      if (debeSaldarComandaYLiberarMesa(comanda.items, pagosPrev, totalDue)) {
+        await prisma.comanda.update({
+          where: { id: comandaId },
+          data: { estado: 'PAGADO', fechaCompletado: new Date() },
+        })
+        if (comanda.mesaId) {
+          await prisma.mesa.update({
+            where: { id: comanda.mesaId },
+            data: { estado: 'LIBRE' },
+          })
+        }
+        const ultimo = pagosPrev[pagosPrev.length - 1]
+        return NextResponse.json({
+          success: true,
+          data: {
+            pago: ultimo
+              ? {
+                  id: ultimo.id,
+                  estado: ultimo.estado,
+                  monto: ultimo.monto,
+                  referencia: ultimo.referencia,
+                }
+              : null,
+            factura: null,
+            comandaSaldada: true,
+            sincronizadoSinNuevoPago: true,
+          },
+        })
+      }
+      raise(
+        400,
+        'No quedan ítems por asignar a este cobro. Si ya cobraron todo, recarga la página; si persiste, contacta soporte.',
+      )
     }
 
     const v = validateAllocations(comanda.items, mergedAlloc, paidQty)

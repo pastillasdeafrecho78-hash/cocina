@@ -8,6 +8,7 @@ import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
 import { ComandaAsignacionIndicator } from '@/components/ComandaAsignacionIndicator'
 import SepararCuentaWizard from '@/components/SepararCuentaWizard'
+import { sumPagosCompletadosMonto, totalComandaCobrar } from '@/lib/split-cuenta'
 
 interface Comanda {
   id: string
@@ -196,13 +197,25 @@ export default function ComandaDetallePage() {
     }
   }
 
+  const saldoPendienteComanda = (c: Comanda): number => {
+    const totalDue = totalComandaCobrar({
+      total: c.total,
+      propina: c.propina ?? 0,
+      descuento: c.descuento ?? 0,
+    })
+    const paid = sumPagosCompletadosMonto(c.pagos ?? [])
+    return Math.max(0, Math.round((totalDue - paid) * 100) / 100)
+  }
+
   const handleCobrarEfectivo = async () => {
     if (!comanda) return
-    const totalCobro = comanda.total * (1 + (comanda.propina || 0) / 100) - (comanda.descuento || 0)
+    const saldo = saldoPendienteComanda(comanda)
     const recibido = parseFloat(montoRecibido.replace(/,/g, '.'))
-    if (isNaN(recibido) || recibido < totalCobro) {
-      toast.error('El monto recibido debe ser mayor o igual al total a cobrar')
-      return
+    if (saldo > 0.02) {
+      if (isNaN(recibido) || recibido < saldo - 0.02) {
+        toast.error('El monto recibido debe ser mayor o igual al saldo pendiente')
+        return
+      }
     }
     setCobrandoEfectivo(true)
     try {
@@ -218,7 +231,11 @@ export default function ComandaDetallePage() {
       })
       const data = await response.json()
       if (data.success) {
-        toast.success('Pago en efectivo registrado')
+        toast.success(
+          data.data?.sincronizadoSinNuevoPago
+            ? 'Cuenta al corriente: mesa liberada'
+            : 'Pago en efectivo registrado',
+        )
         setMetodoPago(null)
         fetchComanda()
       } else {
@@ -247,7 +264,11 @@ export default function ComandaDetallePage() {
       })
       const data = await response.json()
       if (data.success) {
-        toast.success('Venta cerrada en modo offline')
+        toast.success(
+          data.data?.sincronizadoSinNuevoPago
+            ? 'Cuenta al corriente: mesa liberada'
+            : 'Venta cerrada en modo offline',
+        )
         setMetodoPago(null)
         setMontoRecibido('')
         fetchComanda()
@@ -282,6 +303,17 @@ export default function ComandaDetallePage() {
       const data = await res.json()
       if (!data.success) {
         toast.error(data.error ?? 'No se pudo enviar el cobro a Clip')
+        return
+      }
+      if (data.data?.sincronizadoSinClip) {
+        toast.success(
+          typeof data.data.mensaje === 'string'
+            ? data.data.mensaje
+            : 'Comanda cerrada; mesa liberada',
+        )
+        setMetodoPago(null)
+        setPropinaClip('')
+        fetchComanda()
         return
       }
       const pin = data.data?.pinpadRequestId as string | null
@@ -423,10 +455,17 @@ export default function ComandaDetallePage() {
     .map(([ronda, items]) => ({ ronda: Number(ronda), items }))
     .sort((a, b) => a.ronda - b.ronda)
 
-  const totalConPropina = comanda.total * (1 + (comanda.propina || 0) / 100)
-  const totalFinal = totalConPropina - (comanda.descuento || 0)
+  const totalCuenta = totalComandaCobrar({
+    total: comanda.total,
+    propina: comanda.propina ?? 0,
+    descuento: comanda.descuento ?? 0,
+  })
+  const saldoPendiente = saldoPendienteComanda(comanda)
   const montoRecibidoNum = parseFloat(montoRecibido.replace(/,/g, '.')) || 0
-  const cambio = montoRecibidoNum >= totalFinal ? montoRecibidoNum - totalFinal : 0
+  const cambio =
+    saldoPendiente > 0.02 && montoRecibidoNum + 1e-6 >= saldoPendiente
+      ? montoRecibidoNum - saldoPendiente
+      : 0
 
   return (
     <div className="app-page">
@@ -544,7 +583,7 @@ export default function ComandaDetallePage() {
           )}
           <div className="flex justify-between text-xl font-bold border-t pt-2">
             <span>Total:</span>
-            <span>${totalFinal.toFixed(2)}</span>
+            <span>${totalCuenta.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -598,8 +637,25 @@ export default function ComandaDetallePage() {
           ) : metodoPago === 'efectivo' ? (
             <div className="space-y-4">
               <p className="text-stone-600">
-                Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
+                {saldoPendiente < totalCuenta - 0.02 ? (
+                  <>
+                    Saldo pendiente: <strong>${saldoPendiente.toFixed(2)}</strong>
+                    <span className="mt-1 block text-sm text-stone-500">
+                      Total de la cuenta: ${totalCuenta.toFixed(2)} (ya hay cobros registrados)
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Total a cobrar: <strong>${totalCuenta.toFixed(2)}</strong>
+                  </>
+                )}
               </p>
+              {saldoPendiente <= 0.02 && (
+                <p className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-900">
+                  No hay saldo monetario pendiente. Al confirmar se cerrará la comanda y se liberará la mesa si
+                  corresponde.
+                </p>
+              )}
               <div>
                 <label className="mb-1 block text-sm font-medium text-stone-700">Monto recibido</label>
                 <input
@@ -611,7 +667,7 @@ export default function ComandaDetallePage() {
                   className="app-input app-field max-w-xs text-lg"
                 />
               </div>
-              {montoRecibidoNum >= totalFinal && montoRecibidoNum > 0 && (
+              {saldoPendiente > 0.02 && montoRecibidoNum + 1e-6 >= saldoPendiente && montoRecibidoNum > 0 && (
                 <>
                   <p className="rounded-2xl bg-green-50 px-4 py-2 text-lg font-semibold text-green-700">
                     Cambio a devolver: <strong>${cambio.toFixed(2)}</strong>
@@ -628,10 +684,13 @@ export default function ComandaDetallePage() {
                 <button
                   type="button"
                   onClick={handleCobrarEfectivo}
-                  disabled={cobrandoEfectivo || montoRecibidoNum < totalFinal}
+                  disabled={
+                    cobrandoEfectivo ||
+                    (saldoPendiente > 0.02 && montoRecibidoNum + 1e-6 < saldoPendiente)
+                  }
                   className="app-btn-primary rounded-2xl px-6 py-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {cobrandoEfectivo ? 'Registrando…' : 'Cobrar en efectivo'}
+                  {cobrandoEfectivo ? 'Registrando…' : saldoPendiente <= 0.02 ? 'Sincronizar cierre' : 'Cobrar en efectivo'}
                 </button>
                 <button
                   type="button"
@@ -645,7 +704,18 @@ export default function ComandaDetallePage() {
           ) : metodoPago === 'tarjeta' ? (
             <div className="space-y-4 max-w-md">
               <p className="text-stone-600">
-                Total a cobrar: <strong>${totalFinal.toFixed(2)}</strong>
+                {saldoPendiente < totalCuenta - 0.02 ? (
+                  <>
+                    Saldo a cobrar con terminal: <strong>${saldoPendiente.toFixed(2)}</strong>
+                    <span className="mt-1 block text-sm text-stone-500">
+                      Total cuenta: ${totalCuenta.toFixed(2)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Total a cobrar: <strong>${totalCuenta.toFixed(2)}</strong>
+                  </>
+                )}
               </p>
               <div>
                 <label className="mb-1 block text-sm font-medium text-stone-700">Terminal</label>

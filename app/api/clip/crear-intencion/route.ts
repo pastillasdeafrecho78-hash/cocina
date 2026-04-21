@@ -14,7 +14,9 @@ import {
 import { toErrorResponse, raise } from '@/lib/authz/http'
 import {
   buildFullAllocationFromItems,
+  buildRemainingAllocationFromItems,
   computePagoLineasAndMonto,
+  debeSaldarComandaYLiberarMesa,
   mergeAllocationsByItem,
   paidQuantitiesFromPagos,
   sumPagosCompletadosMonto,
@@ -84,12 +86,36 @@ export async function POST(request: NextRequest) {
 
     let mergedAlloc: AllocationLine[]
     if (!body.allocations || body.allocations.length === 0) {
-      if (paidSum > 0.01) {
-        raise(400, 'Indica allocations para cobrar un tramo parcial con Clip.')
-      }
-      mergedAlloc = buildFullAllocationFromItems(comanda.items)
+      mergedAlloc =
+        paidSum > 0.01
+          ? buildRemainingAllocationFromItems(comanda.items, paidQty)
+          : buildFullAllocationFromItems(comanda.items)
     } else {
       mergedAlloc = mergeAllocationsByItem(body.allocations)
+    }
+
+    if (mergedAlloc.length === 0) {
+      if (debeSaldarComandaYLiberarMesa(comanda.items, pagosPrev, totalDue)) {
+        await prisma.comanda.update({
+          where: { id: comanda.id },
+          data: { estado: 'PAGADO', fechaCompletado: new Date() },
+        })
+        if (comanda.mesaId) {
+          await prisma.mesa.update({
+            where: { id: comanda.mesaId },
+            data: { estado: 'LIBRE' },
+          })
+        }
+        return NextResponse.json({
+          success: true,
+          data: {
+            sincronizadoSinClip: true,
+            mensaje:
+              'No había saldo que cobrar con la terminal; la comanda se cerró y la mesa quedó libre.',
+          },
+        })
+      }
+      raise(400, 'No hay ítems para asignar a este cobro con Clip.')
     }
 
     const val = validateAllocations(comanda.items, mergedAlloc, paidQty)
