@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { generarNumeroComanda, calcularTotal, getDestinoFromCategoria } from '@/lib/comanda-helpers'
+import { generarNumeroComanda, calcularTotal } from '@/lib/comanda-helpers'
+import { resolveLegacyDestino } from '@/lib/kds'
 import { z } from 'zod'
 import {
   requireActiveTenant,
@@ -10,6 +11,8 @@ import {
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 import { isUserWithinWorkSchedule } from '@/lib/pedidos-cliente-capacidad-policy'
+
+const prismaKds = prisma as any
 
 export const dynamic = 'force-dynamic'
 
@@ -193,7 +196,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const productos = await prisma.producto.findMany({
+    const productos = await prismaKds.producto.findMany({
       where: {
         id: { in: data.items.map((item) => item.productoId) },
         activo: true,
@@ -202,6 +205,7 @@ export async function POST(request: NextRequest) {
       include: {
         categoria: true,
         tamanos: true,
+        kdsSeccion: true,
         modificadores: {
           include: {
             modificador: true,
@@ -213,7 +217,7 @@ export async function POST(request: NextRequest) {
     // Crear items de comanda
     const comandaItems = []
     for (const itemData of data.items) {
-      const producto = productos.find((p) => p.id === itemData.productoId)
+      const producto = productos.find((p: any) => p.id === itemData.productoId)
       if (!producto) {
         throw new Error(`Producto ${itemData.productoId} no encontrado`)
       }
@@ -230,7 +234,7 @@ export async function POST(request: NextRequest) {
       let precioBase = producto.precio
       let tamanoId: string | undefined
       if (itemData.tamanoId) {
-        const tamano = producto.tamanos.find((t) => t.id === itemData.tamanoId)
+        const tamano = producto.tamanos.find((t: any) => t.id === itemData.tamanoId)
         if (!tamano) {
           throw new Error(`Tamaño no válido para el producto "${producto.nombre}"`)
         }
@@ -279,7 +283,10 @@ export async function POST(request: NextRequest) {
         precioUnitario,
         subtotal,
         notas: itemData.notas,
-        destino: getDestinoFromCategoria(producto.categoria.tipo),
+        destino: resolveLegacyDestino({
+          tipoCategoria: producto.categoria.tipo,
+          kdsSeccion: producto.kdsSeccion,
+        }),
         numeroRonda: 1,
         modificadores: {
           create: itemModificadores,

@@ -151,6 +151,7 @@ model Restaurante {
   clientes                 Cliente[]
   comandas                 Comanda[]
   categorias               Categoria[]
+  kdsSecciones             KdsSeccion[]
   modificadores            Modificador[]
   plantas                  PlantaRestaurante[]
   configuracion            ConfiguracionRestaurante?
@@ -448,12 +449,32 @@ model Categoria {
   @@index([restauranteId])
 }
 
+model KdsSeccion {
+  id            String   @id @default(cuid())
+  restauranteId String
+  nombre        String
+  slug          String
+  tipoLegacy    String?
+  color         String?
+  orden         Int      @default(0)
+  activa        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  productos   Producto[]
+
+  @@unique([restauranteId, slug])
+  @@index([restauranteId, activa])
+}
+
 model Producto {
   id              String  @id @default(cuid())
   nombre          String
   descripcion     String?
   precio          Float
   categoriaId     String
+  kdsSeccionId    String?
   activo          Boolean @default(true)
   listoPorDefault Boolean @default(false) // ej. Coca-Cola: entra en comanda ya como LISTO
   imagenUrl       String?
@@ -467,6 +488,7 @@ model Producto {
   updatedAt DateTime @updatedAt
 
   categoria        Categoria             @relation(fields: [categoriaId], references: [id])
+  kdsSeccion       KdsSeccion?           @relation(fields: [kdsSeccionId], references: [id], onDelete: SetNull)
   items            ComandaItem[]
   solicitudItems   SolicitudPedidoItem[]
   modificadores    ModificadorProducto[]
@@ -474,6 +496,7 @@ model Producto {
   facturaConceptos FacturaConcepto[]
 
   @@index([categoriaId])
+  @@index([kdsSeccionId])
   @@index([activo])
 }
 

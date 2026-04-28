@@ -1,7 +1,10 @@
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { calcularTotal, getDestinoFromCategoria } from '@/lib/comanda-helpers'
+import { calcularTotal } from '@/lib/comanda-helpers'
+import { resolveLegacyDestino } from '@/lib/kds'
 import { resolveEffectiveMenu } from '@/lib/menu-effective'
+
+const prismaKds = prisma as any
 
 export const publicSolicitudSchema = z.object({
   slug: z.string().min(1).max(64),
@@ -34,7 +37,7 @@ export async function buildSolicitudItems(restauranteId: string, data: PublicSol
   const menuCtx = await resolveEffectiveMenu(restauranteId)
   const menuRestauranteId = menuCtx.menuRestauranteId
 
-  const productos = await prisma.producto.findMany({
+  const productos = await prismaKds.producto.findMany({
     where: {
       id: { in: data.items.map((item) => item.productoId) },
       activo: true,
@@ -43,6 +46,7 @@ export async function buildSolicitudItems(restauranteId: string, data: PublicSol
     include: {
       categoria: true,
       tamanos: true,
+      kdsSeccion: true,
     },
   })
 
@@ -58,7 +62,7 @@ export async function buildSolicitudItems(restauranteId: string, data: PublicSol
   }> = []
 
   for (const itemData of data.items) {
-    const producto = productos.find((p) => p.id === itemData.productoId)
+    const producto = productos.find((p: any) => p.id === itemData.productoId)
     if (!producto) {
       throw new Error(`Producto no disponible: ${itemData.productoId}`)
     }
@@ -74,7 +78,7 @@ export async function buildSolicitudItems(restauranteId: string, data: PublicSol
     let precioBase = producto.precio
     let tamanoId: string | undefined
     if (itemData.tamanoId) {
-      const tamano = producto.tamanos.find((t) => t.id === itemData.tamanoId)
+      const tamano = producto.tamanos.find((t: any) => t.id === itemData.tamanoId)
       if (!tamano) {
         throw new Error(`Tamaño inválido para ${producto.nombre}`)
       }
@@ -107,7 +111,10 @@ export async function buildSolicitudItems(restauranteId: string, data: PublicSol
       precioUnitario,
       subtotal: itemData.cantidad * precioUnitario,
       notas: itemData.notas,
-      destino: getDestinoFromCategoria(producto.categoria.tipo),
+      destino: resolveLegacyDestino({
+        tipoCategoria: producto.categoria.tipo,
+        kdsSeccion: producto.kdsSeccion,
+      }),
       modificadores: {
         create: itemModificadores,
       },

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getMenuContext } from '@/lib/menu-context'
+import { resolveDefaultKdsSeccionId } from '@/lib/kds'
 import { z } from 'zod'
 import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
+
+const prismaKds = prisma as any
 
 const imagenSchema = z
   .string()
@@ -21,6 +24,7 @@ const createProductoSchema = z.object({
   descripcion: z.string().optional(),
   precio: z.number().positive('El precio debe ser mayor a 0'),
   categoriaId: z.string().min(1, 'La categoría es requerida'),
+  kdsSeccionId: z.string().min(1).optional().nullable(),
   imagenUrl: imagenSchema.optional().or(z.literal('')),
   activo: z.boolean().optional().default(true),
   listoPorDefault: z.boolean().optional().default(false),
@@ -57,7 +61,7 @@ export async function GET(request: NextRequest) {
     }
     // Si no se especifica, no filtrar (traer todos)
 
-    const productos = await prisma.producto.findMany({
+    const productos = await prismaKds.producto.findMany({
       where,
       include: {
         categoria: true,
@@ -67,6 +71,7 @@ export async function GET(request: NextRequest) {
           },
         },
         tamanos: { orderBy: { orden: 'asc' } },
+        kdsSeccion: true,
       },
       orderBy: {
         categoria: {
@@ -112,19 +117,34 @@ export async function POST(request: NextRequest) {
       raise(404, 'Categoría no encontrada')
     }
 
+    let kdsSeccionId = data.kdsSeccionId || null
+    if (kdsSeccionId) {
+      const kdsSeccion = await prismaKds.kdsSeccion.findFirst({
+        where: { id: kdsSeccionId, restauranteId: menuCtx.menuRestauranteId, activa: true },
+        select: { id: true },
+      })
+      if (!kdsSeccion) {
+        raise(404, 'Sección KDS no encontrada')
+      }
+    } else {
+      kdsSeccionId = await resolveDefaultKdsSeccionId(menuCtx.menuRestauranteId, categoria.tipo)
+    }
+
     // Crear el producto
-    const producto = await prisma.producto.create({
+    const producto = await prismaKds.producto.create({
       data: {
         nombre: data.nombre,
         descripcion: data.descripcion || null,
         precio: data.precio,
         categoriaId: data.categoriaId,
+        kdsSeccionId,
         imagenUrl: data.imagenUrl || null,
         activo: data.activo ?? true,
         listoPorDefault: data.listoPorDefault ?? false,
       },
       include: {
         categoria: true,
+        kdsSeccion: true,
       },
     })
 
@@ -147,8 +167,6 @@ export async function POST(request: NextRequest) {
     return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/productos:')
   }
 }
-
-
 
 
 

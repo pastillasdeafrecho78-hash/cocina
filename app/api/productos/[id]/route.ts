@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getMenuContext } from '@/lib/menu-context'
+import { resolveDefaultKdsSeccionId } from '@/lib/kds'
 import { z } from 'zod'
 import { requireAuthenticatedUser, requireCapability } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
+
+const prismaKds = prisma as any
 
 const imagenSchema = z
   .string()
@@ -21,6 +24,7 @@ const updateProductoSchema = z.object({
   descripcion: z.string().optional(),
   precio: z.number().positive('El precio debe ser mayor a 0').optional(),
   categoriaId: z.string().min(1, 'La categoría es requerida').optional(),
+  kdsSeccionId: z.string().min(1).optional().nullable(),
   imagenUrl: imagenSchema.optional().or(z.literal('')),
   activo: z.boolean().optional(),
   listoPorDefault: z.boolean().optional(),
@@ -46,18 +50,19 @@ export async function PATCH(
     const data = updateProductoSchema.parse(body)
 
     // Verificar que el producto existe
-    const productoExistente = await prisma.producto.findFirst({
+    const productoExistente = await prismaKds.producto.findFirst({
       where: {
         id: params.id,
         categoria: { restauranteId: menuCtx.menuRestauranteId },
       },
+      include: { categoria: true },
     })
 
     if (!productoExistente) {
       raise(404, 'Producto no encontrado')
     }
 
-    // Si se está cambiando la categoría, verificar que existe
+    let nextCategoria = productoExistente.categoria
     if (data.categoriaId) {
       const categoria = await prisma.categoria.findFirst({
         where: { id: data.categoriaId, restauranteId: menuCtx.menuRestauranteId },
@@ -66,22 +71,41 @@ export async function PATCH(
       if (!categoria) {
         raise(404, 'Categoría no encontrada')
       }
+      nextCategoria = categoria
+    }
+
+    let kdsSeccionId: string | null | undefined
+    if (data.kdsSeccionId !== undefined) {
+      kdsSeccionId = data.kdsSeccionId || null
+      if (kdsSeccionId) {
+        const kdsSeccion = await prismaKds.kdsSeccion.findFirst({
+          where: { id: kdsSeccionId, restauranteId: menuCtx.menuRestauranteId, activa: true },
+          select: { id: true },
+        })
+        if (!kdsSeccion) {
+          raise(404, 'Sección KDS no encontrada')
+        }
+      }
+    } else if (data.categoriaId && !productoExistente.kdsSeccionId) {
+      kdsSeccionId = await resolveDefaultKdsSeccionId(menuCtx.menuRestauranteId, nextCategoria.tipo)
     }
 
     // Actualizar el producto
-    const producto = await prisma.producto.update({
+    const producto = await prismaKds.producto.update({
       where: { id: params.id },
       data: {
         ...(data.nombre && { nombre: data.nombre }),
         ...(data.descripcion !== undefined && { descripcion: data.descripcion || null }),
         ...(data.precio && { precio: data.precio }),
         ...(data.categoriaId && { categoriaId: data.categoriaId }),
+        ...(kdsSeccionId !== undefined && { kdsSeccionId }),
         ...(data.imagenUrl !== undefined && { imagenUrl: data.imagenUrl || null }),
         ...(data.activo !== undefined && { activo: data.activo }),
         ...(data.listoPorDefault !== undefined && { listoPorDefault: data.listoPorDefault }),
       },
       include: {
         categoria: true,
+        kdsSeccion: true,
       },
     })
 
