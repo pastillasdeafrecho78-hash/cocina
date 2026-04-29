@@ -54,16 +54,26 @@ interface ProductoTamano {
   orden: number
 }
 
+interface KdsSeccion {
+  id: string
+  nombre: string
+  slug: string
+  tipoLegacy?: string | null
+  color?: string | null
+}
+
 interface Producto {
   id: string
   nombre: string
   descripcion?: string | null
   precio: number
   categoriaId: string
+  kdsSeccionId?: string | null
   imagenUrl?: string | null
   activo: boolean
   listoPorDefault?: boolean
   categoria: Categoria
+  kdsSeccion?: KdsSeccion | null
   modificadores: ModificadorProducto[]
   tamanos?: ProductoTamano[]
 }
@@ -84,6 +94,9 @@ const TIPO_MODIFICADOR_COLOR: Record<string, string> = {
 
 const MAX_IMAGE_BYTES = 340 * 1024
 const MAX_IMAGE_DIMENSION = 1280
+const KDS_SECCIONES_CONFIGURABLES =
+  process.env.NEXT_PUBLIC_KDS_SECCIONES_CONFIGURABLES === '1' ||
+  process.env.NEXT_PUBLIC_KDS_SECCIONES_CONFIGURABLES === 'true'
 
 const fileToDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -139,14 +152,17 @@ export default function CartaPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
   const [modificadores, setModificadores] = useState<Modificador[]>([])
+  const [kdsSecciones, setKdsSecciones] = useState<KdsSeccion[]>([])
   const [loading, setLoading] = useState(true)
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const [actualizandoKdsProductoId, setActualizandoKdsProductoId] = useState<string | null>(null)
   const [formData, setFormData] = useState({
     nombre: '',
     descripcion: '',
     precio: '',
     categoriaId: '',
+    kdsSeccionId: '',
     imagenUrl: '',
     listoPorDefault: false,
   })
@@ -201,6 +217,9 @@ export default function CartaPage() {
     fetchCategorias()
     fetchProductos()
     fetchModificadores()
+    if (KDS_SECCIONES_CONFIGURABLES) {
+      fetchKdsSecciones()
+    }
   }, [])
 
   const fetchCategorias = async () => {
@@ -245,6 +264,21 @@ export default function CartaPage() {
       }
     } catch {
       toast.error('Error al cargar extras')
+    }
+  }
+
+  const fetchKdsSecciones = async () => {
+    try {
+      const response = await authFetch('/api/kds/secciones')
+      if (response.status === 401 || response.status === 403) return
+      const data = await response.json()
+      if (data.success) {
+        setKdsSecciones(data.data)
+      } else {
+        toast.error('Error al cargar secciones KDS')
+      }
+    } catch {
+      toast.error('Error al cargar secciones KDS')
     }
   }
 
@@ -550,6 +584,8 @@ export default function CartaPage() {
           descripcion: formData.descripcion || undefined,
           precio,
           categoriaId: formData.categoriaId,
+          ...(KDS_SECCIONES_CONFIGURABLES &&
+            formData.kdsSeccionId && { kdsSeccionId: formData.kdsSeccionId }),
           imagenUrl: formData.imagenUrl || undefined,
           listoPorDefault: formData.listoPorDefault,
         }),
@@ -557,7 +593,15 @@ export default function CartaPage() {
       const data = await response.json()
       if (data.success) {
         toast.success('Producto creado exitosamente')
-        setFormData({ nombre: '', descripcion: '', precio: '', categoriaId: '', imagenUrl: '', listoPorDefault: false })
+        setFormData({
+          nombre: '',
+          descripcion: '',
+          precio: '',
+          categoriaId: '',
+          kdsSeccionId: '',
+          imagenUrl: '',
+          listoPorDefault: false,
+        })
         setBusquedaCategoria('')
         setMostrarFormulario(false)
         fetchProductos()
@@ -568,6 +612,28 @@ export default function CartaPage() {
       toast.error('Error al crear producto')
     } finally {
       setGuardando(false)
+    }
+  }
+
+  const handleCambiarKdsProducto = async (producto: Producto, kdsSeccionId: string) => {
+    setActualizandoKdsProductoId(producto.id)
+    try {
+      const response = await apiFetch(`/api/productos/${producto.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kdsSeccionId: kdsSeccionId || null }),
+      })
+      const data = await response.json()
+      if (data.success) {
+        toast.success('Sección KDS actualizada')
+        fetchProductos()
+      } else {
+        toast.error(data.error || 'Error al actualizar sección KDS')
+      }
+    } catch {
+      toast.error('Error al actualizar sección KDS')
+    } finally {
+      setActualizandoKdsProductoId(null)
     }
   }
 
@@ -1309,6 +1375,29 @@ export default function CartaPage() {
                 )}
               </div>
 
+              {KDS_SECCIONES_CONFIGURABLES && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sección KDS (opcional)
+                  </label>
+                  <select
+                    value={formData.kdsSeccionId}
+                    onChange={(e) => setFormData({ ...formData, kdsSeccionId: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 text-black bg-white"
+                  >
+                    <option value="">Automático por categoría</option>
+                    {kdsSecciones.map((seccion) => (
+                      <option key={seccion.id} value={seccion.id}>
+                        {seccion.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Si lo dejas automático, bebidas van a Barra y lo demás a Cocina.
+                  </p>
+                </div>
+              )}
+
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Imagen del producto (opcional)</label>
                 <div className="space-y-2">
@@ -1387,6 +1476,11 @@ export default function CartaPage() {
                     <div className="mb-2">
                       <h3 className="font-semibold text-gray-900">{producto.nombre}</h3>
                       <p className="text-sm text-gray-500">{producto.categoria.nombre}</p>
+                      {KDS_SECCIONES_CONFIGURABLES && (
+                        <p className="mt-1 text-xs font-medium text-indigo-700">
+                          KDS: {producto.kdsSeccion?.nombre ?? 'Automático legacy'}
+                        </p>
+                      )}
                     </div>
                     {producto.descripcion && (
                       <p className="text-sm text-gray-600 mb-2">{producto.descripcion}</p>
@@ -1473,6 +1567,27 @@ export default function CartaPage() {
                         </button>
                       </div>
                     </div>
+
+                    {KDS_SECCIONES_CONFIGURABLES && (
+                      <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+                        <label className="mb-1 block text-xs font-semibold text-indigo-900">
+                          Sección KDS
+                        </label>
+                        <select
+                          value={producto.kdsSeccionId ?? ''}
+                          onChange={(e) => void handleCambiarKdsProducto(producto, e.target.value)}
+                          disabled={actualizandoKdsProductoId === producto.id}
+                          className="w-full rounded-md border border-indigo-300 bg-white px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-60"
+                        >
+                          <option value="">Automático legacy</option>
+                          {kdsSecciones.map((seccion) => (
+                            <option key={seccion.id} value={seccion.id}>
+                              {seccion.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
 
                   {/* Panel de extras y tamaños del producto */}
