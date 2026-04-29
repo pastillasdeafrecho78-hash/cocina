@@ -7,6 +7,9 @@ import {
   requireAnyCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
+import { normalizeMesaLayout } from '@/lib/mesas/layout'
+
+const prismaMesas = prisma as any
 
 const updateMesaSchema = z.object({
   estado: z.enum(['LIBRE', 'OCUPADA', 'CUENTA_PEDIDA', 'RESERVADA']).optional(),
@@ -14,6 +17,9 @@ const updateMesaSchema = z.object({
   posicionX: z.number().min(0).max(10000).optional(),
   posicionY: z.number().min(0).max(10000).optional(),
   rotacion: z.number().min(0).max(360).optional(),
+  forma: z.enum(['RECTANGULAR', 'CIRCULAR']).optional(),
+  ancho: z.number().min(0.75).max(6).optional(),
+  alto: z.number().min(0.75).max(6).optional(),
 })
 
 export async function PATCH(
@@ -28,7 +34,7 @@ export async function PATCH(
     const body = await request.json()
     const data = updateMesaSchema.parse(body)
 
-    const existente = await prisma.mesa.findFirst({
+    const existente = await prismaMesas.mesa.findFirst({
       where: { id: params.id, restauranteId: tenant.restauranteId },
     })
     if (!existente) {
@@ -38,9 +44,21 @@ export async function PATCH(
       )
     }
 
-    const mesa = await prisma.mesa.update({
+    const layout =
+      data.forma !== undefined || data.ancho !== undefined || data.alto !== undefined
+        ? normalizeMesaLayout({
+            forma: data.forma ?? existente.forma,
+            ancho: data.ancho ?? existente.ancho,
+            alto: data.alto ?? existente.alto,
+          })
+        : null
+
+    const mesa = await prismaMesas.mesa.update({
       where: { id: existente.id },
-      data,
+      data: {
+        ...data,
+        ...(layout && layout),
+      },
     })
 
     return NextResponse.json({
@@ -105,8 +123,6 @@ export async function DELETE(
     return toErrorResponse(error, 'Error interno del servidor', 'Error en DELETE /api/mesas/[id]:')
   }
 }
-
-
 
 
 

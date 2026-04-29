@@ -9,14 +9,19 @@ import {
   requireCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
+import { normalizeMesaLayout } from '@/lib/mesas/layout'
 
 export const dynamic = 'force-dynamic'
+const prismaMesas = prisma as any
 
 const createMesaSchema = z.object({
   numero: z.number().int().positive(),
   capacidad: z.number().int().positive(),
   ubicacion: z.string().optional(),
   piso: z.string().optional(),
+  forma: z.enum(['RECTANGULAR', 'CIRCULAR']).optional(),
+  ancho: z.number().min(0.75).max(6).optional(),
+  alto: z.number().min(0.75).max(6).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -119,6 +124,11 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const data = createMesaSchema.parse(body)
+    const layout = normalizeMesaLayout({
+      forma: data.forma,
+      ancho: data.ancho,
+      alto: data.alto,
+    })
 
     const rid = tenant.restauranteId
     const mesaExistente = await prisma.mesa.findFirst({
@@ -135,24 +145,30 @@ export async function POST(request: NextRequest) {
     let mesa
     if (mesaExistente) {
       // Reactivar mesa borrada (soft delete) con el mismo número
-      mesa = await prisma.mesa.update({
+      mesa = await prismaMesas.mesa.update({
         where: { id: mesaExistente.id },
         data: {
           capacidad: data.capacidad,
           ubicacion: data.ubicacion ?? null,
           piso: data.piso ?? null,
+          forma: layout.forma,
+          ancho: layout.ancho,
+          alto: layout.alto,
           estado: 'LIBRE',
           activa: true,
         },
       })
     } else {
-      mesa = await prisma.mesa.create({
+      mesa = await prismaMesas.mesa.create({
         data: {
           restauranteId: rid,
           numero: data.numero,
           capacidad: data.capacidad,
           ubicacion: data.ubicacion || null,
           piso: data.piso ?? null,
+          forma: layout.forma,
+          ancho: layout.ancho,
+          alto: layout.alto,
           estado: 'LIBRE',
           activa: true,
         },
@@ -197,8 +213,6 @@ export async function POST(request: NextRequest) {
     return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/mesas:')
   }
 }
-
-
 
 
 

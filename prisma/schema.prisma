@@ -17,6 +17,11 @@ enum EstadoMesa {
   RESERVADA
 }
 
+enum FormaMesa {
+  RECTANGULAR
+  CIRCULAR
+}
+
 enum TipoPedido {
   EN_MESA
   PARA_LLEVAR
@@ -334,6 +339,9 @@ model Mesa {
   posicionX Float? // Posición X en el plano (0-100 o píxeles)
   posicionY Float? // Posición Y en el plano (0-100 o píxeles)
   rotacion  Float?     @default(0) // Rotación en grados (0-360)
+  forma     FormaMesa  @default(RECTANGULAR)
+  ancho     Float      @default(1)
+  alto      Float      @default(1)
   // Relación con planta (opcional)
   plantaId  String?
   activa    Boolean    @default(true)

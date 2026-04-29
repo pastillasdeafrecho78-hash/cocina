@@ -7,6 +7,11 @@ import toast from 'react-hot-toast'
 import { quantize, dequantize, type Point } from '@/lib/utils/polygonUtils'
 import { useIMUTracking } from '@/lib/hooks/useIMUTracking'
 import { apiFetch } from '@/lib/auth-fetch'
+import { getMesaPixelSize, normalizeMesaLayout, type FormaMesaLayout } from '@/lib/mesas/layout'
+
+const MESAS_LAYOUT_AVANZADO =
+  process.env.NEXT_PUBLIC_MESAS_LAYOUT_AVANZADO === '1' ||
+  process.env.NEXT_PUBLIC_MESAS_LAYOUT_AVANZADO === 'true'
 
 interface Mesa {
   id: string
@@ -17,6 +22,9 @@ interface Mesa {
   posicionX?: number | null
   posicionY?: number | null
   rotacion?: number | null
+  forma?: FormaMesaLayout | null
+  ancho?: number | null
+  alto?: number | null
   comandaActual?: {
     numeroComanda: string
     total: number
@@ -137,6 +145,11 @@ export default function PlantaMesasPage() {
           
           return {
             ...mesa,
+            ...normalizeMesaLayout({
+              forma: mesa.forma,
+              ancho: mesa.ancho,
+              alto: mesa.alto,
+            }),
             x,
             y,
             rotation: mesa.rotacion ?? 0,
@@ -185,6 +198,7 @@ export default function PlantaMesasPage() {
 
   // Guardar posición de una mesa
   const guardarPosicionMesa = async (mesaId: string, x: number, y: number, rotation: number) => {
+    const mesa = mesas.find((m) => m.id === mesaId)
     try {
       const response = await apiFetch(`/api/mesas/${mesaId}`, {
         method: 'PATCH',
@@ -195,6 +209,9 @@ export default function PlantaMesasPage() {
           posicionX: x,
           posicionY: y,
           rotacion: rotation,
+          ...(MESAS_LAYOUT_AVANZADO && mesa
+            ? { forma: mesa.forma, ancho: mesa.ancho, alto: mesa.alto }
+            : {}),
         }),
       })
       if (response.status === 401) {
@@ -217,9 +234,7 @@ export default function PlantaMesasPage() {
     setGuardando(true)
     try {
       await Promise.all(
-        mesas.map((mesa) =>
-          guardarPosicionMesa(mesa.id, mesa.x, mesa.y, mesa.rotation)
-        )
+        mesas.map((mesa) => guardarPosicionMesa(mesa.id, mesa.x, mesa.y, mesa.rotation))
       )
       toast.success('Posiciones guardadas correctamente')
       setModoEdicion(false)
@@ -505,6 +520,26 @@ export default function PlantaMesasPage() {
     )
   }
 
+  const actualizarLayoutMesa = (
+    mesaId: string,
+    next: Partial<{ forma: FormaMesaLayout; ancho: number; alto: number }>
+  ) => {
+    setMesas((prev) =>
+      prev.map((m) =>
+        m.id === mesaId
+          ? {
+              ...m,
+              ...normalizeMesaLayout({
+                forma: next.forma ?? m.forma,
+                ancho: next.ancho ?? m.ancho,
+                alto: next.alto ?? m.alto,
+              }),
+            }
+          : m
+      )
+    )
+  }
+
   // Usar sensores para posicionar mesa
   const activarSensoresParaMesa = useCallback((mesaId: string) => {
     if (!isTracking) {
@@ -710,48 +745,56 @@ export default function PlantaMesasPage() {
               transformOrigin: '0 0',
             }}
           >
-            {mesas.map((mesa) => (
-              <div
-                key={mesa.id}
-                data-mesa-id={mesa.id}
-                className={`absolute cursor-${modoEdicion ? 'move' : 'pointer'} transition-all ${
-                  mesa.isDragging ? 'z-50 opacity-80' : 'z-10'
-                } ${mesaSeleccionada === mesa.id ? 'ring-2 ring-blue-500' : ''}`}
-                style={{
-                  left: `${mesa.x}px`,
-                  top: `${mesa.y}px`,
-                  transform: `rotate(${mesa.rotation}deg)`,
-                  transformOrigin: 'center center',
-                }}
-                onMouseDown={(e) => handleMesaMouseDown(e, mesa.id)}
-                onTouchStart={(e) => handleTouchStart(e, mesa.id)}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onDoubleClick={() => modoEdicion && rotarMesa(mesa.id)}
-                onClick={() => {
-                  if (!modoEdicion) {
-                    if (mesa.comandaActual) {
-                      router.push(`/dashboard/comandas/${mesa.comandaActual.numeroComanda}`)
-                    } else {
-                      router.push(`/dashboard/comandas/nueva?mesaId=${mesa.id}`)
-                    }
-                  }
-                }}
-                title={modoEdicion ? `Mesa ${mesa.numero} - Arrastra para mover` : `Mesa ${mesa.numero}`}
-              >
-                {/* Representación visual de la mesa - tamaño igual a celda */}
+            {mesas.map((mesa) => {
+              const size = MESAS_LAYOUT_AVANZADO
+                ? getMesaPixelSize({ ancho: mesa.ancho, alto: mesa.alto, cellSize: GRID_CELL_SIZE })
+                : { width: GRID_CELL_SIZE, height: GRID_CELL_SIZE }
+              const isCircular = MESAS_LAYOUT_AVANZADO && mesa.forma === 'CIRCULAR'
+
+              return (
                 <div
-                  className="rounded-lg shadow-lg border-2 border-white flex flex-col items-center justify-center text-white font-bold text-sm"
+                  key={mesa.id}
+                  data-mesa-id={mesa.id}
+                  className={`absolute cursor-${modoEdicion ? 'move' : 'pointer'} transition-all ${
+                    mesa.isDragging ? 'z-50 opacity-80' : 'z-10'
+                  } ${mesaSeleccionada === mesa.id ? 'ring-2 ring-blue-500' : ''}`}
                   style={{
-                    width: `${GRID_CELL_SIZE}px`,
-                    height: `${GRID_CELL_SIZE}px`,
-                    backgroundColor: estadoColors[mesa.estado as keyof typeof estadoColors] || '#gray',
-                    transform: `rotate(${-mesa.rotation}deg)`,
+                    left: `${mesa.x}px`,
+                    top: `${mesa.y}px`,
+                    width: `${size.width}px`,
+                    height: `${size.height}px`,
+                    transform: `rotate(${mesa.rotation}deg)`,
+                    transformOrigin: 'center center',
                   }}
+                  onMouseDown={(e) => handleMesaMouseDown(e, mesa.id)}
+                  onTouchStart={(e) => handleTouchStart(e, mesa.id)}
+                  onTouchMove={handleTouchMove}
+                  onTouchEnd={handleTouchEnd}
+                  onDoubleClick={() => modoEdicion && rotarMesa(mesa.id)}
+                  onClick={() => {
+                    if (!modoEdicion) {
+                      if (mesa.comandaActual) {
+                        router.push(`/dashboard/comandas/${mesa.comandaActual.numeroComanda}`)
+                      } else {
+                        router.push(`/dashboard/comandas/nueva?mesaId=${mesa.id}`)
+                      }
+                    }
+                  }}
+                  title={modoEdicion ? `Mesa ${mesa.numero} - Arrastra para mover` : `Mesa ${mesa.numero}`}
                 >
-                  <div className="text-xs">M{mesa.numero}</div>
-                  <div className="text-xs opacity-90">👥{mesa.capacidad}</div>
-                </div>
+                  <div
+                    className="shadow-lg border-2 border-white flex flex-col items-center justify-center text-white font-bold text-sm"
+                    style={{
+                      width: `${size.width}px`,
+                      height: `${size.height}px`,
+                      borderRadius: isCircular ? '9999px' : '0.75rem',
+                      backgroundColor: estadoColors[mesa.estado as keyof typeof estadoColors] || '#64748b',
+                      transform: `rotate(${-mesa.rotation}deg)`,
+                    }}
+                  >
+                    <div className="text-xs">M{mesa.numero}</div>
+                    <div className="text-xs opacity-90">👥{mesa.capacidad}</div>
+                  </div>
 
                 {/* Etiqueta con número de mesa */}
                 <div
@@ -774,8 +817,9 @@ export default function PlantaMesasPage() {
                     Celda: ({Math.round(mesa.x / GRID_CELL_SIZE)}, {Math.round(mesa.y / GRID_CELL_SIZE)})
                   </div>
                 )}
-              </div>
-            ))}
+                </div>
+              )
+            })}
           </div>
         </div>
       </div>
@@ -816,6 +860,60 @@ export default function PlantaMesasPage() {
           )}
           {modoEdicion && mesaSeleccionada && (
             <div className="flex items-center gap-2 rounded-2xl bg-white/90 px-2 py-1.5 shadow-sm">
+              {MESAS_LAYOUT_AVANZADO && (() => {
+                const mesa = mesas.find((m) => m.id === mesaSeleccionada)
+                if (!mesa) return null
+                return (
+                  <>
+                    <select
+                      value={mesa.forma ?? 'RECTANGULAR'}
+                      onChange={(event) =>
+                        actualizarLayoutMesa(mesaSeleccionada, {
+                          forma: event.target.value as FormaMesaLayout,
+                        })
+                      }
+                      className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-800"
+                    >
+                      <option value="RECTANGULAR">Rectangular</option>
+                      <option value="CIRCULAR">Circular</option>
+                    </select>
+                    <label className="flex items-center gap-1 text-xs text-gray-700">
+                      Ancho
+                      <input
+                        type="number"
+                        min="0.75"
+                        max="6"
+                        step="0.25"
+                        value={mesa.ancho ?? 1}
+                        onChange={(event) =>
+                          actualizarLayoutMesa(mesaSeleccionada, {
+                            ancho: Number(event.target.value),
+                          })
+                        }
+                        className="w-16 rounded border border-gray-300 px-1 py-0.5 text-xs text-gray-800"
+                      />
+                    </label>
+                    {mesa.forma !== 'CIRCULAR' && (
+                      <label className="flex items-center gap-1 text-xs text-gray-700">
+                        Alto
+                        <input
+                          type="number"
+                          min="0.75"
+                          max="6"
+                          step="0.25"
+                          value={mesa.alto ?? 1}
+                          onChange={(event) =>
+                            actualizarLayoutMesa(mesaSeleccionada, {
+                              alto: Number(event.target.value),
+                            })
+                          }
+                          className="w-16 rounded border border-gray-300 px-1 py-0.5 text-xs text-gray-800"
+                        />
+                      </label>
+                    )}
+                  </>
+                )
+              })()}
               <button
                 onClick={() => activarSensoresParaMesa(mesaSeleccionada)}
                 className="px-2 py-1 bg-purple-600 text-white rounded text-sm font-semibold hover:bg-purple-700"
