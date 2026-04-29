@@ -39,6 +39,8 @@ export const PERMISSION_HOVER_HINTS: Record<string, string> = {
   'tables.wait_times': 'Puede ver y ajustar los tiempos de color del tablero de mesas.',
   'tables.reservations': 'Accede al módulo de reservas desde el flujo de mesas.',
   'tables.client_channel': 'Gestiona pedido por QR, links públicos y canal cliente en mesa.',
+  'inventory.view': 'Ve artículos, stock, alertas y movimientos de inventario.',
+  'inventory.manage': 'Crea artículos y registra compras, entradas y ajustes de stock.',
   'benefits.grant': 'Puede aplicar descuentos o beneficios especiales definidos por la sucursal.',
 }
 
@@ -93,6 +95,12 @@ export const PERMISSION_UI_GROUPS: readonly {
     modules: ['caja', 'payments.view', 'payments.manage'],
   },
   {
+    id: 'inventario',
+    title: 'Inventario',
+    description: 'Artículos, compras/entradas y ajustes manuales de stock.',
+    modules: ['inventory.view', 'inventory.manage'],
+  },
+  {
     id: 'reportes',
     title: 'Reportes',
     description: 'Consultas y analítica.',
@@ -135,6 +143,7 @@ export const ROLE_PRESETS: Record<
       'reservations.manage',
       'orders.view',
       'orders.manage',
+      'inventory.view',
     ],
   },
   cocina: {

@@ -14,6 +14,9 @@ const COMPACT_ENTER_THRESHOLD = 64
 const COMPACT_EXIT_THRESHOLD = 28
 const SCROLL_JITTER_PX = 4
 const TOGGLE_COOLDOWN_MS = 180
+const INVENTARIO_MVP =
+  process.env.NEXT_PUBLIC_INVENTARIO_MVP === '1' ||
+  process.env.NEXT_PUBLIC_INVENTARIO_MVP === 'true'
 
 async function clearSession() {
   localStorage.removeItem('user')
@@ -306,6 +309,9 @@ export default function DashboardLayout({
     { href: '/dashboard/barra', label: 'Barra', modulo: 'barra' },
     { href: '/dashboard/reportes', label: 'Reportes', modulo: 'reportes' },
     { href: '/dashboard/caja', label: 'Caja', modulo: 'caja' },
+    ...(INVENTARIO_MVP
+      ? [{ href: '/dashboard/inventario', label: 'Inventario', modulo: 'inventory.view' }]
+      : []),
   ].filter((item) => {
     if (!item.modulo) return true
     if (item.href === '/dashboard/mesas') {
@@ -402,7 +408,6 @@ export default function DashboardLayout({
     </div>
   )
 }
-
 
 
 

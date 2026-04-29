@@ -84,6 +84,11 @@ enum DestinoItem {
   BARRA
 }
 
+enum TipoMovimientoInventario {
+  ENTRADA
+  AJUSTE_ABSOLUTO
+}
+
 enum ScopeVistaDashboard {
   USER
   GLOBAL
@@ -152,6 +157,8 @@ model Restaurante {
   comandas                 Comanda[]
   categorias               Categoria[]
   kdsSecciones             KdsSeccion[]
+  inventarioArticulos      InventarioArticulo[]
+  inventarioMovimientos    InventarioMovimiento[]
   modificadores            Modificador[]
   plantas                  PlantaRestaurante[]
   configuracion            ConfiguracionRestaurante?
@@ -205,6 +212,7 @@ model Usuario {
   cortesX           CorteX[]
   cortesZ           CorteZ[]
   turnosCaja        TurnoCaja[]
+  inventarioMovimientos InventarioMovimiento[]
   dashboards        DashboardVista[]
   codigosVinculacion CodigoVinculacionSucursal[] @relation("CodigoVinculacionCreadoPor")
 
@@ -498,6 +506,51 @@ model Producto {
   @@index([categoriaId])
   @@index([kdsSeccionId])
   @@index([activo])
+}
+
+model InventarioArticulo {
+  id             String    @id @default(cuid())
+  restauranteId  String
+  nombre         String
+  unidad         String
+  sku            String?
+  categoria      String?
+  stockActual    Float     @default(0)
+  stockMinimo    Float     @default(0)
+  fechaCaducidad DateTime?
+  activo         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  restaurante Restaurante            @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  movimientos InventarioMovimiento[]
+
+  @@unique([restauranteId, nombre])
+  @@index([restauranteId, activo])
+  @@index([restauranteId, fechaCaducidad])
+}
+
+model InventarioMovimiento {
+  id            String                   @id @default(cuid())
+  restauranteId String
+  articuloId    String
+  tipo          TipoMovimientoInventario
+  cantidad      Float
+  stockAntes    Float
+  stockDespues  Float
+  costoUnitario Float?
+  proveedor     String?
+  referencia    String?
+  notas         String?
+  usuarioId     String?
+  createdAt     DateTime                 @default(now())
+
+  restaurante Restaurante        @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  articulo    InventarioArticulo @relation(fields: [articuloId], references: [id], onDelete: Cascade)
+  usuario     Usuario?           @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([restauranteId, createdAt])
+  @@index([articuloId, createdAt])
 }
 
 // Tamaños por producto: cada platillo define sus propias opciones (Chico $X, Grande $Y, etc.)

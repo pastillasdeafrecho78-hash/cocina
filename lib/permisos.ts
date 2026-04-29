@@ -45,6 +45,8 @@ export const CAPACIDADES = [
   'tables.reservations',
   /** Mesas: pedido cliente, QR y links públicos */
   'tables.client_channel',
+  'inventory.view',
+  'inventory.manage',
   'benefits.grant',
 ] as const
 
@@ -98,6 +100,8 @@ const CAPABILITY_TO_LEGACY: Record<string, readonly string[]> = {
   'tables.wait_times': ['mesas'],
   'tables.reservations': ['mesas'],
   'tables.client_channel': ['mesas'],
+  'inventory.view': ['configuracion'],
+  'inventory.manage': ['configuracion'],
   'benefits.grant': ['configuracion'],
 }
 
@@ -134,6 +138,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'tables.wait_times': 'Mesas: tiempos de color',
   'tables.reservations': 'Mesas: reservaciones',
   'tables.client_channel': 'Mesas: pedido cliente y QR',
+  'inventory.view': 'Inventario: ver artículos y movimientos',
+  'inventory.manage': 'Inventario: registrar compras y ajustes',
   'benefits.grant': 'Otorgar beneficios especiales',
 }
 
