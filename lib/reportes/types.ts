@@ -11,6 +11,8 @@ export type ReportDimension =
   | 'usuarioCreador'
   | 'usuarioCancelador'
   | 'motivoCancelacion'
+  | 'inventarioArticulo'
+  | 'kdsSeccion'
 
 export type ReportMetric =
   | 'ventas'
@@ -20,6 +22,9 @@ export type ReportMetric =
   | 'productosVendidos'
   | 'propina'
   | 'descuento'
+  | 'inventarioBajo'
+  | 'inventarioMovimientos'
+  | 'tiempoPreparacionPromedio'
 
 export type ReportChartType = 'kpi' | 'bar' | 'line' | 'donut' | 'table'
 
@@ -66,6 +71,9 @@ export interface ReportMetricTotals {
   productosVendidos: number
   propina: number
   descuento: number
+  inventarioBajo: number
+  inventarioMovimientos: number
+  tiempoPreparacionPromedio: number
 }
 
 export interface ReportRow {

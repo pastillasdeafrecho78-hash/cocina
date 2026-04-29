@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import toast from 'react-hot-toast'
 import {
   REPORT_DIMENSIONS,
+  REPORT_PRESETS,
   buildWidgetTitle,
   getDefaultReportFilters,
   getDefaultWidgets,
@@ -398,6 +399,19 @@ export function useReportesDashboard() {
     setSelectedWidgetId(widget.id)
   }, [])
 
+  const addWidgetFromPreset = useCallback((presetId: string) => {
+    const preset = REPORT_PRESETS.find((item) => item.id === presetId)
+    if (!preset) return
+
+    const widget = normalizeWidgetConfig({
+      ...preset.widget,
+      id: crypto.randomUUID(),
+      widgetFilters: {},
+    })
+    setWidgets((current) => [...current, widget])
+    setSelectedWidgetId(widget.id)
+  }, [])
+
   const updateWidget = useCallback((widgetId: string, patch: Partial<ReportWidgetConfig>) => {
     setWidgets((current) =>
       current.map((widget) => {
@@ -563,6 +577,7 @@ export function useReportesDashboard() {
     activeView,
     activeViewId,
     addWidget,
+    addWidgetFromPreset,
     deleteCurrentView,
     duplicateWidget,
     filterOptions,

@@ -8,10 +8,15 @@ import {
 import { reportQuerySchema } from '@/lib/reportes/schemas'
 import {
   aggregateCancelledWidgetData,
+  aggregateInventoryWidgetData,
+  aggregateTimingWidgetData,
   aggregateWidgetData,
   fetchCancelledReportBaseData,
   fetchReportBaseData,
 } from '@/lib/reportes/server'
+
+const INVENTORY_METRICS = new Set(['inventarioBajo', 'inventarioMovimientos'])
+const TIMING_METRICS = new Set(['tiempoPreparacionPromedio'])
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,16 +27,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = reportQuerySchema.parse(body)
 
-    const result =
-      data.widget.metric === 'comandasCanceladas'
-        ? aggregateCancelledWidgetData(
-            await fetchCancelledReportBaseData(data.filters, tenant.restauranteId),
-            data.widget
-          )
-        : aggregateWidgetData(
-            await fetchReportBaseData(data.filters, tenant.restauranteId),
-            data.widget
-          )
+    let result
+    if (INVENTORY_METRICS.has(data.widget.metric)) {
+      result = await aggregateInventoryWidgetData(data.filters, data.widget, tenant.restauranteId)
+    } else if (TIMING_METRICS.has(data.widget.metric)) {
+      result = await aggregateTimingWidgetData(data.filters, data.widget, tenant.restauranteId)
+    } else if (data.widget.metric === 'comandasCanceladas') {
+      result = aggregateCancelledWidgetData(
+        await fetchCancelledReportBaseData(data.filters, tenant.restauranteId),
+        data.widget
+      )
+    } else {
+      result = aggregateWidgetData(
+        await fetchReportBaseData(data.filters, tenant.restauranteId),
+        data.widget
+      )
+    }
 
     return NextResponse.json({
       success: true,

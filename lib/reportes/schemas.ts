@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { isMetricSupportedForDimension } from '@/lib/reportes/catalog'
+import type { ReportDimension, ReportMetric } from '@/lib/reportes/types'
 
 export const reportFiltersSchema = z.object({
   fechaInicio: z.string().min(1),
@@ -38,6 +40,8 @@ export const reportWidgetSchema = z.object({
     'usuarioCreador',
     'usuarioCancelador',
     'motivoCancelacion',
+    'inventarioArticulo',
+    'kdsSeccion',
   ]),
   metric: z.enum([
     'ventas',
@@ -47,11 +51,27 @@ export const reportWidgetSchema = z.object({
     'productosVendidos',
     'propina',
     'descuento',
+    'inventarioBajo',
+    'inventarioMovimientos',
+    'tiempoPreparacionPromedio',
   ]),
   chartType: z.enum(['kpi', 'bar', 'line', 'donut', 'table']),
   limit: z.number().int().min(1).max(50).default(10),
   sort: z.enum(['asc', 'desc']).default('desc'),
   widgetFilters: reportWidgetFiltersSchema.optional(),
+}).superRefine((widget, ctx) => {
+  if (
+    !isMetricSupportedForDimension(
+      widget.dimension as ReportDimension,
+      widget.metric as ReportMetric
+    )
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'La métrica no es compatible con la dimensión seleccionada',
+      path: ['metric'],
+    })
+  }
 })
 
 export const reportQuerySchema = z.object({

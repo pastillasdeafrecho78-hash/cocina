@@ -6,6 +6,7 @@ import {
   REPORT_CHART_TYPES,
   REPORT_DIMENSIONS,
   REPORT_METRICS,
+  REPORT_PRESETS,
   TIPO_PEDIDO_LABELS,
   buildWidgetTitle,
 } from '@/lib/reportes/catalog'
@@ -19,6 +20,7 @@ interface WidgetFilterOptions {
 
 interface WidgetConfigPanelProps {
   onAddWidget: () => void
+  onAddPreset: (presetId: string) => void
   onChange: (widgetId: string, patch: Partial<ReportWidgetConfig>) => void
   selectedWidget: ReportWidgetConfig | null
   filterOptions: WidgetFilterOptions
@@ -38,6 +40,7 @@ export default function WidgetConfigPanel({
   onChange,
   selectedWidget,
   filterOptions,
+  onAddPreset,
 }: WidgetConfigPanelProps) {
   const { resolvedTheme } = useTheme()
   const toggleFilterValue = (
@@ -83,6 +86,26 @@ export default function WidgetConfigPanel({
         >
           Agregar
         </button>
+      </div>
+
+      <div className="mt-5 rounded-3xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-300/20 dark:bg-amber-950/20">
+        <p className="app-kicker tracking-[0.2em]">Presets de negocio</p>
+        <p className="mt-1 text-xs text-stone-700">
+          Agrega un widget respondiendo una pregunta, sin elegir métrica técnica.
+        </p>
+        <div className="mt-3 grid gap-2">
+          {REPORT_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              onClick={() => onAddPreset(preset.id)}
+              className="rounded-2xl border border-amber-200 bg-white/80 p-3 text-left transition hover:border-amber-400 hover:bg-white dark:border-amber-300/20 dark:bg-stone-950/40"
+            >
+              <span className="block text-sm font-semibold text-stone-900">{preset.title}</span>
+              <span className="mt-1 block text-xs text-stone-600">{preset.question}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {!selectedWidget ? (

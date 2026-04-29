@@ -17,5 +17,11 @@ export function formatMetricValue(metric: string, value: number) {
     return formatCurrency(value)
   }
 
+  if (metric === 'tiempoPreparacionPromedio') {
+    return `${new Intl.NumberFormat('es-MX', {
+      maximumFractionDigits: 1,
+    }).format(value || 0)} min`
+  }
+
   return formatNumber(value)
 }

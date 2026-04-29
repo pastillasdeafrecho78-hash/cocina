@@ -11,6 +11,7 @@ export default function ReportesPage() {
   const {
     activeViewId,
     addWidget,
+    addWidgetFromPreset,
     deleteCurrentView,
     duplicateWidget,
     filterOptions,
@@ -76,6 +77,7 @@ export default function ReportesPage() {
 
           <WidgetConfigPanel
             filterOptions={filterOptions}
+            onAddPreset={addWidgetFromPreset}
             onAddWidget={addWidget}
             onChange={updateWidget}
             selectedWidget={selectedWidget}

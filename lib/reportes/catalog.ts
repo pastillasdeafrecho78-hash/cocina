@@ -34,7 +34,18 @@ export const REPORT_DIMENSIONS: Array<{
   {
     value: 'none',
     label: 'Sin desglose',
-    supportedMetrics: ['ventas', 'comandas', 'comandasCanceladas', 'ticketPromedio', 'productosVendidos', 'propina', 'descuento'],
+    supportedMetrics: [
+      'ventas',
+      'comandas',
+      'comandasCanceladas',
+      'ticketPromedio',
+      'productosVendidos',
+      'propina',
+      'descuento',
+      'inventarioBajo',
+      'inventarioMovimientos',
+      'tiempoPreparacionPromedio',
+    ],
   },
   {
     value: 'dia',
@@ -59,7 +70,7 @@ export const REPORT_DIMENSIONS: Array<{
   {
     value: 'producto',
     label: 'Por producto',
-    supportedMetrics: ['ventas', 'productosVendidos'],
+    supportedMetrics: ['ventas', 'productosVendidos', 'tiempoPreparacionPromedio'],
   },
   {
     value: 'categoria',
@@ -91,6 +102,16 @@ export const REPORT_DIMENSIONS: Array<{
     label: 'Por motivo de cancelación',
     supportedMetrics: ['comandasCanceladas'],
   },
+  {
+    value: 'inventarioArticulo',
+    label: 'Por artículo de inventario',
+    supportedMetrics: ['inventarioBajo', 'inventarioMovimientos'],
+  },
+  {
+    value: 'kdsSeccion',
+    label: 'Por sección KDS',
+    supportedMetrics: ['tiempoPreparacionPromedio'],
+  },
 ]
 
 export const REPORT_METRICS: Array<{ value: ReportMetric; label: string; shortLabel: string }> = [
@@ -101,6 +122,69 @@ export const REPORT_METRICS: Array<{ value: ReportMetric; label: string; shortLa
   { value: 'productosVendidos', label: 'Productos vendidos', shortLabel: 'Productos' },
   { value: 'propina', label: 'Propina', shortLabel: 'Propina' },
   { value: 'descuento', label: 'Descuento', shortLabel: 'Descuento' },
+  { value: 'inventarioBajo', label: 'Artículos bajo mínimo', shortLabel: 'Stock bajo' },
+  { value: 'inventarioMovimientos', label: 'Movimientos de inventario', shortLabel: 'Mov. inventario' },
+  { value: 'tiempoPreparacionPromedio', label: 'Tiempo promedio de preparación', shortLabel: 'Tiempo prep.' },
+]
+
+export const REPORT_PRESETS: Array<{
+  id: string
+  title: string
+  question: string
+  widget: Omit<ReportWidgetConfig, 'id'>
+}> = [
+  {
+    id: 'ventas-dia',
+    title: '¿Cuánto vendí por día?',
+    question: 'Tendencia diaria de ventas pagadas.',
+    widget: {
+      title: 'Ventas por día',
+      dimension: 'dia',
+      metric: 'ventas',
+      chartType: 'line',
+      limit: 14,
+      sort: 'asc',
+    },
+  },
+  {
+    id: 'productos-top',
+    title: '¿Qué productos se venden más?',
+    question: 'Ranking de productos por unidades vendidas.',
+    widget: {
+      title: 'Productos más vendidos',
+      dimension: 'producto',
+      metric: 'productosVendidos',
+      chartType: 'bar',
+      limit: 10,
+      sort: 'desc',
+    },
+  },
+  {
+    id: 'inventario-bajo',
+    title: '¿Qué inventario está bajo?',
+    question: 'Artículos activos con stock igual o menor al mínimo.',
+    widget: {
+      title: 'Inventario bajo mínimo',
+      dimension: 'inventarioArticulo',
+      metric: 'inventarioBajo',
+      chartType: 'table',
+      limit: 20,
+      sort: 'desc',
+    },
+  },
+  {
+    id: 'tiempos-kds',
+    title: '¿Qué sección tarda más?',
+    question: 'Promedio real entre preparación y listo por sección KDS.',
+    widget: {
+      title: 'Tiempo promedio por sección',
+      dimension: 'kdsSeccion',
+      metric: 'tiempoPreparacionPromedio',
+      chartType: 'bar',
+      limit: 10,
+      sort: 'desc',
+    },
+  },
 ]
 
 export const REPORT_CHART_TYPES: Array<{ value: ReportChartType; label: string }> = [

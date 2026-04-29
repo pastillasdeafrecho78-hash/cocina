@@ -12,12 +12,17 @@ import {
 import {
   LegacyAnaliticaData,
   ReportDimension,
+  ReportMetric,
   ReportFilters,
   ReportMetricTotals,
   ReportRow,
   ReportWidgetConfig,
   ReportWidgetResult,
 } from '@/lib/reportes/types'
+import {
+  calcularDuracionPreparacionMs,
+  type EventoTiempoLite,
+} from '@/lib/tiempos/eventos'
 
 type ReportBaseComanda = Prisma.ComandaGetPayload<{
   select: {
@@ -102,6 +107,9 @@ function emptyTotals(): ReportMetricTotals {
     productosVendidos: 0,
     propina: 0,
     descuento: 0,
+    inventarioBajo: 0,
+    inventarioMovimientos: 0,
+    tiempoPreparacionPromedio: 0,
   }
 }
 
@@ -123,6 +131,16 @@ function mergeTotals(target: ReportMetricTotals, source: ReportMetricTotals) {
   target.productosVendidos += source.productosVendidos
   target.propina += source.propina
   target.descuento += source.descuento
+  target.inventarioBajo += source.inventarioBajo
+  target.inventarioMovimientos += source.inventarioMovimientos
+}
+
+function isInventoryMetric(metric: ReportMetric) {
+  return metric === 'inventarioBajo' || metric === 'inventarioMovimientos'
+}
+
+function isTimingMetric(metric: ReportMetric) {
+  return metric === 'tiempoPreparacionPromedio'
 }
 
 function normalizeMetodoPago(metodoPago: string | null | undefined) {
@@ -600,6 +618,283 @@ function sortRows(rows: ReportRow[], widget: ReportWidgetConfig) {
     }
     return (a.value - b.value) * factor
   })
+}
+
+function buildEmptyWidgetResult(widgetInput: ReportWidgetConfig): ReportWidgetResult {
+  return {
+    widgetId: widgetInput.id,
+    title: widgetInput.title?.trim() || buildWidgetTitle(widgetInput.dimension, widgetInput.metric),
+    metric: widgetInput.metric,
+    dimension: widgetInput.dimension,
+    chartType: widgetInput.chartType,
+    rows: [],
+    totals: emptyTotals(),
+    generatedAt: new Date().toISOString(),
+  }
+}
+
+function rowsToWidgetResult(
+  widgetInput: ReportWidgetConfig,
+  rows: ReportRow[],
+  totals: ReportMetricTotals
+): ReportWidgetResult {
+  const widget = {
+    ...widgetInput,
+    title: widgetInput.title?.trim() || buildWidgetTitle(widgetInput.dimension, widgetInput.metric),
+  }
+  const sortedRows = sortRows(rows, widget).slice(0, Math.max(1, widget.limit || 10))
+
+  return {
+    widgetId: widget.id,
+    title: widget.title,
+    metric: widget.metric,
+    dimension: widget.dimension,
+    chartType: widget.chartType,
+    rows: sortedRows,
+    totals,
+    generatedAt: new Date().toISOString(),
+  }
+}
+
+export async function aggregateInventoryWidgetData(
+  filtersInput: Partial<ReportFilters> | undefined,
+  widgetInput: ReportWidgetConfig,
+  restauranteId?: string
+): Promise<ReportWidgetResult> {
+  if (!isMetricSupportedForDimension(widgetInput.dimension, widgetInput.metric)) {
+    throw new Error('La métrica no es compatible con la dimensión seleccionada')
+  }
+  if (!isInventoryMetric(widgetInput.metric)) {
+    throw new Error('La métrica solicitada no pertenece a inventario')
+  }
+
+  const filters = normalizeReportFilters(filtersInput)
+  const fechaInicio = startOfDay(new Date(filters.fechaInicio))
+  const fechaFin = endOfDay(new Date(filters.fechaFin))
+  const rows = new Map<string, ReportRow>()
+  const totals = emptyTotals()
+  const db = prisma as any
+
+  if (widgetInput.metric === 'inventarioBajo') {
+    const articulos = await db.inventarioArticulo.findMany({
+      where: {
+        ...(restauranteId ? { restauranteId } : {}),
+        activo: true,
+        stockMinimo: { gt: 0 },
+      },
+      select: {
+        id: true,
+        nombre: true,
+        stockActual: true,
+        stockMinimo: true,
+      },
+      orderBy: [{ stockActual: 'asc' }, { nombre: 'asc' }],
+      take: 500,
+    })
+    const articulosBajos = articulos
+      .filter((articulo: any) => articulo.stockActual <= articulo.stockMinimo)
+      .slice(0, Math.max(1, widgetInput.limit || 20))
+
+    totals.inventarioBajo = articulosBajos.length
+    if (widgetInput.dimension === 'none') {
+      rows.set('total', {
+        key: 'total',
+        label: 'Total',
+        value: articulosBajos.length,
+        metrics: { ...totals },
+      })
+    } else {
+      for (const articulo of articulosBajos) {
+        const metrics = emptyTotals()
+        metrics.inventarioBajo = 1
+        rows.set(articulo.id, {
+          key: articulo.id,
+          label: `${articulo.nombre} (${articulo.stockActual}/${articulo.stockMinimo})`,
+          value: 1,
+          metrics,
+        })
+      }
+    }
+
+    return rowsToWidgetResult(widgetInput, Array.from(rows.values()), totals)
+  }
+
+  const movimientos = await db.inventarioMovimiento.findMany({
+    where: {
+      ...(restauranteId ? { restauranteId } : {}),
+      createdAt: { gte: fechaInicio, lte: fechaFin },
+    },
+    select: {
+      id: true,
+      articulo: {
+        select: {
+          id: true,
+          nombre: true,
+        },
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 500,
+  })
+
+  totals.inventarioMovimientos = movimientos.length
+  if (widgetInput.dimension === 'none') {
+    rows.set('total', {
+      key: 'total',
+      label: 'Total',
+      value: movimientos.length,
+      metrics: { ...totals },
+    })
+  } else {
+    for (const movimiento of movimientos) {
+      const key = movimiento.articulo?.id || 'sin_articulo'
+      const current = rows.get(key)
+      if (current) {
+        current.metrics.inventarioMovimientos += 1
+        current.value = current.metrics.inventarioMovimientos
+        continue
+      }
+
+      const metrics = emptyTotals()
+      metrics.inventarioMovimientos = 1
+      rows.set(key, {
+        key,
+        label: movimiento.articulo?.nombre || 'Sin artículo',
+        value: 1,
+        metrics,
+      })
+    }
+  }
+
+  return rowsToWidgetResult(widgetInput, Array.from(rows.values()), totals)
+}
+
+export async function aggregateTimingWidgetData(
+  filtersInput: Partial<ReportFilters> | undefined,
+  widgetInput: ReportWidgetConfig,
+  restauranteId?: string
+): Promise<ReportWidgetResult> {
+  if (!isMetricSupportedForDimension(widgetInput.dimension, widgetInput.metric)) {
+    throw new Error('La métrica no es compatible con la dimensión seleccionada')
+  }
+  if (!isTimingMetric(widgetInput.metric)) {
+    throw new Error('La métrica solicitada no pertenece a tiempos')
+  }
+
+  const filters = normalizeReportFilters(filtersInput)
+  const fechaInicio = startOfDay(new Date(filters.fechaInicio))
+  const fechaFin = endOfDay(new Date(filters.fechaFin))
+  const db = prisma as any
+
+  const eventos = await db.itemTiempoEvento.findMany({
+    where: {
+      ...(restauranteId ? { restauranteId } : {}),
+      tipo: { in: ['EN_PREPARACION', 'LISTO'] },
+      occurredAt: { gte: fechaInicio, lte: fechaFin },
+    },
+    select: {
+      tipo: true,
+      occurredAt: true,
+      comandaItemId: true,
+      producto: {
+        select: {
+          id: true,
+          nombre: true,
+        },
+      },
+      kdsSeccion: {
+        select: {
+          id: true,
+          nombre: true,
+        },
+      },
+    },
+    orderBy: { occurredAt: 'asc' },
+    take: 2000,
+  })
+
+  if (eventos.length === 0) return buildEmptyWidgetResult(widgetInput)
+
+  const porItem = new Map<
+    string,
+    {
+      productoId: string
+      productoLabel: string
+      kdsSeccionId: string
+      kdsSeccionLabel: string
+      eventos: EventoTiempoLite[]
+    }
+  >()
+
+  for (const evento of eventos) {
+    if (!evento.comandaItemId) continue
+    const fallback: {
+      productoId: string
+      productoLabel: string
+      kdsSeccionId: string
+      kdsSeccionLabel: string
+      eventos: EventoTiempoLite[]
+    } = {
+      productoId: evento.producto?.id || 'sin_producto',
+      productoLabel: evento.producto?.nombre || 'Sin producto',
+      kdsSeccionId: evento.kdsSeccion?.id || 'sin_seccion',
+      kdsSeccionLabel: evento.kdsSeccion?.nombre || 'Sin sección KDS',
+      eventos: [],
+    }
+    const current =
+      porItem.get(evento.comandaItemId) ||
+      fallback
+    current.eventos.push({
+      tipo: evento.tipo,
+      occurredAt: evento.occurredAt,
+    })
+    porItem.set(evento.comandaItemId, current)
+  }
+
+  const accum = new Map<string, { label: string; totalMs: number; count: number }>()
+  let totalMs = 0
+  let totalCount = 0
+
+  for (const item of porItem.values()) {
+    const duracionMs = calcularDuracionPreparacionMs(item.eventos)
+    if (duracionMs === null) continue
+
+    const key =
+      widgetInput.dimension === 'producto'
+        ? item.productoId
+        : widgetInput.dimension === 'kdsSeccion'
+          ? item.kdsSeccionId
+          : 'total'
+    const label =
+      widgetInput.dimension === 'producto'
+        ? item.productoLabel
+        : widgetInput.dimension === 'kdsSeccion'
+          ? item.kdsSeccionLabel
+          : 'Total'
+
+    const current = accum.get(key) || { label, totalMs: 0, count: 0 }
+    current.totalMs += duracionMs
+    current.count += 1
+    accum.set(key, current)
+    totalMs += duracionMs
+    totalCount += 1
+  }
+
+  const totals = emptyTotals()
+  totals.tiempoPreparacionPromedio = totalCount > 0 ? totalMs / totalCount / 60000 : 0
+
+  const rows = Array.from(accum.entries()).map(([key, item]) => {
+    const metrics = emptyTotals()
+    metrics.tiempoPreparacionPromedio = item.count > 0 ? item.totalMs / item.count / 60000 : 0
+    return {
+      key,
+      label: item.label,
+      value: metrics.tiempoPreparacionPromedio,
+      metrics,
+    }
+  })
+
+  return rowsToWidgetResult(widgetInput, rows, totals)
 }
 
 export function aggregateWidgetData(
