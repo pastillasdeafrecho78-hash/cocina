@@ -8,6 +8,7 @@ import {
   requireCapability,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
+import { registrarEventoItemSeguro } from '@/lib/tiempos/eventos'
 
 const addItemsSchema = z.object({
   items: z.array(
@@ -167,7 +168,7 @@ export async function POST(
     const nuevoTotal = totalAnterior + subtotalNuevos
 
     for (const item of comandaItems) {
-      await prisma.comandaItem.create({
+      const created = await prisma.comandaItem.create({
         data: {
           comandaId: params.id,
           productoId: item.productoId,
@@ -185,6 +186,16 @@ export async function POST(
             })),
           },
         },
+      })
+      await registrarEventoItemSeguro({
+        restauranteId: tenant.restauranteId,
+        comandaId: params.id,
+        comandaItemId: created.id,
+        productoId: created.productoId,
+        usuarioId: user.id,
+        tipo: 'ENTRADA',
+        estadoNuevo: 'PENDIENTE',
+        metadata: { destino: item.destino, numeroRonda },
       })
     }
 

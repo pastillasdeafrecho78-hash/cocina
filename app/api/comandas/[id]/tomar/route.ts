@@ -6,6 +6,7 @@ import {
   requireAuthenticatedUser,
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
+import { registrarEventoItemSeguro } from '@/lib/tiempos/eventos'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,7 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
         estado: true,
         asignadoAId: true,
         asignadoA: { select: { id: true, nombre: true, apellido: true } },
+        items: { select: { id: true, productoId: true } },
       },
     })
 
@@ -83,6 +85,19 @@ export async function POST(_request: NextRequest, { params }: { params: { id: st
         usuarioId: user.id,
       },
     })
+
+    await Promise.all(
+      comanda.items.map((item) =>
+        registrarEventoItemSeguro({
+          restauranteId: tenant.restauranteId,
+          comandaId: comanda.id,
+          comandaItemId: item.id,
+          productoId: item.productoId,
+          usuarioId: user.id,
+          tipo: 'TOMADO',
+        })
+      )
+    )
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error) {

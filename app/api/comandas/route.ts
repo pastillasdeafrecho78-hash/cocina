@@ -11,6 +11,7 @@ import {
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 import { isUserWithinWorkSchedule } from '@/lib/pedidos-cliente-capacidad-policy'
+import { registrarEventoItemSeguro } from '@/lib/tiempos/eventos'
 
 const prismaKds = prisma as any
 
@@ -368,6 +369,37 @@ export async function POST(request: NextRequest) {
         entidadId: comanda.id,
       },
     })
+
+    await Promise.all(
+      comanda.items.map((item: any) =>
+        Promise.all([
+          registrarEventoItemSeguro({
+            restauranteId: rid,
+            comandaId: comanda.id,
+            comandaItemId: item.id,
+            productoId: item.productoId,
+            kdsSeccionId: item.producto?.kdsSeccionId ?? null,
+            usuarioId: user.id,
+            tipo: 'ENTRADA',
+            estadoNuevo: 'PENDIENTE',
+            metadata: { destino: item.destino, origen: 'STAFF_DASHBOARD' },
+          }),
+          item.estado === 'LISTO'
+            ? registrarEventoItemSeguro({
+                restauranteId: rid,
+                comandaId: comanda.id,
+                comandaItemId: item.id,
+                productoId: item.productoId,
+                kdsSeccionId: item.producto?.kdsSeccionId ?? null,
+                usuarioId: user.id,
+                tipo: 'LISTO',
+                estadoNuevo: 'LISTO',
+                metadata: { listoPorDefault: true },
+              })
+            : Promise.resolve(),
+        ])
+      )
+    )
 
     return NextResponse.json({
       success: true,

@@ -84,6 +84,14 @@ enum EstadoItem {
   ENTREGADO
 }
 
+enum TipoEventoItem {
+  ENTRADA
+  TOMADO
+  EN_PREPARACION
+  LISTO
+  ENTREGADO
+}
+
 enum DestinoItem {
   COCINA
   BARRA
@@ -160,6 +168,7 @@ model Restaurante {
   mesas                    Mesa[]
   clientes                 Cliente[]
   comandas                 Comanda[]
+  itemTiempoEventos        ItemTiempoEvento[]
   reembolsos               Reembolso[]
   categorias               Categoria[]
   kdsSecciones             KdsSeccion[]
@@ -214,6 +223,7 @@ model Usuario {
   historialComandas ComandaHistorial[] @relation("ComandaHistorialUsuario")
   auditoria         Auditoria[]        @relation("AuditoriaUsuario")
   reembolsos        Reembolso[]
+  itemTiempoEventos ItemTiempoEvento[]
   solicitudesRevisadas SolicitudPedido[] @relation("SolicitudPedidoRevisadaPor")
   colaboracionesComanda ComandaColaborador[]
   cortesX           CorteX[]
@@ -419,6 +429,7 @@ model Comanda {
   colaboradores ComandaColaborador[]
   pagos     Pago[]
   reembolsos Reembolso[]
+  itemTiempoEventos ItemTiempoEvento[]
   facturas  Factura[]
   solicitudesOrigen SolicitudPedido[] @relation("SolicitudPedidoComanda")
 
@@ -482,6 +493,7 @@ model KdsSeccion {
 
   restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
   productos   Producto[]
+  itemTiempoEventos ItemTiempoEvento[]
 
   @@unique([restauranteId, slug])
   @@index([restauranteId, activa])
@@ -510,6 +522,7 @@ model Producto {
   kdsSeccion       KdsSeccion?           @relation(fields: [kdsSeccionId], references: [id], onDelete: SetNull)
   items            ComandaItem[]
   solicitudItems   SolicitudPedidoItem[]
+  itemTiempoEventos ItemTiempoEvento[]
   modificadores    ModificadorProducto[]
   tamanos          ProductoTamano[]
   facturaConceptos FacturaConcepto[]
@@ -624,12 +637,42 @@ model ComandaItem {
   tamano        ProductoTamano?   @relation(fields: [tamanoId], references: [id], onDelete: SetNull)
   modificadores ItemModificador[]
   pagosLinea    PagoLinea[]
+  tiempoEventos ItemTiempoEvento[]
 
   @@index([comandaId])
   @@index([estado])
   @@index([destino])
   @@index([productoId])
   @@index([createdAt])
+}
+
+model ItemTiempoEvento {
+  id             String         @id @default(cuid())
+  restauranteId  String
+  comandaId      String
+  comandaItemId  String?
+  productoId     String?
+  kdsSeccionId   String?
+  usuarioId      String?
+  tipo           TipoEventoItem
+  estadoPrevio   EstadoItem?
+  estadoNuevo    EstadoItem?
+  occurredAt     DateTime       @default(now())
+  metadata       Json?
+
+  restaurante Restaurante  @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  comanda     Comanda      @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  comandaItem ComandaItem? @relation(fields: [comandaItemId], references: [id], onDelete: SetNull)
+  producto    Producto?    @relation(fields: [productoId], references: [id], onDelete: SetNull)
+  kdsSeccion  KdsSeccion?  @relation(fields: [kdsSeccionId], references: [id], onDelete: SetNull)
+  usuario     Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([restauranteId, occurredAt])
+  @@index([comandaId, occurredAt])
+  @@index([comandaItemId, occurredAt])
+  @@index([productoId, occurredAt])
+  @@index([kdsSeccionId, occurredAt])
+  @@index([tipo, occurredAt])
 }
 
 model ItemModificador {

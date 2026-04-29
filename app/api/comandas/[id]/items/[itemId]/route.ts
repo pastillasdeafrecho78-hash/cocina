@@ -9,6 +9,7 @@ import {
 } from '@/lib/authz/guards'
 import { raise, toErrorResponse } from '@/lib/authz/http'
 import type { SessionUser } from '@/lib/auth-server'
+import { registrarEventoItemSeguro, tipoEventoParaEstado } from '@/lib/tiempos/eventos'
 
 const updateItemSchema = z.object({
   estado: z.enum(['PENDIENTE', 'EN_PREPARACION', 'LISTO', 'ENTREGADO']),
@@ -82,6 +83,19 @@ export async function PATCH(
       },
     })
 
+    await registrarEventoItemSeguro({
+      restauranteId: tenant.restauranteId,
+      comandaId: params.id,
+      comandaItemId: item.id,
+      productoId: item.productoId,
+      kdsSeccionId: (item.producto as any).kdsSeccionId ?? null,
+      usuarioId: user.id,
+      tipo: tipoEventoParaEstado(estado),
+      estadoPrevio: item.estado,
+      estadoNuevo: estado,
+      metadata: { destino: item.destino },
+    })
+
     // Sincronizar estado de comanda según items
     const comanda = await prisma.comanda.findFirst({
       where: { id: params.id, restauranteId: tenant.restauranteId },
@@ -141,8 +155,6 @@ export async function PATCH(
     )
   }
 }
-
-
 
 
 
