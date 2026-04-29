@@ -2,11 +2,14 @@ import { prisma } from '@/lib/prisma'
 
 const METODOS_EFECTIVO = ['efectivo', 'efectivo_pago']
 const METODOS_TARJETA = ['tarjeta_credito', 'tarjeta_debito', 'stripe', 'tarjeta_clip']
+const prismaCaja = prisma as any
 
 export interface ReporteCaja {
   fechaInicio: Date
   fechaFin: Date
   totalVentas: number
+  totalReembolsos: number
+  totalNeto: number
   totalEfectivo: number
   totalTarjeta: number
   totalOtros: number
@@ -33,7 +36,7 @@ export async function calcularReportePeriodo(
   fechaFin: Date,
   restauranteId: string
 ): Promise<ReporteCaja> {
-  const comandas = await prisma.comanda.findMany({
+  const comandas = await prismaCaja.comanda.findMany({
     where: {
       restauranteId,
       estado: 'PAGADO',
@@ -46,12 +49,15 @@ export async function calcularReportePeriodo(
       ],
     },
     include: {
-      pagos: { where: { estado: 'COMPLETADO' } },
+      pagos: {
+        where: { estado: 'COMPLETADO' },
+        include: { reembolsos: true },
+      },
       mesa: true,
     },
   })
 
-  const totalVentas = comandas.reduce((sum, c) => {
+  const totalVentas = comandas.reduce((sum: number, c: any) => {
     const total = c.total || 0
     const propina = ((c.propina || 0) / 100) * total
     const descuento = c.descuento || 0
@@ -61,30 +67,40 @@ export async function calcularReportePeriodo(
   let totalEfectivo = 0
   let totalTarjeta = 0
   let totalOtros = 0
+  let totalReembolsos = 0
 
   for (const comanda of comandas) {
     for (const pago of comanda.pagos) {
       const monto = pago.monto || 0
+      const reembolsado = pago.reembolsos.reduce(
+        (sum: number, reembolso: { monto: number }) => sum + (reembolso.monto || 0),
+        0
+      )
+      const montoNeto = Math.max(0, monto - reembolsado)
+      totalReembolsos += reembolsado
       const metodo = (pago.metodoPago || '').toLowerCase()
       if (METODOS_EFECTIVO.some((m) => metodo.includes(m))) {
-        totalEfectivo += monto
+        totalEfectivo += montoNeto
       } else if (METODOS_TARJETA.some((m) => metodo.includes(m))) {
-        totalTarjeta += monto
+        totalTarjeta += montoNeto
       } else {
-        totalOtros += monto
+        totalOtros += montoNeto
       }
     }
   }
+  const totalNeto = Math.max(0, totalVentas - totalReembolsos)
 
   return {
     fechaInicio,
     fechaFin,
     totalVentas,
+    totalReembolsos,
+    totalNeto,
     totalEfectivo,
     totalTarjeta,
     totalOtros,
     numComandas: comandas.length,
-    comandas: comandas.map((c) => ({
+    comandas: comandas.map((c: any) => ({
       id: c.id,
       numeroComanda: c.numeroComanda,
       total: c.total,

@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { obtenerConfiguracion } from '@/lib/configuracion-restaurante'
 import { getPaymentProvider } from '@/lib/payments'
 
+const prismaReembolsos = prisma as any
+
 /**
  * POST /api/webhooks/conekta
  * Webhook para recibir notificaciones de Conekta sobre pagos
@@ -44,7 +46,10 @@ export async function POST(request: NextRequest) {
       console.warn('Webhook secret no configurado, permitiendo en desarrollo')
     }
 
-    const event = JSON.parse(payload) as { type: string; data?: { object?: { id?: string } } }
+    const event = JSON.parse(payload) as {
+      type: string
+      data?: { object?: { id?: string; amount?: number; refund?: { amount?: number } } }
+    }
 
     if (event.type === 'charge.paid') {
       const provider = getPaymentProvider('conekta')
@@ -70,20 +75,32 @@ export async function POST(request: NextRequest) {
 /**
  * Procesa un pago reembolsado (Conekta)
  */
-async function procesarPagoReembolsado(charge: { id?: string } | undefined) {
+async function procesarPagoReembolsado(
+  charge: { id?: string; amount?: number; refund?: { amount?: number } } | undefined
+) {
   if (!charge?.id) return
-  const pago = await prisma.pago.findFirst({
+  const pago = await prismaReembolsos.pago.findFirst({
     where: {
       procesadorId: charge.id,
-    }
+    },
+    include: { reembolsos: true, comanda: { select: { restauranteId: true } } },
   })
 
   if (pago) {
-    await prisma.pago.update({
-      where: { id: pago.id },
+    const montoProveedor = (charge.refund?.amount ?? charge.amount ?? pago.monto * 100) / 100
+    const yaRegistrado = pago.reembolsos.some((r: { procesadorId: string | null }) => r.procesadorId === charge.id)
+    if (yaRegistrado) return
+
+    await prismaReembolsos.reembolso.create({
       data: {
-        estado: 'CANCELADO',
-      }
+        restauranteId: pago.comanda.restauranteId,
+        comandaId: pago.comandaId,
+        pagoId: pago.id,
+        tipo: 'PROVEEDOR_PAGO',
+        monto: Math.min(montoProveedor, pago.monto),
+        motivo: 'Reembolso confirmado por Conekta',
+        procesadorId: charge.id,
+      },
     })
   }
 }

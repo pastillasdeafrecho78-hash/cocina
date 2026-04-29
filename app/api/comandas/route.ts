@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
     }
 
     const [comandas, total] = await Promise.all([
-      prisma.comanda.findMany({
+      prismaKds.comanda.findMany({
         where,
         include: {
           mesa: true,
@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
             ? {
                 pagos: {
                   orderBy: { createdAt: 'asc' as const },
-                  include: { lineas: true },
+                  include: { lineas: true, reembolsos: true },
                 },
               }
             : {}),

@@ -8,6 +8,8 @@ import {
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 
+const prismaCaja = prisma as any
+
 /**
  * POST /api/caja/corte-x
  * Corte X: reporte temporal. NO reinicia la caja.
@@ -33,11 +35,13 @@ export async function POST(request: NextRequest) {
       fechaCreacion: c.fechaCreacion.toISOString(),
     }))
 
-    const corteX = await prisma.corteX.create({
+    const corteX = await prismaCaja.corteX.create({
       data: {
         restauranteId: tenant.restauranteId,
         usuarioId: user.id,
         totalVentas: reporte.totalVentas,
+        totalReembolsos: reporte.totalReembolsos,
+        totalNeto: reporte.totalNeto,
         totalEfectivo: reporte.totalEfectivo,
         totalTarjeta: reporte.totalTarjeta,
         totalOtros: reporte.totalOtros,
@@ -64,6 +68,8 @@ export async function POST(request: NextRequest) {
           fechaInicio: reporte.fechaInicio,
           fechaFin: reporte.fechaFin,
           totalVentas: reporte.totalVentas,
+          totalReembolsos: reporte.totalReembolsos,
+          totalNeto: reporte.totalNeto,
           totalEfectivo: reporte.totalEfectivo,
           totalTarjeta: reporte.totalTarjeta,
           totalOtros: reporte.totalOtros,

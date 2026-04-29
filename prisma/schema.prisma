@@ -155,6 +155,7 @@ model Restaurante {
   mesas                    Mesa[]
   clientes                 Cliente[]
   comandas                 Comanda[]
+  reembolsos               Reembolso[]
   categorias               Categoria[]
   kdsSecciones             KdsSeccion[]
   inventarioArticulos      InventarioArticulo[]
@@ -207,6 +208,7 @@ model Usuario {
   comandasCanceladas Comanda[]         @relation("ComandaCanceladaPor")
   historialComandas ComandaHistorial[] @relation("ComandaHistorialUsuario")
   auditoria         Auditoria[]        @relation("AuditoriaUsuario")
+  reembolsos        Reembolso[]
   solicitudesRevisadas SolicitudPedido[] @relation("SolicitudPedidoRevisadaPor")
   colaboracionesComanda ComandaColaborador[]
   cortesX           CorteX[]
@@ -408,6 +410,7 @@ model Comanda {
   historial ComandaHistorial[]
   colaboradores ComandaColaborador[]
   pagos     Pago[]
+  reembolsos Reembolso[]
   facturas  Factura[]
   solicitudesOrigen SolicitudPedido[] @relation("SolicitudPedidoComanda")
 
@@ -937,6 +940,11 @@ enum EstadoPago {
   CANCELADO
 }
 
+enum TipoReembolso {
+  OPERATIVO_CAJA
+  PROVEEDOR_PAGO
+}
+
 model Pago {
   id           String     @id @default(cuid())
   comandaId    String
@@ -954,6 +962,7 @@ model Pago {
   comanda Comanda  @relation(fields: [comandaId], references: [id], onDelete: Cascade)
   factura Factura?
   lineas  PagoLinea[]
+  reembolsos Reembolso[]
 
   @@index([comandaId])
   @@index([estado])
@@ -974,9 +983,37 @@ model PagoLinea {
 
   pago          Pago         @relation(fields: [pagoId], references: [id], onDelete: Cascade)
   comandaItem   ComandaItem  @relation(fields: [comandaItemId], references: [id], onDelete: Restrict)
+  reembolsos    Reembolso[]
 
   @@index([pagoId])
   @@index([comandaItemId])
+}
+
+model Reembolso {
+  id             String        @id @default(cuid())
+  restauranteId  String
+  comandaId      String
+  pagoId         String
+  pagoLineaId    String?
+  tipo           TipoReembolso
+  monto          Float
+  motivo         String
+  referencia     String?
+  procesadorId   String?
+  usuarioId      String?
+  createdAt      DateTime      @default(now())
+
+  restaurante Restaurante @relation(fields: [restauranteId], references: [id], onDelete: Cascade)
+  comanda     Comanda     @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  pago        Pago        @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  pagoLinea   PagoLinea?  @relation(fields: [pagoLineaId], references: [id], onDelete: SetNull)
+  usuario     Usuario?    @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@index([restauranteId, createdAt])
+  @@index([comandaId])
+  @@index([pagoId])
+  @@index([pagoLineaId])
+  @@index([procesadorId])
 }
 
 model Factura {
@@ -1100,6 +1137,8 @@ model CorteX {
   usuarioId String
 
   totalVentas   Float @default(0)
+  totalReembolsos Float @default(0)
+  totalNeto     Float @default(0)
   totalEfectivo Float @default(0)
   totalTarjeta  Float @default(0)
   totalOtros    Float @default(0)
@@ -1139,6 +1178,8 @@ model CorteZ {
   usuarioId String
 
   totalVentas   Float @default(0)
+  totalReembolsos Float @default(0)
+  totalNeto     Float @default(0)
   totalEfectivo Float @default(0)
   totalTarjeta  Float @default(0)
   totalOtros    Float @default(0)

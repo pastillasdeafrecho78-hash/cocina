@@ -17,11 +17,16 @@ import ClipCajaSection from './ClipCajaSection'
 import FondoCajaSection from './FondoCajaSection'
 
 type TabId = 'resumen' | 'clip' | 'fondo'
+const REEMBOLSOS_CAJA =
+  process.env.NEXT_PUBLIC_REEMBOLSOS_CAJA === '1' ||
+  process.env.NEXT_PUBLIC_REEMBOLSOS_CAJA === 'true'
 
 interface ReporteData {
   fechaInicio: string
   fechaFin: string
   totalVentas: number
+  totalReembolsos?: number
+  totalNeto?: number
   totalEfectivo: number
   totalTarjeta: number
   totalOtros: number
@@ -216,11 +221,16 @@ export default function CajaPage() {
           <div className="app-card-muted p-4">
             <div className="flex items-center gap-2 text-stone-600 dark:text-stone-400 text-sm mb-1">
               <DocumentTextIcon className="w-5 h-5 shrink-0" />
-              Ventas totales
+              Ventas brutas
             </div>
             <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">
               ${(reporte?.totalVentas ?? 0).toFixed(2)}
             </div>
+            {REEMBOLSOS_CAJA && (
+              <div className="mt-1 text-xs text-rose-600">
+                Reembolsos: -${(reporte?.totalReembolsos ?? 0).toFixed(2)}
+              </div>
+            )}
           </div>
           <div className="app-card-muted border-l-4 border-l-emerald-500 p-4 dark:border-l-emerald-400">
             <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 text-sm mb-1">
@@ -241,12 +251,18 @@ export default function CajaPage() {
             </div>
           </div>
           <div className="app-card-muted p-4">
-            <div className="text-stone-600 dark:text-stone-400 text-sm mb-1">Comandas en el periodo</div>
+            <div className="text-stone-600 dark:text-stone-400 text-sm mb-1">
+              {REEMBOLSOS_CAJA ? 'Ventas netas' : 'Comandas en el periodo'}
+            </div>
             <div className="text-2xl font-bold text-stone-900 dark:text-stone-50">
-              {(reporte?.numComandas ?? 0)}
+              {REEMBOLSOS_CAJA
+                ? `$${(reporte?.totalNeto ?? reporte?.totalVentas ?? 0).toFixed(2)}`
+                : (reporte?.numComandas ?? 0)}
             </div>
             <div className="mt-1 text-xs text-stone-500 dark:text-stone-400">
-              Otros cobros: ${(reporte?.totalOtros ?? 0).toFixed(2)}
+              {REEMBOLSOS_CAJA
+                ? `Comandas: ${reporte?.numComandas ?? 0} · Otros: $${(reporte?.totalOtros ?? 0).toFixed(2)}`
+                : `Otros cobros: $${(reporte?.totalOtros ?? 0).toFixed(2)}`}
             </div>
           </div>
         </div>

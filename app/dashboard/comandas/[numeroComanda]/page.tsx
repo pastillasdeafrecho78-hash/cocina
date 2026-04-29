@@ -10,6 +10,10 @@ import { ComandaAsignacionIndicator } from '@/components/ComandaAsignacionIndica
 import SepararCuentaWizard from '@/components/SepararCuentaWizard'
 import { sumPagosCompletadosMonto, totalComandaCobrar } from '@/lib/split-cuenta'
 
+const REEMBOLSOS_CAJA =
+  process.env.NEXT_PUBLIC_REEMBOLSOS_CAJA === '1' ||
+  process.env.NEXT_PUBLIC_REEMBOLSOS_CAJA === 'true'
+
 interface Comanda {
   id: string
   numeroComanda: string
@@ -59,6 +63,7 @@ interface Comanda {
     estado: string
     monto: number
     lineas?: { comandaItemId: string; cantidad: number }[]
+    reembolsos?: { id: string; monto: number; motivo: string; createdAt: string }[]
   }>
 }
 
@@ -93,6 +98,10 @@ export default function ComandaDetallePage() {
   const [myUserId, setMyUserId] = useState<string | null>(null)
   const [tomandoComanda, setTomandoComanda] = useState(false)
   const [separarCuentaOpen, setSepararCuentaOpen] = useState(false)
+  const [reembolsoPagoId, setReembolsoPagoId] = useState('')
+  const [reembolsoMonto, setReembolsoMonto] = useState('')
+  const [reembolsoMotivo, setReembolsoMotivo] = useState('')
+  const [registrandoReembolso, setRegistrandoReembolso] = useState(false)
 
   useEffect(() => {
     void (async () => {
@@ -205,6 +214,45 @@ export default function ComandaDetallePage() {
     })
     const paid = sumPagosCompletadosMonto(c.pagos ?? [])
     return Math.max(0, Math.round((totalDue - paid) * 100) / 100)
+  }
+
+  const totalReembolsadoPago = (pago: { reembolsos?: { monto: number }[] }) =>
+    Math.round((pago.reembolsos ?? []).reduce((sum, r) => sum + (r.monto || 0), 0) * 100) / 100
+
+  const handleRegistrarReembolso = async () => {
+    if (!comanda) return
+    const monto = parseFloat(reembolsoMonto.replace(/,/g, '.'))
+    if (!reembolsoPagoId || !Number.isFinite(monto) || monto <= 0 || !reembolsoMotivo.trim()) {
+      toast.error('Selecciona pago, monto y motivo')
+      return
+    }
+    setRegistrandoReembolso(true)
+    try {
+      const response = await apiFetch('/api/reembolsos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pagoId: reembolsoPagoId,
+          tipo: 'OPERATIVO_CAJA',
+          monto,
+          motivo: reembolsoMotivo.trim(),
+        }),
+      })
+      const data = await response.json()
+      if (!data.success) {
+        toast.error(data.error || 'No se pudo registrar reembolso')
+        return
+      }
+      toast.success('Reembolso registrado')
+      setReembolsoPagoId('')
+      setReembolsoMonto('')
+      setReembolsoMotivo('')
+      await fetchComanda()
+    } catch {
+      toast.error('No se pudo registrar reembolso')
+    } finally {
+      setRegistrandoReembolso(false)
+    }
   }
 
   const handleCobrarEfectivo = async () => {
@@ -798,6 +846,67 @@ export default function ComandaDetallePage() {
         </div>
       )}
 
+      {REEMBOLSOS_CAJA && comanda.estado === 'PAGADO' && (comanda.pagos?.length ?? 0) > 0 && (
+        <div className="app-card mb-6 p-6">
+          <h2 className="mb-2 text-xl font-semibold text-stone-900">Reembolsos</h2>
+          <p className="mb-4 text-sm text-stone-600">
+            Registra devoluciones sin modificar el pago original. El corte de caja mostrará ventas brutas, reembolsos y neto.
+          </p>
+          <div className="grid gap-3 md:grid-cols-4">
+            <select
+              value={reembolsoPagoId}
+              onChange={(event) => setReembolsoPagoId(event.target.value)}
+              className="app-input app-field"
+            >
+              <option value="">Pago a reembolsar</option>
+              {(comanda.pagos ?? [])
+                .filter((pago) => pago.estado === 'COMPLETADO')
+                .map((pago) => {
+                  const reembolsado = totalReembolsadoPago(pago)
+                  return (
+                    <option key={pago.id} value={pago.id}>
+                      ${pago.monto.toFixed(2)} · disponible ${(pago.monto - reembolsado).toFixed(2)}
+                    </option>
+                  )
+                })}
+            </select>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={reembolsoMonto}
+              onChange={(event) => setReembolsoMonto(event.target.value)}
+              className="app-input app-field"
+              placeholder="Monto"
+            />
+            <input
+              type="text"
+              value={reembolsoMotivo}
+              onChange={(event) => setReembolsoMotivo(event.target.value)}
+              className="app-input app-field"
+              placeholder="Motivo"
+            />
+            <button
+              type="button"
+              onClick={handleRegistrarReembolso}
+              disabled={registrandoReembolso}
+              className="app-btn-primary rounded-xl px-4 py-2 disabled:opacity-60"
+            >
+              {registrandoReembolso ? 'Registrando...' : 'Registrar'}
+            </button>
+          </div>
+          <div className="mt-4 space-y-2">
+            {(comanda.pagos ?? []).flatMap((pago) =>
+              (pago.reembolsos ?? []).map((reembolso) => (
+                <div key={reembolso.id} className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
+                  -${reembolso.monto.toFixed(2)} · {reembolso.motivo} ·{' '}
+                  {new Date(reembolso.createdAt).toLocaleString('es-MX')}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {comanda.estado !== 'PAGADO' && comanda.estado !== 'CANCELADO' && (
         <div className="app-card mb-6 border-rose-200 bg-rose-50/40 p-6">
           <h2 className="mb-2 text-xl font-semibold text-rose-900">Cancelar comanda</h2>
@@ -859,10 +968,6 @@ export default function ComandaDetallePage() {
     </div>
   )
 }
-
-
-
-
 
 
 
