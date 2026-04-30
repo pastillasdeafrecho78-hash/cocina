@@ -4,8 +4,6 @@ import { useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react
 import { useRouter } from 'next/navigation'
 import BackButton from '@/components/BackButton'
 import toast from 'react-hot-toast'
-import { quantize, dequantize, type Point } from '@/lib/utils/polygonUtils'
-import { useIMUTracking } from '@/lib/hooks/useIMUTracking'
 import { apiFetch } from '@/lib/auth-fetch'
 import { getMesaPixelSize, normalizeMesaLayout, type FormaMesaLayout } from '@/lib/mesas/layout'
 
@@ -57,6 +55,10 @@ const estadoColors = {
   RESERVADA: '#3b82f6', // blue
 }
 
+const FIT_PADDING_PX = 96
+const FIT_MIN_SCALE = 0.45
+const FIT_MAX_SCALE = 1.35
+
 export default function PlantaMesasPage() {
   const router = useRouter()
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -70,8 +72,8 @@ export default function PlantaMesasPage() {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [guardando, setGuardando] = useState(false)
   const [planta, setPlanta] = useState<Planta | null>(null)
-  const [mesaConSensores, setMesaConSensores] = useState<string | null>(null)
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 })
+  const didInitialFitRef = useRef(false)
 
   const touchStateRef = useRef<{
     active: boolean
@@ -85,29 +87,76 @@ export default function PlantaMesasPage() {
   } | null>(null)
   const offsetScaleRef = useRef({ offset: { x: 0, y: 0 }, escala: 1 })
 
-  // Hook para tracking con sensores
-  const {
-    isTracking,
-    currentPosition,
-    heading,
-    startTracking,
-    stopTracking,
-    resetPosition,
-  } = useIMUTracking()
-
   // Tamaño de celda de la cuadrícula (en píxeles del canvas)
   const GRID_CELL_SIZE = 50 // píxeles por celda
   const CELL_SIZE_M = planta?.cellSizeM || 1.0 // metros por celda
 
-  // Dimensiones del canvas basadas en la planta o valores por defecto
-  const CANVAS_WIDTH = planta?.widthM ? (planta.widthM / CELL_SIZE_M) * GRID_CELL_SIZE : 1000
-  const CANVAS_HEIGHT = planta?.heightM ? (planta.heightM / CELL_SIZE_M) * GRID_CELL_SIZE : 800
+  // Dimensiones del canvas basadas en planta, mesas y viewport. La grilla debe cubrir el área útil visible.
+  const BASE_CANVAS_WIDTH = planta?.widthM ? (planta.widthM / CELL_SIZE_M) * GRID_CELL_SIZE : 1000
+  const BASE_CANVAS_HEIGHT = planta?.heightM ? (planta.heightM / CELL_SIZE_M) * GRID_CELL_SIZE : 800
+  const CANVAS_WIDTH = Math.max(
+    BASE_CANVAS_WIDTH,
+    containerSize.width / Math.max(escala, 0.1),
+    ...mesas.map((mesa) => mesa.x + GRID_CELL_SIZE * 6)
+  )
+  const CANVAS_HEIGHT = Math.max(
+    BASE_CANVAS_HEIGHT,
+    containerSize.height / Math.max(escala, 0.1),
+    ...mesas.map((mesa) => mesa.y + GRID_CELL_SIZE * 6)
+  )
 
   // Origen (0,0) en el centro del viewport: plano cartesiano para navegar en todas direcciones
   const contentOriginX =
     containerSize.width > 0 ? containerSize.width / 2 - CANVAS_WIDTH / 2 + offset.x : offset.x
   const contentOriginY =
     containerSize.height > 0 ? containerSize.height / 2 - CANVAS_HEIGHT / 2 + offset.y : offset.y
+
+  const getMesaRenderSize = useCallback(
+    (mesa: Pick<MesaEnCanvas, 'ancho' | 'alto'>) =>
+      MESAS_LAYOUT_AVANZADO
+        ? getMesaPixelSize({ ancho: mesa.ancho, alto: mesa.alto, cellSize: GRID_CELL_SIZE })
+        : { width: GRID_CELL_SIZE, height: GRID_CELL_SIZE },
+    [GRID_CELL_SIZE]
+  )
+
+  const fitPlanoToMesas = useCallback(() => {
+    if (containerSize.width <= 0 || containerSize.height <= 0 || mesas.length === 0) return false
+
+    const bounds = mesas.reduce(
+      (acc, mesa) => {
+        const size = getMesaRenderSize(mesa)
+        return {
+          minX: Math.min(acc.minX, mesa.x),
+          minY: Math.min(acc.minY, mesa.y),
+          maxX: Math.max(acc.maxX, mesa.x + size.width),
+          maxY: Math.max(acc.maxY, mesa.y + size.height),
+        }
+      },
+      { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+    )
+
+    const boundsWidth = Math.max(GRID_CELL_SIZE, bounds.maxX - bounds.minX)
+    const boundsHeight = Math.max(GRID_CELL_SIZE, bounds.maxY - bounds.minY)
+    const availableWidth = Math.max(GRID_CELL_SIZE, containerSize.width - FIT_PADDING_PX * 2)
+    const availableHeight = Math.max(GRID_CELL_SIZE, containerSize.height - FIT_PADDING_PX * 2)
+    const nextScale = Math.max(
+      FIT_MIN_SCALE,
+      Math.min(FIT_MAX_SCALE, availableWidth / boundsWidth, availableHeight / boundsHeight)
+    )
+
+    setEscala(nextScale)
+    setOffset({
+      x:
+        FIT_PADDING_PX -
+        (containerSize.width / 2 - CANVAS_WIDTH / 2) -
+        bounds.minX * nextScale,
+      y:
+        FIT_PADDING_PX -
+        (containerSize.height / 2 - CANVAS_HEIGHT / 2) -
+        bounds.minY * nextScale,
+    })
+    return true
+  }, [CANVAS_HEIGHT, CANVAS_WIDTH, GRID_CELL_SIZE, containerSize, getMesaRenderSize, mesas])
 
   useLayoutEffect(() => {
     const el = canvasRef.current
@@ -172,6 +221,11 @@ export default function PlantaMesasPage() {
     fetchMesas()
     fetchPlanta()
   }, [])
+
+  useEffect(() => {
+    if (loading || didInitialFitRef.current) return
+    didInitialFitRef.current = fitPlanoToMesas()
+  }, [fitPlanoToMesas, loading])
 
   const fetchPlanta = async () => {
     try {
@@ -540,56 +594,6 @@ export default function PlantaMesasPage() {
     )
   }
 
-  // Usar sensores para posicionar mesa
-  const activarSensoresParaMesa = useCallback((mesaId: string) => {
-    if (!isTracking) {
-      resetPosition()
-      startTracking()
-      toast.success('Sensores activados. Camina hasta la posición deseada y presiona "Colocar Mesa"')
-    }
-    setMesaConSensores(mesaId)
-  }, [isTracking, startTracking, resetPosition])
-
-  const colocarMesaConSensores = useCallback(() => {
-    if (!mesaConSensores) return
-
-    // Convertir posición en metros a píxeles del canvas
-    // Asumimos que el origen (0,0) está en el centro o esquina del canvas
-    const bounds = planta?.vertices ? {
-      minX: Math.min(...planta.vertices.map(v => v.x)),
-      minY: Math.min(...planta.vertices.map(v => v.y)),
-    } : { minX: 0, minY: 0 }
-
-    // Convertir metros a celdas, luego a píxeles
-    const cellPos = quantize(currentPosition, CELL_SIZE_M)
-    const pixelX = (cellPos.x - bounds.minX) * GRID_CELL_SIZE
-    const pixelY = (cellPos.y - bounds.minY) * GRID_CELL_SIZE
-
-    // Alinear a la cuadrícula
-    const alignedX = Math.round(pixelX / GRID_CELL_SIZE) * GRID_CELL_SIZE
-    const alignedY = Math.round(pixelY / GRID_CELL_SIZE) * GRID_CELL_SIZE
-
-    // Limitar dentro del canvas
-    const finalX = Math.max(0, Math.min(CANVAS_WIDTH - GRID_CELL_SIZE, alignedX))
-    const finalY = Math.max(0, Math.min(CANVAS_HEIGHT - GRID_CELL_SIZE, alignedY))
-
-    setMesas((prev) =>
-      prev.map((m) =>
-        m.id === mesaConSensores
-          ? {
-              ...m,
-              x: finalX,
-              y: finalY,
-            }
-          : m
-      )
-    )
-
-    toast.success(`Mesa colocada en celda (${cellPos.x}, ${cellPos.y})`)
-    setMesaConSensores(null)
-    stopTracking()
-  }, [mesaConSensores, currentPosition, planta, stopTracking, CELL_SIZE_M, GRID_CELL_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT])
-
   offsetScaleRef.current = { offset, escala }
 
   // Trackpad: solo pinch (ctrl/meta) = zoom. Dos dedos en cualquier dirección = pan.
@@ -746,9 +750,7 @@ export default function PlantaMesasPage() {
             }}
           >
             {mesas.map((mesa) => {
-              const size = MESAS_LAYOUT_AVANZADO
-                ? getMesaPixelSize({ ancho: mesa.ancho, alto: mesa.alto, cellSize: GRID_CELL_SIZE })
-                : { width: GRID_CELL_SIZE, height: GRID_CELL_SIZE }
+              const size = getMesaRenderSize(mesa)
               const isCircular = MESAS_LAYOUT_AVANZADO && mesa.forma === 'CIRCULAR'
 
               return (
@@ -914,34 +916,6 @@ export default function PlantaMesasPage() {
                   </>
                 )
               })()}
-              <button
-                onClick={() => activarSensoresParaMesa(mesaSeleccionada)}
-                className="px-2 py-1 bg-purple-600 text-white rounded text-sm font-semibold hover:bg-purple-700"
-              >
-                📱 Sensores
-              </button>
-              {mesaConSensores === mesaSeleccionada && isTracking && (
-                <>
-                  <span className="text-xs text-gray-700">
-                    ({currentPosition.x.toFixed(1)}, {currentPosition.y.toFixed(1)})m
-                  </span>
-                  <button
-                    onClick={colocarMesaConSensores}
-                    className="px-2 py-1 bg-green-600 text-white rounded text-sm font-semibold hover:bg-green-700"
-                  >
-                    ✓ Colocar
-                  </button>
-                  <button
-                    onClick={() => {
-                      stopTracking()
-                      setMesaConSensores(null)
-                    }}
-                    className="px-2 py-1 rounded text-sm font-semibold bg-white/90 text-gray-800 hover:bg-white border border-gray-200"
-                  >
-                    ✕
-                  </button>
-                </>
-              )}
             </div>
           )}
         </div>
@@ -950,16 +924,18 @@ export default function PlantaMesasPage() {
             {Math.round(escala * 100)}%
           </span>
           <button
+            onClick={() => {
+              if (!fitPlanoToMesas()) toast('No hay mesas activas para encuadrar')
+            }}
+            className="px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm bg-white/90 text-gray-800 hover:bg-white"
+          >
+            ⛶ Encuadrar
+          </button>
+          <button
             onClick={() => router.push('/dashboard/mesas/status')}
             className="px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm bg-white/90 text-gray-800 hover:bg-white"
           >
             📋 Estado
-          </button>
-          <button
-            onClick={() => router.push('/dashboard/mesas/mapeo')}
-            className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-semibold shadow-sm hover:bg-purple-700"
-          >
-            🗺️ Mapear
           </button>
         </div>
       </header>
