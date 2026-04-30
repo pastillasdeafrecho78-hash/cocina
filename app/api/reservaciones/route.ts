@@ -87,6 +87,51 @@ async function pickAvailableMesa(input: {
   return null
 }
 
+async function findReservableMesa(input: {
+  restauranteId: string
+  mesaId: string
+  partySize: number
+}) {
+  const mesa = await prisma.mesa.findFirst({
+    where: {
+      id: input.mesaId,
+      restauranteId: input.restauranteId,
+      activa: true,
+    },
+    select: { id: true, capacidad: true },
+  })
+  if (!mesa) {
+    return { ok: false as const, status: 404, error: 'Mesa no encontrada' }
+  }
+  if (mesa.capacidad < input.partySize) {
+    return {
+      ok: false as const,
+      status: 409,
+      error: 'La mesa no tiene capacidad suficiente para la reservacion',
+    }
+  }
+  return { ok: true as const, mesa }
+}
+
+async function existsReservationOverlap(input: {
+  restauranteId: string
+  mesaId: string
+  reservedFor: Date
+  durationMinutes: number
+}) {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    select "id"
+    from "Reservacion"
+    where "restauranteId" = ${input.restauranteId}
+      and "mesaId" = ${input.mesaId}
+      and "status" in (${Prisma.join(ACTIVE_STATUSES)})
+      and "reservedFor" < ${new Date(input.reservedFor.getTime() + input.durationMinutes * 60_000)}
+      and ("reservedFor" + make_interval(mins => "durationMinutes")) > ${input.reservedFor}
+    limit 1
+  `)
+  return Boolean(rows[0])
+}
+
 export async function GET(request: NextRequest) {
   try {
     await ensureReservationsTable()
@@ -157,7 +202,25 @@ export async function POST(request: NextRequest) {
     }
 
     let mesaId = body.mesaId ?? null
-    if (!mesaId) {
+    if (mesaId) {
+      const mesa = await findReservableMesa({
+        restauranteId: tenant.restauranteId,
+        mesaId,
+        partySize: body.partySize,
+      })
+      if (!mesa.ok) {
+        return NextResponse.json({ success: false, error: mesa.error }, { status: mesa.status })
+      }
+      const hasConflict = await existsReservationOverlap({
+        restauranteId: tenant.restauranteId,
+        mesaId,
+        reservedFor,
+        durationMinutes: body.durationMinutes,
+      })
+      if (hasConflict) {
+        return NextResponse.json({ success: false, error: 'La mesa no esta disponible en ese horario' }, { status: 409 })
+      }
+    } else {
       const picked = await pickAvailableMesa({
         restauranteId: tenant.restauranteId,
         partySize: body.partySize,

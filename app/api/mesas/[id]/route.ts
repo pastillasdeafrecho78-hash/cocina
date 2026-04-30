@@ -28,11 +28,22 @@ export async function PATCH(
 ) {
   try {
     const user = await requireAuthenticatedUser()
-    requireAnyCapability(user, ['tables.view', 'tables.manage', 'mesas', 'comandas', 'orders.manage'])
     const tenant = requireActiveTenant(user)
 
     const body = await request.json()
     const data = updateMesaSchema.parse(body)
+    const changesLayout =
+      data.piso !== undefined ||
+      data.posicionX !== undefined ||
+      data.posicionY !== undefined ||
+      data.rotacion !== undefined ||
+      data.forma !== undefined ||
+      data.ancho !== undefined ||
+      data.alto !== undefined
+    requireAnyCapability(
+      user,
+      changesLayout ? ['tables.manage', 'mesas'] : ['tables.manage', 'mesas', 'orders.manage']
+    )
 
     const existente = await prismaMesas.mesa.findFirst({
       where: { id: params.id, restauranteId: tenant.restauranteId },
@@ -123,8 +134,6 @@ export async function DELETE(
     return toErrorResponse(error, 'Error interno del servidor', 'Error en DELETE /api/mesas/[id]:')
   }
 }
-
-
 
 
 

@@ -32,7 +32,7 @@ const createPlantaSchema = z.object({
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuthenticatedUser()
-    requireAnyCapability(user, ['tables.view', 'mesas', 'comandas', 'reportes', 'caja'])
+    requireAnyCapability(user, ['tables.view', 'mesas'])
     const tenant = requireActiveTenant(user)
 
     const plantas = await prisma.plantaRestaurante.findMany({

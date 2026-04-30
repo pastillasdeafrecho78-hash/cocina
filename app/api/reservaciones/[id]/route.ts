@@ -69,6 +69,32 @@ async function existsOverlap(input: {
   return Boolean(rows[0])
 }
 
+async function findReservableMesa(input: {
+  restauranteId: string
+  mesaId: string
+  partySize: number
+}) {
+  const mesa = await prisma.mesa.findFirst({
+    where: {
+      id: input.mesaId,
+      restauranteId: input.restauranteId,
+      activa: true,
+    },
+    select: { id: true, capacidad: true },
+  })
+  if (!mesa) {
+    return { ok: false as const, status: 404, error: 'Mesa no encontrada' }
+  }
+  if (mesa.capacidad < input.partySize) {
+    return {
+      ok: false as const,
+      status: 409,
+      error: 'La mesa no tiene capacidad suficiente para la reservacion',
+    }
+  }
+  return { ok: true as const, mesa }
+}
+
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     await ensureReservationsTable()
@@ -117,9 +143,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
         status: string
         reservedFor: Date
         durationMinutes: number
+        partySize: number
       }>
     >(Prisma.sql`
-      select "id","restauranteId","ownerUserId","mesaId","status","reservedFor","durationMinutes"
+      select "id","restauranteId","ownerUserId","mesaId","status","reservedFor","durationMinutes","partySize"
       from "Reservacion"
       where "id" = ${id}
       limit 1
@@ -146,6 +173,14 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
     const nextDuration = body.durationMinutes ?? current.durationMinutes
     const nextMesaId = typeof body.mesaId !== 'undefined' ? body.mesaId : current.mesaId
     if (nextMesaId) {
+      const mesa = await findReservableMesa({
+        restauranteId: tenant.restauranteId,
+        mesaId: nextMesaId,
+        partySize: current.partySize,
+      })
+      if (!mesa.ok) {
+        return NextResponse.json({ success: false, error: mesa.error }, { status: mesa.status })
+      }
       const hasConflict = await existsOverlap({
         restauranteId: tenant.restauranteId,
         reservationId: current.id,
