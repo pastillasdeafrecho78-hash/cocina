@@ -14,6 +14,7 @@ const COMPACT_ENTER_THRESHOLD = 64
 const COMPACT_EXIT_THRESHOLD = 28
 const SCROLL_JITTER_PX = 4
 const TOGGLE_COOLDOWN_MS = 180
+const HEADER_HIDDEN_STORAGE_KEY = 'servimos.dashboard.headerHidden'
 const INVENTARIO_MVP =
   process.env.NEXT_PUBLIC_INVENTARIO_MVP === '1' ||
   process.env.NEXT_PUBLIC_INVENTARIO_MVP === 'true'
@@ -32,6 +33,7 @@ export default function DashboardLayout({
   const [user, setUser] = useState<any>(null)
   const [checking, setChecking] = useState(true)
   const [headerCompact, setHeaderCompact] = useState(false)
+  const [headerHidden, setHeaderHidden] = useState(false)
   const [tenantData, setTenantData] = useState<{
     activeOrganizacionId?: string | null
     activeRestauranteId?: string | null
@@ -78,8 +80,23 @@ export default function DashboardLayout({
     headerCompactRef.current = headerCompact
   }, [headerCompact])
 
+  useEffect(() => {
+    setHeaderHidden(localStorage.getItem(HEADER_HIDDEN_STORAGE_KEY) === '1')
+  }, [])
+
+  const updateHeaderHidden = useCallback((hidden: boolean) => {
+    setHeaderHidden(hidden)
+    localStorage.setItem(HEADER_HIDDEN_STORAGE_KEY, hidden ? '1' : '0')
+  }, [])
+
+
   const checkScroll = useCallback(() => {
     if (typeof window === 'undefined') return
+    if (headerHidden) {
+      setHeaderCompact(false)
+      lastScrollYRef.current = window.scrollY ?? 0
+      return
+    }
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT
     if (!isMobile) {
       setHeaderCompact(false)
@@ -114,7 +131,7 @@ export default function DashboardLayout({
       setHeaderCompact(true)
       lastToggleAtRef.current = now
     }
-  }, [])
+  }, [headerHidden])
 
   useEffect(() => {
     checkScroll()
@@ -322,94 +339,111 @@ export default function DashboardLayout({
 
   return (
     <div className="app-shell">
-      <header className={`app-header-shell sticky top-0 z-20 transition-all duration-300 ease-out ${headerCompact ? 'xl:py-4' : ''}`}>
-        <div
-          className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:flex-wrap xl:items-center xl:justify-start xl:gap-x-6 xl:gap-y-3 transition-all duration-300 ${headerCompact ? 'gap-2 py-2 xl:gap-x-6 xl:gap-y-2 xl:py-4' : 'gap-4 py-4'}`}
+      {headerHidden ? (
+        <button
+          type="button"
+          onClick={() => updateHeaderHidden(false)}
+          className="fixed left-4 top-4 z-40 rounded-full border border-stone-300 bg-white/90 px-4 py-2 text-sm font-semibold text-stone-800 shadow-lg backdrop-blur hover:bg-white dark:border-stone-700 dark:bg-stone-950/90 dark:text-stone-100 dark:hover:bg-stone-900"
+          aria-pressed="true"
         >
+          Mostrar header
+        </button>
+      ) : (
+        <header className={`app-header-shell sticky top-0 z-20 transition-all duration-300 ease-out ${headerCompact ? 'xl:py-4' : ''}`}>
           <div
-            className={`flex min-w-0 max-w-[min(100%,620px)] shrink-0 items-center transition-all duration-300`}
+            className={`mx-auto flex max-w-7xl flex-col px-4 sm:px-6 lg:px-8 xl:flex-row xl:flex-wrap xl:items-center xl:justify-start xl:gap-x-6 xl:gap-y-3 transition-all duration-300 ${headerCompact ? 'gap-2 py-2 xl:gap-x-6 xl:gap-y-2 xl:py-4' : 'gap-4 py-4'}`}
           >
-            <div className="shrink-0">
-              <BrandLogo
-                size={headerCompact ? 'sm' : 'lg'}
-                priority
-                className={
-                  headerCompact
-                    ? 'h-11 w-40 xl:h-[84px] xl:w-[340px] xl:max-w-[min(46vw,360px)]'
-                    : 'h-[88px] w-[340px] max-w-[min(46vw,360px)] xl:h-[96px] xl:w-[380px] xl:max-w-[min(50vw,400px)]'
-                }
-              />
+            <div
+              className={`flex min-w-0 max-w-[min(100%,620px)] shrink-0 items-center transition-all duration-300`}
+            >
+              <div className="shrink-0">
+                <BrandLogo
+                  size={headerCompact ? 'sm' : 'lg'}
+                  priority
+                  className={
+                    headerCompact
+                      ? 'h-11 w-40 xl:h-[84px] xl:w-[340px] xl:max-w-[min(46vw,360px)]'
+                      : 'h-[88px] w-[340px] max-w-[min(46vw,360px)] xl:h-[96px] xl:w-[380px] xl:max-w-[min(50vw,400px)]'
+                  }
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center gap-2 justify-start">
-            <ThemeToggle />
-            {tenantData && tenantData.branches.length > 1 && (
-              <div className="flex flex-wrap items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs text-stone-700 shadow-sm dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-200">
-                {tenantData.organizations.length > 1 && (
+            <div className="flex min-h-[44px] min-w-0 flex-1 flex-wrap items-center gap-2 justify-start">
+              <ThemeToggle />
+              {tenantData && tenantData.branches.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-full border border-stone-200 bg-white/80 px-3 py-1.5 text-xs text-stone-700 shadow-sm dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-200">
+                  {tenantData.organizations.length > 1 && (
+                    <label className="flex items-center gap-2">
+                      <span className="font-semibold">Organización</span>
+                      <select
+                        className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-800 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
+                        value={selectedOrgId}
+                        disabled={switchingBranch}
+                        onChange={(e) => {
+                          const nextOrgId = e.target.value
+                          setSelectedOrgId(nextOrgId)
+                          void handleSwitchContext({ organizacionId: nextOrgId })
+                        }}
+                      >
+                        {tenantData.organizations.map((org) => (
+                          <option key={org.organizacionId} value={org.organizacionId}>
+                            {org.organizacionNombre}
+                            {org.esOwner ? ' (owner)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
                   <label className="flex items-center gap-2">
-                    <span className="font-semibold">Organización</span>
+                    <span className="font-semibold">Sucursal</span>
                     <select
                       className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-800 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
-                      value={selectedOrgId}
+                      value={tenantData.current?.restauranteId ?? ''}
                       disabled={switchingBranch}
-                      onChange={(e) => {
-                        const nextOrgId = e.target.value
-                        setSelectedOrgId(nextOrgId)
-                        void handleSwitchContext({ organizacionId: nextOrgId })
-                      }}
+                      onChange={(e) => void handleSwitchContext({ restauranteId: e.target.value })}
                     >
-                      {tenantData.organizations.map((org) => (
-                        <option key={org.organizacionId} value={org.organizacionId}>
-                          {org.organizacionNombre}
-                          {org.esOwner ? ' (owner)' : ''}
+                      {visibleBranches.map((branch) => (
+                        <option key={branch.restauranteId} value={branch.restauranteId}>
+                          {branch.restauranteNombre}
+                          {branch.esPrincipal ? ' (principal)' : ''}
                         </option>
                       ))}
                     </select>
                   </label>
-                )}
-                <label className="flex items-center gap-2">
-                  <span className="font-semibold">Sucursal</span>
-                  <select
-                    className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-800 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-100"
-                    value={tenantData.current?.restauranteId ?? ''}
-                    disabled={switchingBranch}
-                    onChange={(e) => void handleSwitchContext({ restauranteId: e.target.value })}
-                  >
-                    {visibleBranches.map((branch) => (
-                      <option key={branch.restauranteId} value={branch.restauranteId}>
-                        {branch.restauranteNombre}
-                        {branch.esPrincipal ? ' (principal)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            )}
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href} className="app-chip hover:border-amber-300 hover:bg-amber-50">
-                {item.label}
-              </Link>
-            ))}
-            <button
-              type="button"
-              onClick={() => {
-                void clearSession().then(() => router.push('/login'))
-              }}
-              className="app-btn-danger"
-            >
-              Cerrar sesión
-            </button>
+                </div>
+              )}
+              {navItems.map((item) => (
+                <Link key={item.href} href={item.href} className="app-chip hover:border-amber-300 hover:bg-amber-50">
+                  {item.label}
+                </Link>
+              ))}
+              <button
+                type="button"
+                onClick={() => updateHeaderHidden(true)}
+                className="app-chip border-stone-300 text-stone-700 hover:border-stone-500 hover:bg-stone-100 dark:border-stone-700 dark:text-stone-200 dark:hover:border-stone-500 dark:hover:bg-stone-800"
+                aria-pressed="false"
+              >
+                Ocultar header
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void clearSession().then(() => router.push('/login'))
+                }}
+                className="app-btn-danger"
+              >
+                Cerrar sesión
+              </button>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+      )}
 
       <main>{children}</main>
     </div>
   )
 }
-
-
 
 
 
