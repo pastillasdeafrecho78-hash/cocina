@@ -31,7 +31,7 @@ function dimensionToPx(value: number | null | undefined, fallback: number) {
 export default function MesasSpatialView({ mesas, onMesaClick }: MesasSpatialViewProps) {
   if (!MESAS_LAYOUT_AVANZADO) {
     return (
-      <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-8 text-amber-900">
+      <div className="rounded-[28px] border border-amber-200 bg-amber-50 p-8 text-amber-900 dark:border-amber-800/70 dark:bg-amber-950/35 dark:text-amber-100">
         Activa <code>NEXT_PUBLIC_MESAS_LAYOUT_AVANZADO=1</code> y redeploy para ver el plano
         espacial.
       </div>
@@ -40,16 +40,16 @@ export default function MesasSpatialView({ mesas, onMesaClick }: MesasSpatialVie
 
   if (mesas.length === 0) {
     return (
-      <div className="rounded-[28px] border border-dashed border-stone-300 bg-white/70 p-10 text-center text-stone-500">
+      <div className="rounded-[28px] border border-dashed border-stone-300 bg-white/70 p-10 text-center text-stone-500 dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-300">
         No hay mesas activas para dibujar en el plano.
       </div>
     )
   }
 
   return (
-    <div className="overflow-hidden rounded-[32px] border border-stone-200 bg-[radial-gradient(circle_at_top_left,#fff7ed,transparent_35%),linear-gradient(135deg,#fafaf9,#e7e5e4)] p-4 shadow-sm">
-      <div className="relative h-[560px] min-h-[460px] rounded-[24px] border border-stone-300 bg-white/55">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(120,113,108,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,113,108,0.12)_1px,transparent_1px)] bg-[size:48px_48px]" />
+    <div className="overflow-hidden rounded-[32px] border border-stone-200 bg-[radial-gradient(circle_at_top_left,#fff7ed,transparent_35%),linear-gradient(135deg,#fafaf9,#e7e5e4)] p-4 shadow-sm dark:border-stone-700 dark:bg-[radial-gradient(circle_at_top_left,rgba(251,146,60,0.16),transparent_35%),linear-gradient(135deg,#1c1917,#0c0a09)]">
+      <div className="relative h-[560px] min-h-[460px] rounded-[24px] border border-stone-300 bg-white/55 dark:border-stone-700 dark:bg-stone-950/70">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(120,113,108,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(120,113,108,0.12)_1px,transparent_1px)] bg-[size:48px_48px] dark:bg-[linear-gradient(to_right,rgba(214,211,209,0.09)_1px,transparent_1px),linear-gradient(to_bottom,rgba(214,211,209,0.09)_1px,transparent_1px)]" />
         {mesas.map((mesa, index) => {
           const fallbackX = 10 + (index % 5) * 18
           const fallbackY = 12 + Math.floor(index / 5) * 22

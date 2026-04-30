@@ -91,15 +91,15 @@ export default function MesasPage() {
       <div className="mx-auto max-w-7xl space-y-6">
         <BackButton />
 
-        <section className="overflow-hidden rounded-[36px] border border-stone-200 bg-white shadow-sm">
-          <div className="bg-[radial-gradient(circle_at_top_left,#fed7aa,transparent_35%),linear-gradient(135deg,#fffaf0,#f5f5f4)] p-6 sm:p-8">
+        <section className="overflow-hidden rounded-[36px] border border-stone-200 bg-white shadow-sm dark:border-stone-700 dark:bg-stone-950/70">
+          <div className="bg-[radial-gradient(circle_at_top_left,#fed7aa,transparent_35%),linear-gradient(135deg,#fffaf0,#f5f5f4)] p-6 dark:bg-[radial-gradient(circle_at_top_left,rgba(251,146,60,0.22),transparent_38%),linear-gradient(135deg,#1c1917,#0c0a09)] sm:p-8">
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="app-kicker">Mesas</p>
-                <h1 className="mt-2 text-3xl font-semibold text-stone-950 sm:text-4xl">
+                <h1 className="mt-2 text-3xl font-semibold text-stone-950 dark:text-stone-50 sm:text-4xl">
                   Operación por lista o por plano
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm text-stone-600">
+                <p className="mt-2 max-w-2xl text-sm text-stone-600 dark:text-stone-300">
                   La lista mantiene el flujo rápido actual. El plano muestra forma, tamaño y
                   posición por sucursal para preparar el producto móvil sin romper operación.
                 </p>
@@ -108,22 +108,22 @@ export default function MesasPage() {
             </div>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl bg-white/75 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Total</p>
-                <p className="mt-1 text-2xl font-semibold text-stone-950">{stats.total}</p>
+              <div className="rounded-2xl bg-white/75 p-4 dark:bg-stone-900/75">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">Total</p>
+                <p className="mt-1 text-2xl font-semibold text-stone-950 dark:text-stone-50">{stats.total}</p>
               </div>
-              <div className="rounded-2xl bg-white/75 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Libres</p>
-                <p className="mt-1 text-2xl font-semibold text-emerald-700">{stats.libres}</p>
+              <div className="rounded-2xl bg-white/75 p-4 dark:bg-stone-900/75">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">Libres</p>
+                <p className="mt-1 text-2xl font-semibold text-emerald-700 dark:text-emerald-300">{stats.libres}</p>
               </div>
-              <div className="rounded-2xl bg-white/75 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Con comanda</p>
-                <p className="mt-1 text-2xl font-semibold text-orange-700">{stats.ocupadas}</p>
+              <div className="rounded-2xl bg-white/75 p-4 dark:bg-stone-900/75">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500 dark:text-stone-400">Con comanda</p>
+                <p className="mt-1 text-2xl font-semibold text-orange-700 dark:text-orange-300">{stats.ocupadas}</p>
               </div>
             </div>
           </div>
 
-          <div className="space-y-5 p-5 sm:p-6">
+          <div className="space-y-5 bg-white p-5 dark:bg-stone-950/70 sm:p-6">
             <div className="flex flex-wrap gap-2">
               <Link href="/dashboard/mesas/status" className="app-btn-secondary">
                 Estado avanzado
@@ -137,11 +137,11 @@ export default function MesasPage() {
             </div>
 
             {loading ? (
-              <div className="rounded-[28px] bg-stone-100 p-10 text-center text-stone-500">
+              <div className="rounded-[28px] bg-stone-100 p-10 text-center text-stone-500 dark:bg-stone-900 dark:text-stone-300">
                 Cargando mesas...
               </div>
             ) : error ? (
-              <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 text-red-700">
+              <div className="rounded-[28px] border border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-200">
                 {error}
               </div>
             ) : view === 'lista' ? (

@@ -12,7 +12,7 @@ interface MesasListViewProps {
 export default function MesasListView({ currentUserId, mesas, onMesaClick }: MesasListViewProps) {
   if (mesas.length === 0) {
     return (
-      <div className="rounded-[28px] border border-dashed border-stone-300 bg-white/70 p-10 text-center text-stone-500">
+      <div className="rounded-[28px] border border-dashed border-stone-300 bg-white/70 p-10 text-center text-stone-500 dark:border-stone-700 dark:bg-stone-900/70 dark:text-stone-300">
         No hay mesas activas en esta sucursal.
       </div>
     )
