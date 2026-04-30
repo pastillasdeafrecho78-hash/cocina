@@ -10,6 +10,10 @@ import {
 } from '@/lib/authz/guards'
 import { toErrorResponse } from '@/lib/authz/http'
 import { normalizeMesaLayout } from '@/lib/mesas/layout'
+import {
+  findMesaByNumeroForTenant,
+  mesaNumeroConflictMessage,
+} from '@/lib/mesas/tenant'
 
 export const dynamic = 'force-dynamic'
 const prismaMesas = prisma as any
@@ -131,14 +135,15 @@ export async function POST(request: NextRequest) {
     })
 
     const rid = tenant.restauranteId
-    const mesaExistente = await prisma.mesa.findFirst({
-      where: { restauranteId: rid, numero: data.numero },
+    const mesaExistente = await findMesaByNumeroForTenant(prisma, {
+      restauranteId: rid,
+      numero: data.numero,
     })
 
     if (mesaExistente?.activa) {
       return NextResponse.json(
-        { success: false, error: 'Ya existe una mesa con ese número' },
-        { status: 400 }
+        { success: false, error: mesaNumeroConflictMessage(data.numero) },
+        { status: 409 }
       )
     }
 
@@ -199,8 +204,8 @@ export async function POST(request: NextRequest) {
       console.error('Error en POST /api/mesas [Prisma]', error.code, error.meta)
       if (error.code === 'P2002') {
         return NextResponse.json(
-          { success: false, error: 'Ya existe una mesa con ese número' },
-          { status: 400 }
+          { success: false, error: 'Ya existe una mesa con ese número en esta sucursal' },
+          { status: 409 }
         )
       }
       if (error.code === 'P2003') {
@@ -213,7 +218,6 @@ export async function POST(request: NextRequest) {
     return toErrorResponse(error, 'Error interno del servidor', 'Error en POST /api/mesas:')
   }
 }
-
 
 
 
